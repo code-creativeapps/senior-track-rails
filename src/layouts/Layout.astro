@@ -3,9 +3,10 @@ interface Props {
   title: string;
   description?: string;
   course?: string;
+  containerClass?: string;
 }
 
-const { title, description } = Astro.props;
+const { title, description, containerClass = 'max-w-4xl' } = Astro.props;
 
 const fullTitle = `${title} | Senior Track — RailsFullStack`;
 const desc = description || `${title} — Senior Track for Rails developers.`;
@@ -40,7 +41,7 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
   </head>
   <body class="bg-gray-50 text-gray-900 antialiased">
     <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <nav class="max-w-4xl mx-auto px-6 py-4">
+      <nav class={`${containerClass} mx-auto px-6 py-4`}>
         <div class="flex items-center justify-between">
           <a href="/" class="text-2xl font-bold text-ruby hover:text-ruby-dark transition-colors">
             Senior Track
@@ -60,7 +61,7 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
       <slot />
     </main>
     <footer class="bg-white border-t border-gray-200 mt-16">
-      <div class="max-w-4xl mx-auto px-6 py-8">
+      <div class={`${containerClass} mx-auto px-6 py-8`}>
         <p class="text-sm text-gray-500 text-center">
           Senior Track — RailsFullStack<br />
           Content Licensed Under CC-BY-NC-4.0 · Code Samples Under Apache 2.0
