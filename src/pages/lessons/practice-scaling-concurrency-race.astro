@@ -1,0 +1,76 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="What's wrong with this counter increment under load?" description="Practice card. Read-modify-write on a counter, classic race condition shape. Drills atomic updates.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Scaling · Card 6</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">What's wrong with this counter increment under load?</h1>
+      <p class="text-xl text-gray-600">Locally the test passes. In production the counter drifts off the real number over time. The code reads correct. The model is what fails.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">Tracking page views. Each visit calls this.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`def increment_views(post_id)
+  post = Post.find(post_id)
+  post.update!(views_count: post.views_count + 1)
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">Two requests for the same post arrive at the same millisecond. The final counter ends up at 1, not 2. Why?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'ActiveRecord swallows the second update silently when the value doesn\'t change.',
+              explanation: 'AR doesn\'t do that. Both updates would attempt to run; the issue is what they\'re writing.',
+            },
+            {
+              label: 'B',
+              text: 'Read-modify-write race. Both requests read the same starting value, both write that value + 1.',
+              explanation: 'Request A reads <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">views_count = 10</code>. Request B reads <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">views_count = 10</code> before A writes. A writes 11. B writes 11. The net is +1, not +2. The fix: use an atomic increment, e.g. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Post.where(id: id).update_all("views_count = views_count + 1")</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.increment!(:views_count)</code>.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: 'Postgres automatically locks the row when you call <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find</code>.',
+              explanation: 'Not unless you call <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.lock</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_by!(...).lock!</code>. A bare <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find</code> issues a regular SELECT with no lock.',
+            },
+            {
+              label: 'D',
+              text: 'The counter column hit MAX_INT.',
+              explanation: 'Wrong scale. We\'re going from 10 to 11, not approaching 2^31.',
+            },
+          ]}
+          principle={`<p>Any time your code reads a value, computes a new value from it, and writes the new value back, you have a read-modify-write window. If two processes can be inside that window for the same row at once, one of the writes is lost.</p><p>Two common fixes:</p><ul class="list-disc list-inside ml-4 space-y-1"><li><strong>Atomic SQL.</strong> <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">update_all("views_count = views_count + 1")</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">increment!</code> let the database do the math. No window.</li><li><strong>Optimistic locking.</strong> Add a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">lock_version</code> column; ActiveRecord raises <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">StaleObjectError</code> if someone else updated the row since you read it. You retry.</li></ul><p>The slow fix (don\'t reach for it first) is row-level pessimistic locking with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.lock</code>. It serializes everything that touches the row.</p>`}
+          theoryHref="/lessons/senior-scaling-concurrency"
+          theoryLabel="Scaling · The Concurrency Model"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-scaling-hot-row-contention" class="text-ruby hover:text-ruby-dark transition-colors">← Card 5</a>
+      <a href="/lessons/practice-scaling-background-jobs" class="text-ruby hover:text-ruby-dark transition-colors">Card 7 →</a>
+    </div>
+  </article>
+</Layout>

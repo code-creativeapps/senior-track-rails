@@ -1,0 +1,79 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="How many SQL writes does this loop fire?" description="Practice card. 'Each + update' on 100K records. Drills the Ruby loop vs SQL bulk operation distinction.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Scaling · Card 8</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">How many SQL writes does this loop fire?</h1>
+      <p class="text-xl text-gray-600">A cleanup task. 100,000 draft posts to mark published. The code reads like a one-liner. The database sees it differently.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A rake task to publish all draft posts older than a week.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`Post.where(status: "draft")
+    .where("created_at < ?", 1.week.ago)
+    .each do |post|
+  post.update(status: "published")
+end
+
+# Suppose this matches 100,000 posts.`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">For 100,000 matching posts, how many SQL UPDATE statements does this fire?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: '1 UPDATE.',
+              explanation: 'Only true if you use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">update_all</code>, which is the right fix. With <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.each { post.update(...) }</code>, Rails loads every record and saves each one individually.',
+            },
+            {
+              label: 'B',
+              text: '100,000 UPDATEs, plus 1 SELECT to load them all.',
+              explanation: '<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.each</code> on a Relation loads all 100,000 rows into memory at once (no batching by default), then runs <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.update</code> on each, which is one UPDATE per record, plus validation, plus callbacks. 100,000 round trips and 100,000 callback chains. The fix: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Post.where(...).update_all(status: "published")</code> for 1 UPDATE. Or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.find_each</code> if you need the callbacks but want batched memory.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: 'Rails automatically batches the updates into a single UPDATE under the hood.',
+              explanation: 'It doesn\'t. Rails could, but the way <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.update</code> on a record is designed (with validations, callbacks, dirty tracking), each update has to run separately.',
+            },
+            {
+              label: 'D',
+              text: 'Postgres collapses identical UPDATEs into one transaction.',
+              explanation: 'Postgres doesn\'t deduplicate or collapse statements. Each <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">UPDATE</code> hits the database as its own statement, even if they\'re inside a transaction.',
+            },
+          ]}
+          principle={`<p>Three different shapes for "update many records," all in Rails, all doing very different things:</p><ul class="list-disc list-inside ml-4 space-y-1"><li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.each { |p| p.update(...) }</code> — loads everything, N updates, runs validations + callbacks. Slow + memory-hungry.</li><li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.find_each(batch_size: 1000) { |p| p.update(...) }</code> — loads 1,000 at a time, N updates, callbacks still run. Slow but memory-safe.</li><li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.update_all(status: "published")</code> — one UPDATE statement in SQL. No validations. No callbacks. Fast.</li></ul><p>The choice depends on whether the validations and callbacks are doing work that matters per-record. For this case (a simple flag change), <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">update_all</code> is correct. For a case where each record needs to fire an after_save (e.g., emit an audit event), <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_each</code> is the middle ground.</p>`}
+          theoryHref="/lessons/senior-scaling-bulk-operations"
+          theoryLabel="Scaling · Bulk Operations & Memory"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-scaling-background-jobs" class="text-ruby hover:text-ruby-dark transition-colors">← Card 7</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Back to Course →</a>
+    </div>
+  </article>
+</Layout>
