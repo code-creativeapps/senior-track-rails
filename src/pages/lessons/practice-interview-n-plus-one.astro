@@ -1,10 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title='"How do you find and fix an N+1 query?"' description="Practice card. The most-asked Rails performance question. Drills the senior-quality answer.">
+<Layout title='"How do you find and fix N+1?"' description="Practice card. The most-asked Rails performance question. Form your answer, compare against the rubric.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -12,48 +11,98 @@ import MCQuiz from '../../components/MCQuiz.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Interview · Card 3</p>
       <h1 class="text-4xl font-bold text-ruby-dark mb-4">"How do you find and fix an N+1 query?"</h1>
-      <p class="text-xl text-gray-600">Every Rails interview asks this. The naive answer names <code class="bg-gray-100 px-2 py-1 rounded text-base">includes</code>. The senior answer is broader.</p>
+      <p class="text-xl text-gray-600">Every Rails interview asks this. The naive answer names <code class="bg-gray-100 px-2 py-1 rounded text-base">includes</code> and stops. The senior answer covers both halves of the question.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The question
+            <span class="text-gray-500">🎤</span> The question
           </h3>
-          <p class="text-gray-700 leading-relaxed">"You suspect a view has an N+1. How do you confirm it, and how do you fix it?" Which answer reads as senior?</p>
+          <blockquote class="border-l-4 border-ruby/40 pl-4 italic text-gray-700">
+            "You suspect a view has an N+1. How do you confirm it, and how do you fix it?"
+          </blockquote>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Your job</h3>
+          <p class="text-gray-700 leading-relaxed">The question has two halves. Most candidates answer only the fix. Form an answer that covers both — diagnosis and fix — with concrete tools named.</p>
         </div>
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <MCQuiz
-          options={[
-            {
-              label: 'A',
-              text: '"I\'d add <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.includes(:user)</code> to the query."',
-              explanation: 'A fix without a diagnosis. The interviewer asked "how do you find and fix." This skips the find. A senior names both halves.',
-            },
-            {
-              label: 'B',
-              text: '"I find it three ways: I install the Bullet gem in development, I read the dev log for repeating SELECT lines, or I use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_sql</code> to inspect the query I\'m sending. I fix it with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> by default, switching to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> if I need to filter on the association, or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code> if I want to avoid a giant LEFT JOIN result set. For collections big enough that loading them all is wasteful, I switch to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_each</code> with batched preloading."',
-              explanation: 'Names the diagnosis (three concrete tools), names the fix in detail (three variants with when to use each), and adds the bonus answer about large collections. This is the senior shape: tools + when to apply each.',
-              correct: true,
-            },
-            {
-              label: 'C',
-              text: '"I look at the database query logs and rewrite the SQL by hand."',
-              explanation: 'Possible, but skips the Rails-idiomatic tools and isn\'t what most Rails teams reach for first. Bullet, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code>, and rack-mini-profiler are the standard kit.',
-            },
-            {
-              label: 'D',
-              text: '"N+1 queries are rare in production; I usually don\'t need to worry about them."',
-              explanation: 'Wrong direction. N+1 is the single most common Rails performance bug; under-confidence here is a red flag.',
-            },
-          ]}
-          principle={`<p>Senior answers to "how do you do X" name <strong>both the diagnosis and the fix</strong>. Two thirds of candidates skip the diagnosis. Saying "first I confirm it\'s the bug I think it is" before saying "here\'s how I fix it" lands every time.</p><p>Bonus: name production tooling. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">rack-mini-profiler</code> in dev, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Bullet</code> in dev with a test-mode raise, query logs in production, APM (Skylight, New Relic, Datadog) for production aggregates. The interviewer hears these and knows you\'ve shipped real Rails apps.</p>`}
-          theoryHref="/lessons/senior-scaling-diagnose"
-          theoryLabel="Scaling · Diagnose Before You Scale"
-        />
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Name three ways you'd confirm the N+1. Then name three variants of the fix and when you'd pick each. Bonus: how would you measure it in production.
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the rubric →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The senior framing
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p><strong>Diagnose first.</strong> Three concrete ways:</p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li><strong>Bullet gem</strong> in development — raises (or logs) when an N+1 is detected.</li>
+                <li><strong>Read the dev log</strong> for repeating <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">SELECT</code> lines on the same table during one request.</li>
+                <li><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_sql</code></strong> on the relation to inspect the query Rails will send before it runs.</li>
+              </ul>
+              <p><strong>Fix.</strong> Three variants:</p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> as the default — Rails picks preload or eager_load.</li>
+                <li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> when you need to filter on the joined table.</li>
+                <li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code> when you specifically want two queries to avoid a giant JOIN result set.</li>
+              </ul>
+              <p>For collections too big to load at once, switch to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_each(batch_size: ...)</code> with batched preloading.</p>
+              <p><strong>Bonus signal:</strong> name APM tools (Skylight, New Relic, Datadog) for production aggregates. Says you've shipped real Rails apps.</p>
+            </div>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🚧</span> Junior framings that don't land
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>"I'd add <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.includes(:user)</code>."</strong> Fix without diagnosis. The interviewer asked how you'd <em>confirm</em> the N+1; this skips that half.</li>
+              <li><strong>"I look at logs and rewrite SQL by hand."</strong> Skips Rails-idiomatic tools. Bullet, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code>, and rack-mini-profiler are the standard kit.</li>
+              <li><strong>"N+1 queries are rare in production."</strong> Wrong direction. N+1 is the single most common Rails performance bug; under-confidence reads as a red flag.</li>
+              <li><strong>"I'd just use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code>."</strong> A common mistake. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> filters by the association but doesn't load it, so accessing the joined record still N+1s.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> What the rubric scores
+            </h3>
+            <ul class="space-y-2 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>Two halves answered.</strong> Diagnose + fix, not just fix.</li>
+              <li><strong>Specific tools named.</strong> Bullet, rack-mini-profiler, the dev log, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_sql</code>.</li>
+              <li><strong>Variant awareness.</strong> Not just "use includes" but knowing when to switch to eager_load / preload / find_each.</li>
+              <li><strong>Production framing.</strong> APM, query logs, real measurements.</li>
+            </ul>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Full walkthrough at <a href="/lessons/senior-scaling-diagnose" class="text-ruby hover:text-ruby-dark font-medium">Scaling · Diagnose Before You Scale</a> and <a href="/lessons/senior-eager-loading" class="text-ruby hover:text-ruby-dark font-medium">Eager Loading</a>.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -62,4 +111,19 @@ import MCQuiz from '../../components/MCQuiz.astro';
       <a href="/lessons/practice-interview-sidekiq-solid" class="text-ruby hover:text-ruby-dark transition-colors">Card 4 →</a>
     </div>
   </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
 </Layout>

@@ -1,10 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title="The user lands on /success. The code marks the order paid. What's wrong?" description="Practice card. The classic 'trust the redirect' bug. Drills async confirmation.">
+<Layout title="The user lands on /success. The code marks the order paid. What's wrong?" description="Practice card. The classic 'trust the redirect' bug. Form your answer, compare against the rubric.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -37,39 +36,78 @@ end`} language="ruby" />
 
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
-          <p class="text-gray-700 leading-relaxed">The intent: "after the user pays at Stripe, they redirect to this URL, and we mark them paid." The user finds an edge case where they get access without the money clearing. What's the bug?</p>
+          <p class="text-gray-700 leading-relaxed">The intent: "after the user pays at Stripe, they redirect to this URL, and we mark them paid." A user finds an edge case where they get access without the money clearing. What's the bug, and how would you fix it?</p>
         </div>
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <MCQuiz
-          options={[
-            {
-              label: 'A',
-              text: 'The mailer should be sent before the access is granted.',
-              explanation: 'Reordering side effects doesn\'t address the root issue. The deeper problem is that the order is being marked paid based on the redirect arriving, not on the payment actually clearing.',
-            },
-            {
-              label: 'B',
-              text: 'The order is marked paid based on the user reaching this URL, not on the payment actually succeeding. The redirect is a UX signal, not a payment confirmation.',
-              explanation: 'The redirect proves only that the user\'s browser made it back to your site. It doesn\'t prove the payment cleared. A user can hit this URL by sharing it, by being redirected back from an aborted 3DS challenge, or by an attacker crafting the URL. The mark-paid logic belongs in the webhook handler (signed, server-to-server). The redirect should land on a status page that polls or uses Turbo Streams to react when the webhook flips the status.',
-              correct: true,
-            },
-            {
-              label: 'C',
-              text: 'The action should use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_by</code> instead of <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find</code> to avoid raising on missing orders.',
-              explanation: 'A code style choice, not the payment bug. Both raise/return-nil are valid; neither addresses trusting the redirect.',
-            },
-            {
-              label: 'D',
-              text: 'The action should require the user to be logged in.',
-              explanation: 'Authentication would help with one attack vector (random users seeing other orders), but the core bug — trusting the redirect for payment state — applies even with auth in place.',
-            },
-          ]}
-          principle={`<p>Two channels carry information about a payment: the client redirect and the server-to-server webhook. They look similar (both deliver a payment_intent ID) but mean very different things:</p><ul class="list-disc list-inside ml-4 space-y-1"><li><strong>Redirect</strong> = the user reached your site. UX signal.</li><li><strong>Webhook</strong> = the money moved. State signal.</li></ul><p>Senior code uses each for what it\'s for. The redirect lands on a "we\'re processing" page. The webhook updates the order. The status page reacts when the order flips via Turbo Streams, polling, or Cable.</p>`}
-          theoryHref="/lessons/payments-async-confirmation"
-          theoryLabel="Payments · Async Confirmation"
-        />
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> What does the redirect actually prove? What channel can you trust to know the money moved?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the answer →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The bug
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>The order is marked paid based on the <strong>user reaching this URL</strong>, not on the payment actually clearing. The redirect proves only that the user's browser made it back to your site. It does <em>not</em> prove the payment cleared.</p>
+              <p>Edge cases that trigger the bug:</p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li>The user hits this URL by sharing it.</li>
+                <li>The user gets redirected back after an aborted 3DS challenge that ultimately failed.</li>
+                <li>An attacker crafts the URL knowing the path.</li>
+                <li>The user uses a browser extension that messes with redirects.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-blue-600">🛠️</span> The fix
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-3">The redirect should land the user on a "we're confirming your payment" status page. The webhook handler — signed, server-to-server, retried until you ack — is what marks the order paid. The status page reacts to the order status flipping via Turbo Streams, polling, or Cable.</p>
+            <p class="text-gray-700 leading-relaxed">Two channels carry information about a payment. One is for UX, one is for state. Don't mix them.</p>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🚧</span> Wrong takes worth noticing
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>"Reorder the mailer and the access grant."</strong> Reordering side effects doesn't address the root issue. The order is still being marked paid based on the redirect.</li>
+              <li><strong>"Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_by</code> instead of <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find</code>."</strong> A code style choice, not the payment bug. Both forms still trust the redirect.</li>
+              <li><strong>"Require the user to be logged in."</strong> Helps with one attack vector (random URLs) but doesn't fix the core bug — the redirect proves presence, not payment.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The principle
+            </h3>
+            <p class="text-gray-700 leading-relaxed">The client redirect is a UX signal. The webhook is the state machine. They look similar (both deliver a payment_intent ID) and they mean very different things. Senior code uses each for what it's for: the redirect lands on a "processing" page; the webhook updates the order; the status page reacts.</p>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Full walkthrough at <a href="/lessons/payments-async-confirmation" class="text-ruby hover:text-ruby-dark font-medium">Payments · Async Confirmation: Trust the Webhook</a>.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -78,4 +116,19 @@ end`} language="ruby" />
       <a href="/lessons/practice-payments-event-ordering" class="text-ruby hover:text-ruby-dark transition-colors">Card 4 →</a>
     </div>
   </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
 </Layout>

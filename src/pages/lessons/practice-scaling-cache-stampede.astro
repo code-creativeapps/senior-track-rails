@@ -1,18 +1,17 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title="What's the failure mode of this cache.fetch under high traffic?" description="Practice card. Rails.cache.fetch looks fine in dev. In production it breaks in a specific shape. Drills cache stampede.">
+<Layout title="What's the failure mode of this cache.fetch under high traffic?" description="Practice card. Rails.cache.fetch looks fine in dev, breaks in production in a specific shape. Form your answer, compare against the rubric.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
-      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
-        <span>←</span> Back to Course
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Scaling · Card 3</p>
       <h1 class="text-4xl font-bold text-ruby-dark mb-4">What's the failure mode of this cache under high traffic?</h1>
-      <p class="text-xl text-gray-600">The code is straight from the Rails Guides. It works perfectly in development. In production, under load, it has a specific failure mode.</p>
+      <p class="text-xl text-gray-600">The code is textbook. It works in development. Under load, it has a specific failure mode you have to name.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -21,7 +20,7 @@ import MCQuiz from '../../components/MCQuiz.astro';
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span class="text-gray-500">🔍</span> The code
           </h3>
-          <p class="text-gray-700 italic mb-3">A homepage controller, getting 5,000 requests per minute.</p>
+          <p class="text-gray-700 italic mb-3">A homepage controller serving 5,000 requests per minute.</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
             <CodeBlock code={`def index
   @posts = Rails.cache.fetch("homepage_feed", expires_in: 1.minute) do
@@ -30,47 +29,82 @@ import MCQuiz from '../../components/MCQuiz.astro';
         .limit(100)
         .to_a
   end
-end
-
-# In a hot loop: 5,000 req/min, 60-second TTL.`} language="ruby" />
+end`} language="ruby" />
           </div>
         </div>
 
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
-          <p class="text-gray-700 leading-relaxed">Under sustained traffic, this code starts behaving badly every minute. Which option names the failure mode?</p>
+          <p class="text-gray-700 leading-relaxed">Under sustained traffic, this code starts behaving badly every minute. Name the failure mode and how you'd fix it.</p>
         </div>
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <MCQuiz
-          options={[
-            {
-              label: 'A',
-              text: 'Cache key collision — another part of the app is using the same key.',
-              explanation: 'Possible in theory but it would show up as wrong data, not a periodic slowdown. Use a unique key prefix per cache type and you\'re fine.',
-            },
-            {
-              label: 'B',
-              text: 'Cache stampede — when the cache expires, hundreds of in-flight requests all miss at once and rebuild simultaneously.',
-              explanation: 'Every 60 seconds, the entry expires. The next batch of concurrent requests all see "cache miss" before any of them finishes rebuilding. They all run the expensive query against the database at the same time, multiplying the cost by however many concurrent requests landed in that window. The fix: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">race_condition_ttl</code>, jittered TTLs, or a separate warm-keeping job.',
-              correct: true,
-            },
-            {
-              label: 'C',
-              text: 'The TTL is too short for Rails.cache to be effective.',
-              explanation: 'TTL choice is a tradeoff (freshness vs hit rate), not a failure mode. A 1-minute TTL is reasonable for a feed that needs to feel live.',
-            },
-            {
-              label: 'D',
-              text: 'Rails.cache.fetch doesn\'t support blocks; it should use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">read</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">write</code> separately.',
-              explanation: 'It does support blocks; that\'s the whole point of the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">fetch</code> API. The block is the "what to do on miss."',
-            },
-          ]}
-          principle={`<p>Cache stampede (sometimes called "thundering herd") happens when many requests miss the cache simultaneously and all decide to rebuild. The cache exists to spare the database; the stampede makes the database take the hit anyway, but in an even worse pattern: synchronized concurrent expensive queries.</p><p>Three real fixes:</p><ul class="list-disc list-inside ml-4 space-y-1"><li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">race_condition_ttl:</code> tells Rails to extend an expiring entry briefly so only one request rebuilds while the others keep serving the slightly-stale value.</li><li>Jitter the TTL: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">expires_in: 1.minute + rand(10).seconds</code>. Spreads expirations across requests.</li><li>Warm the cache from a background job. The web request never sees a miss.</li></ul>`}
-          theoryHref="/lessons/senior-scaling-caching"
-          theoryLabel="Scaling · Caching, Properly"
-        />
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Every 60 seconds, the cache entry expires. What does a flood of in-flight requests do at that instant?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the answer →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The failure mode
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p><strong>Cache stampede</strong> (also called "thundering herd"). Every 60 seconds, the entry expires. The next batch of concurrent requests all see "cache miss" before any of them finishes rebuilding. They all run the expensive query against the database at the same time, multiplying the cost by however many concurrent requests landed in that window.</p>
+              <p>The cache exists to spare the database; the stampede makes the database take the hit anyway, but in an even worse pattern — synchronized concurrent expensive queries.</p>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-blue-600">🛠️</span> The fix
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-3">Three patterns, ordered by simplicity:</p>
+            <ul class="list-disc list-inside text-gray-700 space-y-2 ml-2">
+              <li><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">race_condition_ttl:</code></strong> Tells Rails to extend an expiring entry briefly so only one request rebuilds; the others keep serving the slightly-stale value during the gap.</li>
+              <li><strong>Jitter the TTL.</strong> <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">expires_in: 1.minute + rand(10).seconds</code>. Spreads expirations across requests; no synchronized cliff.</li>
+              <li><strong>Warm the cache from a background job.</strong> The web request never sees a miss; the job refreshes the cache periodically and the web requests just read.</li>
+            </ul>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🚧</span> Wrong takes worth noticing
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>"Key collision with another part of the app."</strong> Possible in theory; would surface as wrong data, not periodic slowdown. A unique key prefix per cache type prevents it.</li>
+              <li><strong>"The TTL is too short."</strong> TTL choice is a trade-off (freshness vs hit rate), not a failure mode. A 1-minute TTL is reasonable for a live-feeling feed.</li>
+              <li><strong>"<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Rails.cache.fetch</code> doesn't support blocks."</strong> It does; that's the whole API.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The principle
+            </h3>
+            <p class="text-gray-700 leading-relaxed">"Cache miss + concurrent requests + expensive rebuild" is the recipe for stampede. Any one of three things breaks the recipe: keep someone serving the old value while rebuilding, spread the miss across time, or rebuild ahead of the miss. Pick whichever fits your traffic shape.</p>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Full walkthrough at <a href="/lessons/senior-scaling-caching" class="text-ruby hover:text-ruby-dark font-medium">Scaling · Caching, Properly</a>.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -79,4 +113,19 @@ end
       <a href="/lessons/practice-scaling-offset-pagination" class="text-ruby hover:text-ruby-dark transition-colors">Card 4 →</a>
     </div>
   </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
 </Layout>

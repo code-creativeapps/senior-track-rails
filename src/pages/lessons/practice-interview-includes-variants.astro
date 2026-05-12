@@ -1,7 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
 <Layout title="includes vs preload vs eager_load vs joins" description="Practice card. Four ActiveRecord methods that look similar; each has a specific use. Drills the classic Rails interview question.">
@@ -12,48 +11,92 @@ import MCQuiz from '../../components/MCQuiz.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Interview · Card 1</p>
       <h1 class="text-4xl font-bold text-ruby-dark mb-4">includes vs preload vs eager_load vs joins</h1>
-      <p class="text-xl text-gray-600">The interviewer asks you to explain the difference. Pick the answer that gets a senior nod.</p>
+      <p class="text-xl text-gray-600">A classic Rails interview question. The interviewer wants four distinct behaviors named precisely, plus when you'd pick each.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The question
+            <span class="text-gray-500">🎤</span> The question
           </h3>
-          <p class="text-gray-700 leading-relaxed">All four are used to deal with associations. They do different things. Which option correctly names the four behaviors?</p>
+          <blockquote class="border-l-4 border-ruby/40 pl-4 italic text-gray-700">
+            "Explain the difference between <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm not-italic">includes</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm not-italic">preload</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm not-italic">eager_load</code>, and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm not-italic">joins</code>. When would you pick each one?"
+          </blockquote>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Your job</h3>
+          <p class="text-gray-700 leading-relaxed">Form an answer that names all four behaviors precisely and gives one clear pick for each. Don't reach for the docs.</p>
         </div>
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <MCQuiz
-          options={[
-            {
-              label: 'A',
-              text: 'All four are aliases of each other; you can pick whichever reads best.',
-              explanation: 'They\'re not aliases. They generate different SQL and behave differently when you add WHERE clauses on joined tables.',
-            },
-            {
-              label: 'B',
-              text: '<strong>preload</strong> = two queries, no SQL join. <strong>eager_load</strong> = one query, LEFT OUTER JOIN. <strong>includes</strong> = Rails picks preload or eager_load based on whether you reference the joined table. <strong>joins</strong> = INNER JOIN, doesn\'t load the associated records, only filters by them.',
-              explanation: 'The canonical explanation. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code> always does N+1 queries → 2 queries: one for the parent, one IN(...) for the children. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> always does one query with LEFT OUTER JOIN and loads everything. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> picks whichever fits: preload by default, eager_load if you reference the joined table in a WHERE. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> joins for filtering only; it doesn\'t load the rows into <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.user</code>, so accessing <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.user.name</code> still N+1s.',
-              correct: true,
-            },
-            {
-              label: 'C',
-              text: 'All four issue one query; they differ only in syntax.',
-              explanation: 'preload always issues two queries (or more, for nested associations). The "one query" answer is wrong.',
-            },
-            {
-              label: 'D',
-              text: '<strong>includes</strong> and <strong>preload</strong> are the same. <strong>eager_load</strong> and <strong>joins</strong> are the same.',
-              explanation: 'No. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> doesn\'t load associations; it only filters by them. That\'s the most-confused pair on interview answers.',
-            },
-          ]}
-          principle={`<p>Quick rules of thumb for the interview:</p><ul class="list-disc list-inside ml-4 space-y-1"><li>Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> by default and let Rails pick.</li><li>Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code> when you know you want two queries (avoids a giant LEFT JOIN result set).</li><li>Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> when you need to filter by the joined table\'s columns (forces the JOIN).</li><li>Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> when you only need to filter, not access. Often paired with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.where</code> on the joined table.</li></ul><p>The trap: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> + accessing the association is the most common silent N+1 in Rails code. Senior answer: never use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> alone when you\'ll touch the joined record.</p>`}
-          theoryHref="/lessons/senior-eager-loading"
-          theoryLabel="Eager Loading — includes vs preload vs eager_load vs joins"
-        />
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Two of these issue two queries, two issue one. Two load the association, two only filter by it. Sort them out.
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the rubric →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The senior framing
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <ul class="list-disc list-inside space-y-2 ml-2">
+                <li><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code></strong> — two queries, no SQL join. One for the parent, one <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">IN(...)</code> for the children.</li>
+                <li><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code></strong> — one query with a LEFT OUTER JOIN, all data in one result set.</li>
+                <li><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code></strong> — Rails picks between preload and eager_load based on whether you reference the joined table in a WHERE.</li>
+                <li><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code></strong> — INNER JOIN, used for filtering by the joined table. Does <em>not</em> load the associated records.</li>
+              </ul>
+              <p>Pick by use case:</p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> as the default — let Rails decide.</li>
+                <li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code> when you specifically want two queries (avoids a giant JOIN result set with N×M rows).</li>
+                <li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> when you need to filter on the joined table's columns.</li>
+                <li><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> when you only need to filter, not access. Often <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.joins(:user).where(users: &#123; admin: true &#125;)</code>.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🚧</span> Junior framings that don't land
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>"They're all aliases of each other."</strong> They're not. They generate different SQL and behave differently when you add WHERE clauses on joined tables.</li>
+              <li><strong>"They all issue one query; they just differ in syntax."</strong> <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code> always issues two (or more for nested associations).</li>
+              <li><strong>"<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> is the same as <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code>."</strong> The most common confusion. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> doesn't load the rows into <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.user</code>, so accessing the association after still N+1s.</li>
+              <li><strong>"I just always use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> and trust Rails."</strong> A common answer that works often but signals you haven't dissected why. Senior includes the "and here's when I'd switch."</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The trap to avoid
+            </h3>
+            <p class="text-gray-700 leading-relaxed"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> + accessing the association is the most common silent N+1 in Rails code. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Post.joins(:user).each &#123; |p| p.user.name &#125;</code> does the JOIN to filter, then N more SELECTs for each user. Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> when you'll touch the joined record.</p>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Full walkthrough at <a href="/lessons/senior-eager-loading" class="text-ruby hover:text-ruby-dark font-medium">Eager Loading — includes vs preload vs eager_load vs joins</a>.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -62,4 +105,19 @@ import MCQuiz from '../../components/MCQuiz.astro';
       <a href="/lessons/practice-interview-service-objects" class="text-ruby hover:text-ruby-dark transition-colors">Card 2 →</a>
     </div>
   </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
 </Layout>

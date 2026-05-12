@@ -1,10 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title='"Sidekiq or Solid Queue?"' description="Practice card. A trade-off question disguised as a 'pick one' question. Drills how to articulate when each fits.">
+<Layout title='"Sidekiq or Solid Queue?"' description="Practice card. A trade-off question disguised as a 'pick one.' Form your answer, compare against the rubric.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -12,48 +11,88 @@ import MCQuiz from '../../components/MCQuiz.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Interview · Card 4</p>
       <h1 class="text-4xl font-bold text-ruby-dark mb-4">"Sidekiq or Solid Queue?"</h1>
-      <p class="text-xl text-gray-600">The right answer is "it depends," followed by a clear articulation of what it depends on. Pick the version that lands.</p>
+      <p class="text-xl text-gray-600">The right answer starts with "it depends," followed by a clear articulation of what it depends on. The dependency dimensions are what the interviewer scores.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The question
+            <span class="text-gray-500">🎤</span> The question
           </h3>
-          <p class="text-gray-700 leading-relaxed">"For a new Rails 8 app, would you reach for Sidekiq or Solid Queue?" Which answer reads as senior?</p>
+          <blockquote class="border-l-4 border-ruby/40 pl-4 italic text-gray-700">
+            "For a new Rails 8 app, would you reach for Sidekiq or Solid Queue?"
+          </blockquote>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Your job</h3>
+          <p class="text-gray-700 leading-relaxed">Form an answer that names the trade-off dimensions, gives a concrete threshold, and states a default for a likely scenario.</p>
         </div>
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <MCQuiz
-          options={[
-            {
-              label: 'A',
-              text: '"Sidekiq. It\'s the industry standard."',
-              explanation: 'A default without a reason. Sidekiq is excellent, but Solid Queue is the new default for Rails 8 apps with moderate throughput. Picking Sidekiq without naming why is leaving signal on the table.',
-            },
-            {
-              label: 'B',
-              text: '"Solid Queue for moderate throughput (low thousands of jobs/min) where the team prefers one fewer infrastructure dependency — Postgres handles everything. Sidekiq when you need very high throughput, complex workflows like batches and pipelines, or you already run Redis for other reasons. For a greenfield app under a few thousand jobs/min, I\'d default to Solid Queue."',
-              explanation: 'Concrete throughput threshold, specific reasons in each direction, and a default for a clear scenario. The "I\'d default to" sentence is the close. This reads as someone who has actually made this choice on a real project.',
-              correct: true,
-            },
-            {
-              label: 'C',
-              text: '"Solid Queue. Redis is dead."',
-              explanation: 'Hyperbolic and incorrect. Redis is fine, widely used, and Sidekiq remains the right tool for many workloads. "X is dead" is rarely a senior-sounding answer.',
-            },
-            {
-              label: 'D',
-              text: '"They\'re basically the same; you can swap one for the other with a config change."',
-              explanation: 'ActiveJob lets you swap, yes, but they\'re not the same. Sidekiq has push-based polling, Pro/Enterprise features (batches, rate limiting, unique jobs), Redis under it. Solid Queue has polling-based execution, Postgres under it. Different scaling characteristics, different ops profiles.',
-            },
-          ]}
-          principle={`<p>Trade-off questions test calibration, not memorization. The shape that scores:</p><ul class="list-disc list-inside ml-4 space-y-1"><li>Name the dimension the choice turns on (throughput, ops complexity, existing infrastructure).</li><li>Give a concrete threshold or condition.</li><li>State your default for the most likely case.</li></ul><p>Bonus: be explicit about not having all the data. "If you tell me the expected throughput and what other infrastructure the team already runs, I can refine the answer." Senior engineers make decisions under uncertainty and say so.</p>`}
-          theoryHref="/lessons/interview-modern-stack"
-          theoryLabel="Interview · The Modern Rails Stack"
-        />
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> What's the choice actually turning on? Throughput? Ops complexity? Existing infrastructure? Pick the dimension and give a concrete number where you'd switch.
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the rubric →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The senior framing
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <blockquote class="border-l-4 border-green-300 pl-4 text-gray-700 italic">
+                "Solid Queue for moderate throughput, in the low thousands of jobs per minute, where the team wants one fewer infrastructure dependency — Postgres handles the queue. Sidekiq when throughput is very high, when you need complex workflows like batches and pipelines from Sidekiq Pro/Enterprise, or when you already run Redis for other reasons. For a greenfield app under a few thousand jobs/min, I'd default to Solid Queue."
+              </blockquote>
+              <p>Three components in that answer: <strong>dimension named</strong> (throughput, ops, existing infra), <strong>concrete threshold</strong> ("few thousand jobs/min"), <strong>default stated</strong> ("I'd start with Solid Queue").</p>
+            </div>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🚧</span> Junior framings that don't land
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>"Sidekiq. It's the industry standard."</strong> A default without a reason. Picking either without naming why is leaving signal on the table.</li>
+              <li><strong>"Solid Queue. Redis is dead."</strong> Hyperbolic and wrong. Redis is still widely used and Sidekiq is the right tool for many workloads. "X is dead" rarely lands as senior.</li>
+              <li><strong>"They're basically the same; ActiveJob lets you swap them."</strong> The API is swappable; the runtimes aren't equivalent. Different polling models (push vs pull), different ops profiles, different scaling characteristics.</li>
+              <li><strong>"Depends on the project."</strong> True but empty. Without naming the dimensions and a threshold, this is a non-answer.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> What the rubric scores
+            </h3>
+            <ul class="space-y-2 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>Dimensions named.</strong> Throughput, ops complexity, existing infrastructure — what does the choice depend on?</li>
+              <li><strong>Concrete threshold.</strong> A number where you'd switch from one to the other.</li>
+              <li><strong>Default with rationale.</strong> "I'd start with X because Y" is the close.</li>
+              <li><strong>Comfort with uncertainty.</strong> "If you tell me X and Y, I can refine the answer" — saying so confidently is senior.</li>
+            </ul>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the trade-offs between the Solid family and the traditional stack, read <a href="/lessons/interview-modern-stack" class="text-ruby hover:text-ruby-dark font-medium">Interview · The Modern Rails Stack</a>.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -62,4 +101,19 @@ import MCQuiz from '../../components/MCQuiz.astro';
       <a href="/lessons/practice-interview-hotwire" class="text-ruby hover:text-ruby-dark transition-colors">Card 5 →</a>
     </div>
   </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
 </Layout>

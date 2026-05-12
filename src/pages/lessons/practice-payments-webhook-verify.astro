@@ -1,10 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title="Why does this webhook controller skip CSRF?" description="Practice card. A webhook endpoint with skip_before_action :verify_authenticity_token. Four candidate reasons, only one is the real one.">
+<Layout title="Why does this webhook controller skip CSRF?" description="Practice card. A webhook endpoint with skip_before_action :verify_authenticity_token. Form your answer, compare against the rubric.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -12,7 +11,7 @@ import MCQuiz from '../../components/MCQuiz.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Payments · Card 2</p>
       <h1 class="text-4xl font-bold text-ruby-dark mb-4">Why does this webhook controller skip CSRF?</h1>
-      <p class="text-xl text-gray-600">A controller that takes Stripe webhook posts. <code class="bg-gray-100 px-2 py-1 rounded text-base">skip_before_action :verify_authenticity_token</code> on the first line. Why?</p>
+      <p class="text-xl text-gray-600">A controller that takes Stripe webhook posts. <code class="bg-gray-100 px-2 py-1 rounded text-base">skip_before_action :verify_authenticity_token</code> on the first line. Why is that safe?</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -42,39 +41,69 @@ end`} language="ruby" />
 
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
-          <p class="text-gray-700 leading-relaxed">Why does skipping CSRF make sense here, and what's preventing an attacker from forging webhook calls?</p>
+          <p class="text-gray-700 leading-relaxed">Why is skipping CSRF safe here, and what's actually preventing an attacker from forging webhook calls?</p>
         </div>
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <MCQuiz
-          options={[
-            {
-              label: 'A',
-              text: 'CSRF can\'t be skipped safely. This is a security bug.',
-              explanation: 'CSRF tokens defend against cross-site form submission from a logged-in user\'s browser. A webhook is a server-to-server POST from Stripe; there\'s no logged-in user session, and the protective signature is the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Stripe-Signature</code> HTTP header instead.',
-            },
-            {
-              label: 'B',
-              text: 'Stripe is whitelisted by IP, so CSRF is unnecessary.',
-              explanation: 'Stripe doesn\'t guarantee a stable IP range, and IP whitelisting isn\'t how the protection works. The protection is the HMAC signature on the request body.',
-            },
-            {
-              label: 'C',
-              text: 'CSRF doesn\'t apply to webhook (server-to-server) requests. The signature check (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">construct_event</code>) is what proves authenticity here.',
-              explanation: 'CSRF protection assumes a browser session with a stored token. Webhooks don\'t come from a browser session, so CSRF would fail every request. The HMAC signature on the body, verified with the shared secret, is what proves "Stripe sent this." An attacker who doesn\'t know the secret can\'t forge a valid signature.',
-              correct: true,
-            },
-            {
-              label: 'D',
-              text: 'The controller inherits CSRF from ApplicationController and doesn\'t need to skip it.',
-              explanation: 'Default Rails controllers inherit CSRF protection. Skipping is required to bypass it. Without the skip, Rails would reject every webhook with InvalidAuthenticityToken.',
-            },
-          ]}
-          principle={`<p>CSRF protection and webhook signature verification solve different problems:</p><ul class="list-disc list-inside ml-4 space-y-1"><li><strong>CSRF</strong> defends against a logged-in user\'s browser being tricked into submitting a malicious form to your app.</li><li><strong>Webhook signatures</strong> defend against an attacker forging a request to your webhook endpoint when no user session is involved.</li></ul><p>One can be skipped only when the other replaces it. The shape: skip CSRF, verify signature, return 400 on bad signature. Always log signature failures; a sustained stream of them is an active attack signal.</p>`}
-          theoryHref="/lessons/payments-webhooks"
-          theoryLabel="Payments · Webhooks: Verify, Idempotent, Replayable"
-        />
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> CSRF protects against one threat model; webhook signatures protect against another. What are they each defending against, and why does skipping one make sense when the other is in place?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the answer →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> Why it's safe
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>CSRF protection and webhook signature verification defend against <strong>different threats</strong>:</p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li><strong>CSRF</strong> assumes a logged-in user's browser session and a token stored there. It defends against a malicious site tricking that browser into submitting a form to your app.</li>
+                <li><strong>Webhook signature</strong> defends against an attacker forging a server-to-server POST to your webhook endpoint, where no user session is involved.</li>
+              </ul>
+              <p>Webhooks don't come from a browser session, so the CSRF token wouldn't be present and Rails would reject every legitimate webhook with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">InvalidAuthenticityToken</code>. Skipping CSRF is required to receive the request at all.</p>
+              <p>The HMAC signature on the request body, verified with the shared secret, is what proves "Stripe sent this." An attacker who doesn't know the secret can't forge a valid signature. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">construct_event</code> raises on a bad signature; the controller catches that and returns 400.</p>
+            </div>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🚧</span> Wrong takes worth noticing
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>"CSRF can't be skipped safely; this is a bug."</strong> Misunderstands what CSRF is for. It assumes a browser-session threat model that doesn't apply here.</li>
+              <li><strong>"Stripe is whitelisted by IP."</strong> Stripe doesn't guarantee a stable IP range. The protection is the signature, not the source IP.</li>
+              <li><strong>"You can rely on the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User-Agent</code> header to identify Stripe."</strong> Trivially spoofable. The signature is the only real proof.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The principle
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Two security mechanisms, two threat models. Skipping one is safe only when the other replaces its job. CSRF off + signature verification on is the right pair for webhook endpoints. CSRF off and no signature check is wide open. Always log signature failures — a sustained stream of them is an active attack signal.</p>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the full walkthrough of webhook security, idempotency, and replay handling, read <a href="/lessons/payments-webhooks" class="text-ruby hover:text-ruby-dark font-medium">Payments · Webhooks: Verify, Idempotent, Replayable</a>.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -83,4 +112,19 @@ end`} language="ruby" />
       <a href="/lessons/practice-payments-trust-redirect" class="text-ruby hover:text-ruby-dark transition-colors">Card 3 →</a>
     </div>
   </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
 </Layout>

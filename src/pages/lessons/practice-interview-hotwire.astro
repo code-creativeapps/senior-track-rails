@@ -1,10 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title='"Turbo Frames vs Turbo Streams?"' description="Practice card. Two Hotwire concepts that get confused. Drills the distinction the interviewer is looking for.">
+<Layout title='"Turbo Frames vs Turbo Streams?"' description="Practice card. Two Hotwire concepts that get confused. Form your answer, compare against the rubric.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -12,48 +11,92 @@ import MCQuiz from '../../components/MCQuiz.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Interview · Card 5</p>
       <h1 class="text-4xl font-bold text-ruby-dark mb-4">"Turbo Frames vs Turbo Streams?"</h1>
-      <p class="text-xl text-gray-600">A favorite for Rails interviews in 2026. They sound similar; they do different things. Pick the answer the interviewer is hoping for.</p>
+      <p class="text-xl text-gray-600">A favorite for Rails interviews in 2026. They sound similar; they do different things. The distinction is what the interviewer is listening for.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The question
+            <span class="text-gray-500">🎤</span> The question
           </h3>
-          <p class="text-gray-700 leading-relaxed">"What's the difference between a Turbo Frame and a Turbo Stream, and when would you use each?"</p>
+          <blockquote class="border-l-4 border-ruby/40 pl-4 italic text-gray-700">
+            "What's the difference between a Turbo Frame and a Turbo Stream, and when would you use each?"
+          </blockquote>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Your job</h3>
+          <p class="text-gray-700 leading-relaxed">Name what each one is, name what initiates the update, and give a concrete use case for each.</p>
         </div>
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <MCQuiz
-          options={[
-            {
-              label: 'A',
-              text: 'Turbo Frames are for forms, Turbo Streams are for links.',
-              explanation: 'Not how the distinction works. Both can be triggered by forms or links. The difference is who initiates the update.',
-            },
-            {
-              label: 'B',
-              text: '<strong>A Turbo Frame</strong> is a region of the page that scopes navigation. Clicks and form submits inside it replace just that region, not the whole page. The client initiates the request; the server responds with HTML for the frame. <strong>A Turbo Stream</strong> is a server-driven update. The server broadcasts an HTML fragment (append, prepend, replace, update, remove) targeting elements by ID, either as part of a form response or over a WebSocket. Use Frames for "click this link, update this part of the page." Use Streams for "show every connected user this new comment as it arrives."',
-              explanation: 'Names the difference (client-initiated scope vs server-driven push) and gives a use case for each. The "click this link" vs "push to every user" framing is the cleanest version.',
-              correct: true,
-            },
-            {
-              label: 'C',
-              text: 'Turbo Frames are server-side; Turbo Streams are client-side.',
-              explanation: 'Both are server-rendered HTML. The difference isn\'t where rendering happens — both render on the server.',
-            },
-            {
-              label: 'D',
-              text: 'Turbo Frames are an older API; Turbo Streams are the modern replacement.',
-              explanation: 'They\'re both current and both useful. Streams didn\'t replace Frames; they cover different use cases.',
-            },
-          ]}
-          principle={`<p>Three sentences capture the senior answer:</p><ol class="list-decimal list-inside ml-4 space-y-1"><li>Frames scope client-initiated navigation to a region of the page.</li><li>Streams push HTML fragments from the server, either as a form response or over WebSocket.</li><li>Pick Frames when the user clicks; pick Streams when something else changes that the user needs to see.</li></ol><p>Bonus: name the Stimulus piece. "For interactivity that doesn\'t need a server round-trip, Stimulus controllers wrap HTML in JS behavior — sortable lists, modal toggles, debounced inputs. It\'s the third Hotwire piece."</p>`}
-          theoryHref="/lessons/interview-modern-stack"
-          theoryLabel="Interview · The Modern Rails Stack"
-        />
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> One initiates updates from the client. One is server-driven. Which is which, and what use case fits each?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the rubric →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The senior framing
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p><strong>A Turbo Frame</strong> is a region of the page that scopes navigation. Clicks and form submits inside it replace just that region, not the whole page. The client initiates the request; the server responds with HTML for the frame.</p>
+              <p><strong>A Turbo Stream</strong> is a server-driven update. The server broadcasts an HTML fragment — append, prepend, replace, update, or remove — targeting elements by ID, either as part of a form response or over a WebSocket.</p>
+              <p><strong>Pick by who initiates:</strong></p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li><strong>Frames</strong> when the user clicks a link or submits a form and you want a specific region to update.</li>
+                <li><strong>Streams</strong> when something else (another user, a background job, a webhook) changes state that needs to show up live on every connected user's screen.</li>
+              </ul>
+              <p><strong>Bonus signal:</strong> mention Stimulus as the third piece — small JS controllers for behavior that doesn't need a server round-trip (sortable lists, modal toggles, debounced inputs).</p>
+            </div>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🚧</span> Junior framings that don't land
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>"Frames are for forms, Streams are for links."</strong> Wrong split. Both can be triggered by either; the difference is who initiates.</li>
+              <li><strong>"Frames are server-side; Streams are client-side."</strong> Both render server-side HTML. The difference isn't where rendering happens.</li>
+              <li><strong>"Frames are old; Streams replaced them."</strong> Both are current and useful. They cover different cases.</li>
+              <li><strong>"They're React components for Rails."</strong> Hotwire is explicitly not React. It's server-rendered HTML with minimal JS. Saying "components" signals you haven't used it.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> What the rubric scores
+            </h3>
+            <ul class="space-y-2 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>Both definitions, distinct.</strong> Frame = client-initiated region. Stream = server-pushed fragment.</li>
+              <li><strong>The "who initiates" axis.</strong> Naming this is the senior framing.</li>
+              <li><strong>One use case for each.</strong> "Frame for click-update-this-region. Stream for live notifications across users."</li>
+              <li><strong>Stimulus aware.</strong> Bonus: knowing it exists and what role it plays.</li>
+            </ul>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the broader modern-stack framing, read <a href="/lessons/interview-modern-stack" class="text-ruby hover:text-ruby-dark font-medium">Interview · The Modern Rails Stack</a>.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -62,4 +105,19 @@ import MCQuiz from '../../components/MCQuiz.astro';
       <a href="/lessons/practice-interview-rails-magic" class="text-ruby hover:text-ruby-dark transition-colors">Card 6 →</a>
     </div>
   </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
 </Layout>

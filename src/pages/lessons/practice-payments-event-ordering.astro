@@ -1,10 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title="The refunded event arrived before the succeeded event. Now what?" description="Practice card. Webhook ordering isn't guaranteed. How a senior handler stays correct anyway.">
+<Layout title="The refunded event arrived before the succeeded event. Now what?" description="Practice card. Webhook ordering isn't guaranteed. Form your answer, compare against the rubric.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -22,15 +21,15 @@ import MCQuiz from '../../components/MCQuiz.astro';
             <span class="text-gray-500">🔍</span> The handler
           </h3>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
-            <CodeBlock code={`# What actually happened in time at the provider:
+            <CodeBlock code={`# Real order at the provider:
 #   t=0   payment_intent.succeeded
 #   t=10s payment_intent.refunded  (full refund)
 #
-# What your server received, in order:
+# Order your server received the webhooks:
 #   1) payment_intent.refunded   (arrived first)
 #   2) payment_intent.succeeded  (arrived second)
 #
-# Naive handler:
+# The handler:
 case event.type
 when "payment_intent.succeeded"
   Payment.find_by!(intent_id: event.data.object.id)
@@ -49,34 +48,70 @@ end`} language="ruby" />
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <MCQuiz
-          options={[
-            {
-              label: 'A',
-              text: 'Final state is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">refunded</code>. The handler is fine because both events still got applied.',
-              explanation: 'It looks fine in this specific sequence, but only by accident. The "refunded" event arrives, Payment is set to refunded. The "succeeded" event arrives, Payment is overwritten to succeeded. Final state is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">succeeded</code>, which is wrong — the money is back to the customer.',
-            },
-            {
-              label: 'B',
-              text: 'Final state is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">succeeded</code>, which is wrong. The handler needs to check the current state, or re-fetch the truth from the provider, before applying a transition.',
-              explanation: 'Exactly. The naive handler blindly applies the event\'s status to the Payment. When events arrive out of order, the last one wins regardless of what really happened. Two defenses: (1) before applying "succeeded," check if the Payment is already in a terminal state (refunded, disputed) and skip; (2) re-fetch the PaymentIntent from the provider — it always reports the current state — and apply that.',
-              correct: true,
-            },
-            {
-              label: 'C',
-              text: 'Final state is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">refunded</code>. Stripe guarantees in-order delivery on the same intent.',
-              explanation: 'Stripe makes no such guarantee. Webhook ordering is best-effort. Especially with retries from your endpoint timing out, later events can land before earlier ones.',
-            },
-            {
-              label: 'D',
-              text: 'The Payment record will throw a state-machine error because succeeded → refunded isn\'t a legal transition.',
-              explanation: '<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.update!</code> doesn\'t enforce state-machine rules unless you wired them up. The default is "the new value wins." You\'d have to explicitly model the transitions to get an error.',
-            },
-          ]}
-          principle={`<p>Webhooks are notifications, not the source of truth. The provider\'s API is the source of truth. The shape that stays correct under reordering:</p><ol class="list-decimal list-inside ml-4 space-y-1"><li>On each event, identify which Payment it\'s about (by intent ID).</li><li>Either check the Payment\'s current state to decide if applying the transition makes sense, or re-fetch the PaymentIntent from the provider and apply <em>that</em>.</li><li>Treat each event as "something changed; let me look up the truth and reconcile."</li></ol><p>Bonus: the same shape is robust to duplicate deliveries. Re-fetching always gives you the current state, regardless of how many times the same event has arrived.</p>`}
-          theoryHref="/lessons/payments-webhooks"
-          theoryLabel="Payments · Webhooks: Verify, Idempotent, Replayable"
-        />
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Each event arrives, the handler applies the new status, the last one wins. Walk through which last-one-wins ends here. Then think about what change to the handler makes it correct under any arrival order.
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the answer →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The bug
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>Final state is <strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">succeeded</code>, which is wrong</strong>. The refund event arrives first, Payment becomes <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">refunded</code>. The succeeded event arrives second, the handler blindly overwrites it back to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">succeeded</code>. The money is back to the customer but your DB says they paid.</p>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-blue-600">🛠️</span> The fix
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-3">Two patterns that stay correct under reordering:</p>
+            <ul class="list-disc list-inside text-gray-700 space-y-2 ml-2">
+              <li><strong>Check the current state before applying.</strong> Before applying "succeeded," check whether the Payment is already in a terminal state (refunded, disputed). If so, ignore the event — it's late.</li>
+              <li><strong>Re-fetch the truth from the provider.</strong> The webhook is a notification; the provider's API is the truth. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Stripe::PaymentIntent.retrieve(id)</code> always returns the current state. Apply that, ignoring what the event itself claims.</li>
+            </ul>
+            <p class="text-gray-700 leading-relaxed mt-3">The second pattern also makes the handler robust against duplicate deliveries. Re-fetching gives you the current state regardless of how many times the same event arrived.</p>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🚧</span> Wrong takes worth noticing
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>"The final state is refunded; the handler is fine."</strong> It looks fine in some sequences but only by accident. With the reverse order, the handler corrupts the state.</li>
+              <li><strong>"Stripe guarantees in-order delivery on the same intent."</strong> It does not. Webhook ordering is best-effort. Retries from your endpoint timing out routinely arrive later than newer events.</li>
+              <li><strong>"<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.update!</code> will raise a state-machine error."</strong> Only if you wired one up. Default <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">update!</code> doesn't enforce legal transitions.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The principle
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Webhooks are notifications. The provider's API is the source of truth. Senior handlers treat each event as "something changed; let me look up the truth and reconcile," not as "apply this status verbatim."</p>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Full walkthrough at <a href="/lessons/payments-webhooks" class="text-ruby hover:text-ruby-dark font-medium">Payments · Webhooks: Verify, Idempotent, Replayable</a>.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -85,4 +120,19 @@ end`} language="ruby" />
       <a href="/lessons/practice-payments-refund-state" class="text-ruby hover:text-ruby-dark transition-colors">Card 5 →</a>
     </div>
   </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
 </Layout>

@@ -1,10 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title="Two ways to track a user's wallet balance. Pick one." description="Practice card. A balance column vs an append-only ledger. Drills when the ledger pattern is the right move.">
+<Layout title="Wallet balance: column or ledger?" description="Practice card. Two ways to track a user wallet balance. Form your answer, compare against the rubric.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -54,34 +53,70 @@ end`} language="ruby" />
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <MCQuiz
-          options={[
-            {
-              label: 'A',
-              text: 'The balance column is always wrong; never use it.',
-              explanation: 'Too absolute. For a flag-style "did the user pay yes/no," a column is fine. The balance column breaks when balances accumulate over many events and you need history or auditing.',
-            },
-            {
-              label: 'B',
-              text: 'Use the ledger when you need an audit trail, when balances accumulate over many transactions, or when concurrent writes are likely (the balance column races).',
-              explanation: 'Three good reasons in one. Auditability ("how did this user end up with $42.13?"), accumulation (many small entries summing to a balance), and concurrency safety (multiple concurrent INSERTs don\'t race; concurrent UPDATEs to the same row do). For wallets, store credit, internal accounts, escrow, refund pools — the ledger is the right answer.',
-              correct: true,
-            },
-            {
-              label: 'C',
-              text: 'The ledger is always more correct; always use it.',
-              explanation: 'It comes with a real cost: every balance read is a SUM. For some apps that doesn\'t matter; for others (very high read load on accounts with millions of entries) it requires caching or materialized views. Use it when the audit trail and concurrency-safety wins justify the cost.',
-            },
-            {
-              label: 'D',
-              text: 'Both options have the same concurrency properties.',
-              explanation: 'They don\'t. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User#increment!</code> issues an atomic SQL UPDATE, which is concurrency-safe at the SQL level but races on the model read-modify-write pattern unless you\'re careful. Ledger INSERTs are independently concurrent; the database serializes them only by row, and they\'re all on different rows.</p>',
-            },
-          ]}
-          principle={`<p>The ledger pattern\'s value is in <strong>correctness, not performance</strong>. Three signals that you want it:</p><ul class="list-disc list-inside ml-4 space-y-1"><li>You need to answer "how did this balance get to be this number?" — the row history is your answer.</li><li>Multiple concurrent operations can credit or debit the same account — INSERTs don\'t race the way UPDATEs do.</li><li>Reversing a transaction means knowing exactly what to reverse — each entry references its source (Payment, Refund, Adjustment).</li></ul><p>When the SUM gets slow on huge accounts, add a periodic snapshot (a "balance as of midnight" row) and sum forward from there. You almost never need this until you measure it.</p>`}
-          theoryHref="/lessons/payments-ledger"
-          theoryLabel="Payments · The Ledger Pattern"
-        />
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> The balance column is simpler. The ledger is more correct. What does "more correct" buy you, and when does the cost of the SUM matter?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the answer →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> When to pick which
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p><strong>Use the ledger when:</strong></p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li>You need an <strong>audit trail</strong> — "how did this user end up with $42.13?" — the row history is your answer.</li>
+                <li>Balances <strong>accumulate over many events</strong>, especially with reversals (refunds, adjustments) that need to reference the original entry.</li>
+                <li><strong>Concurrent writes are likely.</strong> Two concurrent INSERTs don't race the way two concurrent UPDATEs to the same row do.</li>
+              </ul>
+              <p><strong>The balance column is fine when:</strong></p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li>The question is just "did the user pay yes/no" — a flag, not a balance.</li>
+                <li>You're not handling money (e.g., a like-count on a post — eventual consistency is acceptable).</li>
+                <li>The audit trail is held elsewhere (provider records, event log) and the column is a read-side projection.</li>
+              </ul>
+              <p>For wallets, store credit, escrow accounts, refund pools — the ledger is the right answer. The cost (a SUM on read) almost never matters until your account holds millions of entries, and then you add periodic snapshots.</p>
+            </div>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🚧</span> Wrong takes worth noticing
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+              <li><strong>"The balance column is always wrong; never use it."</strong> Too absolute. For flag-style "did this happen yes/no" cases, a column is fine.</li>
+              <li><strong>"The ledger is always more correct; always use it."</strong> It costs read performance and complexity. Use it when the audit-trail and concurrency-safety wins justify the cost.</li>
+              <li><strong>"Both options have the same concurrency properties."</strong> They don't. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User#increment!</code> issues an atomic SQL UPDATE, which is correct at the SQL level but still serializes writers on one row. Ledger INSERTs go to different rows and run concurrently without contention.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The principle
+            </h3>
+            <p class="text-gray-700 leading-relaxed">The ledger pattern's value is in <strong>correctness, not performance</strong>. When SUM gets slow on huge accounts, add a periodic snapshot row and sum forward from there — you almost never need this until you measure it.</p>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Full walkthrough at <a href="/lessons/payments-ledger" class="text-ruby hover:text-ruby-dark font-medium">Payments · The Ledger Pattern</a>.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -90,4 +125,19 @@ end`} language="ruby" />
       <a href="/practice/payments" class="text-ruby hover:text-ruby-dark transition-colors">Back to Payments Practice →</a>
     </div>
   </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
 </Layout>
