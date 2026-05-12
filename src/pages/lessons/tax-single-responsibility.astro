@@ -4,7 +4,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
 <Layout title="One class, one reason to change" description="Why a class that handles payment, inventory, email, analytics, and audit logs becomes the file no one wants to touch.">
-  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> Back to Course
@@ -14,7 +14,8 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <p class="text-xl text-gray-600">Why a class that handles payment, inventory, email, analytics, and audit logs becomes the file no one wants to touch.</p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <span class="text-red-600">❌</span> The code
@@ -44,22 +45,27 @@ end`} language="ruby" />
         <p class="text-gray-700 leading-relaxed">This class has <strong>six different reasons it might need to change in the future, all rolled into one file</strong>. Whenever the payment provider changes, you have to touch this class. Whenever the inventory system changes, same thing. The same goes for emails, the warehouse API, the analytics events, and the audit log format. Every team in the company eventually ends up working in this file at some point, and every change to one piece carries a real risk of accidentally breaking something else.</p>
       </div>
 
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
-        <p class="text-base text-gray-700 leading-relaxed">
-          <strong>Take a moment.</strong> Before revealing, think about how you'd split this class. What would each new piece be responsible for, and what does <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">OrderProcessor</code> end up doing?
-        </p>
       </div>
 
-      <div class="flex gap-4 pt-4 border-t border-gray-200">
-        <button
-          id="show-solution-btn"
-          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-        >
-          Reveal the solution and the principle
-        </button>
-      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Before revealing, think about how you'd split this class. What would each new piece be responsible for, and what does <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">OrderProcessor</code> end up doing?
+            </p>
+          </div>
 
-      <div id="solution-section" class="hidden space-y-6">
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the solution and the principle →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span class="text-green-600">✅</span> The solution
@@ -98,6 +104,7 @@ end`} language="ruby" />
             <p>Splitting by responsibility doesn't mean breaking everything down into one-method classes. It means <strong>each class should be clearly answering one question</strong>. The orchestrator's job is to know what runs and in what order. Each step's job is to do its piece. The orchestrator doesn't care how the email is built, and the email class doesn't care about the warehouse.</p>
           </div>
         </div>
+        </div>
       </div>
     </div>
 
@@ -109,11 +116,15 @@ end`} language="ruby" />
 
   <script>
     const btn = document.getElementById('show-solution-btn');
-    const section = document.getElementById('solution-section');
-    if (btn && section) {
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
       btn.addEventListener('click', () => {
-        section.classList.remove('hidden');
-        btn.classList.add('hidden');
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });
     }
   </script>

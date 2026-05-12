@@ -4,7 +4,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
 <Layout title="Uniqueness lives in the database, not in valid?" description="Why validates :uniqueness can't actually prevent duplicates under concurrent traffic.">
-  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> Back to Course
@@ -14,14 +14,16 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <p class="text-xl text-gray-600">Why <code class="bg-gray-100 px-2 py-1 rounded text-base">validates :uniqueness</code> can't actually prevent duplicates once your traffic gets concurrent.</p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
-      <div>
-        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <span class="text-red-600">❌</span> The code
-        </h3>
-        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
-        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
-          <CodeBlock code={`class User < ApplicationRecord
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <!-- Left column: problem -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-red-600">❌</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+          <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+            <CodeBlock code={`class User < ApplicationRecord
   validates :email, presence: true, uniqueness: true
 end
 
@@ -34,54 +36,60 @@ def create
     render :new
   end
 end`} language="ruby" />
-        </div>
-      </div>
-
-      <div>
-        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
-        <p class="text-gray-700 leading-relaxed">When two users try to sign up with the same email at the exact same moment, both requests will run <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">valid?</code> and ask the database whether that email already exists. Since neither request has actually inserted anything yet, both checks come back clean and both saves go through. <strong>You end up with two users sharing the same email</strong>, even though the validation did exactly what it was supposed to do — it just didn't have the right vantage point to actually prevent it.</p>
-      </div>
-
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
-        <p class="text-base text-gray-700 leading-relaxed">
-          <strong>Take a moment.</strong> Before revealing, try to work out the fix yourself. Where would you put the rule? What would it look like?
-        </p>
-      </div>
-
-      <div class="flex gap-4 pt-4 border-t border-gray-200">
-        <button
-          id="show-solution-btn"
-          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-        >
-          Reveal the solution and the principle
-        </button>
-      </div>
-
-      <div id="solution-section" class="hidden space-y-6">
-        <div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-green-600">✅</span> The solution
-          </h3>
-          <p class="text-gray-700 leading-relaxed mb-4"><strong>Move the uniqueness rule down into the database itself</strong>, by adding a unique index on the column. The database is the only thing in the stack that has visibility over every concurrent write at once, so it's the only thing that can actually enforce "no two rows can share this value". The validation can stay on the model for the friendly error message, but the database is what guarantees correctness.</p>
-          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
-            <li>The rule holds under any amount of concurrent traffic</li>
-            <li>The database raises a specific error you can catch</li>
-            <li>The validation can stay for the friendly UI message</li>
-          </ul>
-          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
-            <CodeBlock code={`# In a migration:
-add_index :users, :email, unique: true`} language="ruby" />
           </div>
         </div>
 
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span>💡</span> The principle at play — Database constraints
-          </h3>
-          <div class="space-y-3 text-gray-700 leading-relaxed">
-            <p>When two web requests come in at the same instant, Rails handles them in parallel on different processes. Each one is doing its own thing in isolation, and <strong>neither one can see what the other is currently working on</strong>. So when both run the uniqueness validation at almost the same moment, both get the same answer — even though only one of them is actually allowed to succeed.</p>
-            <p>The database, on the other hand, is <strong>the one place in your system that sees every write happening across every process at once</strong>. When you tell it "this column has to be unique", it's the only thing that can actually enforce that, because it's the only thing that can compare a new write against everything else happening at the same moment.</p>
-            <p>That's why uniqueness has to live in the database. It's not that the Ruby validation is wrong, it's that <strong>Ruby doesn't have the right vantage point</strong> to enforce uniqueness on its own. The database does, so that's where the rule belongs.</p>
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+          <p class="text-gray-700 leading-relaxed">When two users try to sign up with the same email at the exact same moment, both requests will run <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">valid?</code> and ask the database whether that email already exists. Since neither request has actually inserted anything yet, both checks come back clean and both saves go through. <strong>You end up with two users sharing the same email</strong>, even though the validation did exactly what it was supposed to do — it just didn't have the right vantage point to actually prevent it.</p>
+        </div>
+      </div>
+
+      <!-- Right column: prompt → solution -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Before revealing, try to work out the fix yourself. Where would you put the rule? What would it look like?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the solution and the principle →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The solution
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-4"><strong>Move the uniqueness rule down into the database itself</strong>, by adding a unique index on the column. The database is the only thing in the stack that has visibility over every concurrent write at once, so it's the only thing that can actually enforce "no two rows can share this value". The validation can stay on the model for the friendly error message, but the database is what guarantees correctness.</p>
+            <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+              <li>The rule holds under any amount of concurrent traffic</li>
+              <li>The database raises a specific error you can catch</li>
+              <li>The validation can stay for the friendly UI message</li>
+            </ul>
+            <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+              <CodeBlock code={`# In a migration:
+add_index :users, :email, unique: true`} language="ruby" />
+            </div>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The principle at play — Database constraints
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>When two web requests come in at the same instant, Rails handles them in parallel on different processes. Each one is doing its own thing in isolation, and <strong>neither one can see what the other is currently working on</strong>. So when both run the uniqueness validation at almost the same moment, both get the same answer — even though only one of them is actually allowed to succeed.</p>
+              <p>The database, on the other hand, is <strong>the one place in your system that sees every write happening across every process at once</strong>. When you tell it "this column has to be unique", it's the only thing that can actually enforce that, because it's the only thing that can compare a new write against everything else happening at the same moment.</p>
+              <p>That's why uniqueness has to live in the database. It's not that the Ruby validation is wrong, it's that <strong>Ruby doesn't have the right vantage point</strong> to enforce uniqueness on its own. The database does, so that's where the rule belongs.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -95,11 +103,15 @@ add_index :users, :email, unique: true`} language="ruby" />
 
   <script>
     const btn = document.getElementById('show-solution-btn');
-    const section = document.getElementById('solution-section');
-    if (btn && section) {
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
       btn.addEventListener('click', () => {
-        section.classList.remove('hidden');
-        btn.classList.add('hidden');
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });
     }
   </script>

@@ -4,7 +4,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
 <Layout title="Depend on the smallest interface that does the job" description="Why a service that demands a full User can't be reused with a Lead or a Contact.">
-  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> Back to Course
@@ -14,7 +14,8 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <p class="text-xl text-gray-600">Why a service that demands a full <code class="bg-gray-100 px-2 py-1 rounded text-base">User</code> can't be reused with a Lead or a Contact.</p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <span class="text-red-600">❌</span> The code
@@ -43,22 +44,27 @@ end
         <p class="text-gray-700 leading-relaxed">The service signature says it takes a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code>, but if you actually look at what it uses, it only ever calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">full_name</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">email</code>. Nothing else. So when marketing comes back two months later and asks if you can run the same report for a Lead — which has those exact two attributes — you can't, even though it would technically work fine. <strong>The service is coupled to the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code> class even though it never needed any of the things that make a User a User</strong>.</p>
       </div>
 
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
-        <p class="text-base text-gray-700 leading-relaxed">
-          <strong>Take a moment.</strong> Before revealing, ask yourself what the service actually needs from the user it's passed. Could you express that more narrowly?
-        </p>
       </div>
 
-      <div class="flex gap-4 pt-4 border-t border-gray-200">
-        <button
-          id="show-solution-btn"
-          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-        >
-          Reveal the solution and the principle
-        </button>
-      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Before revealing, ask yourself what the service actually needs from the user it's passed. Could you express that more narrowly?
+            </p>
+          </div>
 
-      <div id="solution-section" class="hidden space-y-6">
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the solution and the principle →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span class="text-green-600">✅</span> The solution
@@ -98,6 +104,7 @@ ReportPdfService.new(full_name: lead.full_name, email: lead.email).generate`} la
             <p>Shrinking the dependency makes the relationship between the service and its caller more honest. <strong>The service says exactly what it needs, the caller provides exactly that</strong>, and any new type that fits the same minimal shape can plug in without the service ever having to know.</p>
           </div>
         </div>
+        </div>
       </div>
     </div>
 
@@ -109,11 +116,15 @@ ReportPdfService.new(full_name: lead.full_name, email: lead.email).generate`} la
 
   <script>
     const btn = document.getElementById('show-solution-btn');
-    const section = document.getElementById('solution-section');
-    if (btn && section) {
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
       btn.addEventListener('click', () => {
-        section.classList.remove('hidden');
-        btn.classList.add('hidden');
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });
     }
   </script>

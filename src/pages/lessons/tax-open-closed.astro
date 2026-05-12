@@ -4,7 +4,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
 <Layout title="Adding a variant shouldn't mean editing every file" description="Why a case statement on notification.kind ends up scattered across half your codebase.">
-  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> Back to Course
@@ -14,7 +14,8 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <p class="text-xl text-gray-600">Why a <code class="bg-gray-100 px-2 py-1 rounded text-base">case</code> statement on <code class="bg-gray-100 px-2 py-1 rounded text-base">notification.kind</code> ends up scattered across half your codebase.</p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <span class="text-red-600">❌</span> The code
@@ -41,22 +42,27 @@ end`} language="ruby" />
         <p class="text-gray-700 leading-relaxed">The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">case</code> statement on <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">notification.kind</code> lives here, but it almost never lives here only. The same <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">case</code> tends to show up in the delivery report, the analytics CSV export, the user's notification settings page, and probably the per-channel error handler too — anywhere in the app that needs to act differently depending on the kind. So when the team decides to add Slack as a fourth channel, you have to track down every one of those files and add a new <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">when "slack"</code> branch. <strong>Miss one, and that channel quietly misbehaves in that part of the app</strong>.</p>
       </div>
 
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
-        <p class="text-base text-gray-700 leading-relaxed">
-          <strong>Take a moment.</strong> Before revealing, think about how you'd let new notification kinds be added without having to edit the dispatcher (and the report, and the settings page) every time.
-        </p>
       </div>
 
-      <div class="flex gap-4 pt-4 border-t border-gray-200">
-        <button
-          id="show-solution-btn"
-          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-        >
-          Reveal the solution and the principle
-        </button>
-      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Before revealing, think about how you'd let new notification kinds be added without having to edit the dispatcher (and the report, and the settings page) every time.
+            </p>
+          </div>
 
-      <div id="solution-section" class="hidden space-y-6">
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the solution and the principle →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span class="text-green-600">✅</span> The solution
@@ -98,6 +104,7 @@ end`} language="ruby" />
             <p>The fix is to <strong>give the concept its own home</strong>. The registry holds the mapping in one place, and every other piece of code dispatches through it instead of writing its own case statement. New variants are added by creating new files and registering them, without touching any of the existing dispatch sites.</p>
           </div>
         </div>
+        </div>
       </div>
     </div>
 
@@ -109,11 +116,15 @@ end`} language="ruby" />
 
   <script>
     const btn = document.getElementById('show-solution-btn');
-    const section = document.getElementById('solution-section');
-    if (btn && section) {
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
       btn.addEventListener('click', () => {
-        section.classList.remove('hidden');
-        btn.classList.add('hidden');
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });
     }
   </script>

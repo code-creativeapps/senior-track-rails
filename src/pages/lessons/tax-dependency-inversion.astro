@@ -4,7 +4,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
 <Layout title="Business logic shouldn't know which payment provider you use" description="Why BillingService calling Stripe::Charge.create directly makes the service nearly impossible to test or evolve.">
-  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> Back to Course
@@ -14,7 +14,8 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <p class="text-xl text-gray-600">Why <code class="bg-gray-100 px-2 py-1 rounded text-base">BillingService</code> calling <code class="bg-gray-100 px-2 py-1 rounded text-base">Stripe::Charge.create</code> directly makes the service nearly impossible to test or evolve.</p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <span class="text-red-600">❌</span> The code
@@ -39,22 +40,27 @@ end`} language="ruby" />
         <p class="text-gray-700 leading-relaxed"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">BillingService</code> is supposed to hold the high-level business logic for charging users and recording payments. By calling <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Stripe::Charge.create</code> directly, it gets coupled to one specific payment vendor's SDK. Every test that touches the service has to stub Stripe at the SDK level, every dev environment needs Stripe API keys, and the day someone wants to add PayPal for European customers, <strong>you end up rewriting <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">BillingService</code> instead of just adding a new gateway</strong>.</p>
       </div>
 
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
-        <p class="text-base text-gray-700 leading-relaxed">
-          <strong>Take a moment.</strong> Before revealing, think about how you'd make <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">BillingService</code> testable without stubbing the Stripe SDK, and how you'd add a second provider without rewriting the service.
-        </p>
       </div>
 
-      <div class="flex gap-4 pt-4 border-t border-gray-200">
-        <button
-          id="show-solution-btn"
-          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-        >
-          Reveal the solution and the principle
-        </button>
-      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Before revealing, think about how you'd make <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">BillingService</code> testable without stubbing the Stripe SDK, and how you'd add a second provider without rewriting the service.
+            </p>
+          </div>
 
-      <div id="solution-section" class="hidden space-y-6">
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the solution and the principle →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span class="text-green-600">✅</span> The solution
@@ -89,6 +95,7 @@ end`} language="ruby" />
             <p>The fix is to define what the high-level code actually needs from the low-level world (in this case, "something that can charge a customer"), and to make both the high-level code and the low-level implementation agree on that small interface. <strong>The high-level code now depends on the interface, not on Stripe specifically</strong>. Stripe just becomes one possible implementation, and adding another is straightforward.</p>
           </div>
         </div>
+        </div>
       </div>
     </div>
 
@@ -100,11 +107,15 @@ end`} language="ruby" />
 
   <script>
     const btn = document.getElementById('show-solution-btn');
-    const section = document.getElementById('solution-section');
-    if (btn && section) {
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
       btn.addEventListener('click', () => {
-        section.classList.remove('hidden');
-        btn.classList.add('hidden');
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });
     }
   </script>

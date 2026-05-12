@@ -4,7 +4,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
 <Layout title="When the controller knows about every downstream concern" description="Why a create action that fires payment, inventory, email, analytics, and Slack inline becomes a coordination nightmare.">
-  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> All lessons
@@ -14,7 +14,8 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <p class="text-xl text-gray-600">Why a create action that fires payment, inventory, email, analytics, and Slack inline becomes a coordination nightmare.</p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <span class="text-red-600">❌</span> The code
@@ -43,22 +44,27 @@ end`} language="ruby" />
         <p class="text-gray-700 leading-relaxed">Every concern that runs after an order is placed lives in this controller. <strong>Adding loyalty points means editing this controller. Adding fraud screening means editing this controller.</strong> Every team that wants to do something when an order is placed has to come and add a line. The action becomes a junk drawer of unrelated calls, and any failure in one of them risks taking down the others or leaving the system in an inconsistent state.</p>
       </div>
 
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
-        <p class="text-base text-gray-700 leading-relaxed">
-          <strong>Take a moment.</strong> Before revealing, ask yourself how you'd let other parts of the app react to an order being placed without the controller having to know about each one.
-        </p>
       </div>
 
-      <div class="flex gap-4 pt-4 border-t border-gray-200">
-        <button
-          id="show-solution-btn"
-          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-        >
-          Reveal the solution and the principle
-        </button>
-      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Before revealing, ask yourself how you'd let other parts of the app react to an order being placed without the controller having to know about each one.
+            </p>
+          </div>
 
-      <div id="solution-section" class="hidden space-y-6">
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the solution and the principle →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span class="text-green-600">✅</span> The solution
@@ -96,6 +102,7 @@ OrderEvents.subscribe(:placed) { |order| OrderConfirmationMailer.with(order: ord
             <p>Rails has a built-in version of this with <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">ActiveSupport::Notifications</code>, and gems like <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">wisper</code> exist for richer pub/sub. The mechanism matters less than the shift in mindset: <em>the action that does the thing is not responsible for the things that happen because of it</em>.</p>
           </div>
         </div>
+        </div>
       </div>
     </div>
 
@@ -107,11 +114,15 @@ OrderEvents.subscribe(:placed) { |order| OrderConfirmationMailer.with(order: ord
 
   <script>
     const btn = document.getElementById('show-solution-btn');
-    const section = document.getElementById('solution-section');
-    if (btn && section) {
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
       btn.addEventListener('click', () => {
-        section.classList.remove('hidden');
-        btn.classList.add('hidden');
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });
     }
   </script>

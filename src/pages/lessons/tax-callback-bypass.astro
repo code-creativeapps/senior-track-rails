@@ -4,7 +4,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
 <Layout title="update_all is a SQL escape hatch — it skips your callbacks" description="Why a fast bulk update can leave 50,000 users with broken state.">
-  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> All lessons
@@ -14,7 +14,8 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <p class="text-xl text-gray-600">Why a fast bulk update can quietly leave 50,000 users with broken state.</p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <span class="text-red-600">❌</span> The code
@@ -41,22 +42,27 @@ User.where(role: "free").update_all(role: "trial")`} language="ruby" />
         <p class="text-gray-700 leading-relaxed"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">update_all</code> sends a single SQL <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">UPDATE</code> statement directly. It skips callbacks, validations, and even <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">updated_at</code>. That's the whole point of it — it's the fast path. But it also means the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_save</code> that sets <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">trial_ends_at</code> doesn't fire. <strong>50,000 users now have their role set to "trial" but a nil trial_ends_at</strong>, and three days later support starts getting tickets from people whose trial expired the moment they signed up.</p>
       </div>
 
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
-        <p class="text-base text-gray-700 leading-relaxed">
-          <strong>Take a moment.</strong> Before revealing, think about what you'd use instead when callbacks need to fire — and how you'd make it obvious in the code when callbacks are deliberately being skipped.
-        </p>
       </div>
 
-      <div class="flex gap-4 pt-4 border-t border-gray-200">
-        <button
-          id="show-solution-btn"
-          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-        >
-          Reveal the solution and the principle
-        </button>
-      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Before revealing, think about what you'd use instead when callbacks need to fire — and how you'd make it obvious in the code when callbacks are deliberately being skipped.
+            </p>
+          </div>
 
-      <div id="solution-section" class="hidden space-y-6">
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the solution and the principle →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span class="text-green-600">✅</span> The solution
@@ -84,6 +90,7 @@ end`} language="ruby" />
             <p>The discipline is to be deliberate. If you're using a bulk SQL operation, ask "what is this skipping, and am I OK with that?" before you ship it. And leave a one-line comment so the next developer doesn't have to re-derive the answer.</p>
           </div>
         </div>
+        </div>
       </div>
     </div>
 
@@ -95,11 +102,15 @@ end`} language="ruby" />
 
   <script>
     const btn = document.getElementById('show-solution-btn');
-    const section = document.getElementById('solution-section');
-    if (btn && section) {
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
       btn.addEventListener('click', () => {
-        section.classList.remove('hidden');
-        btn.classList.add('hidden');
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });
     }
   </script>

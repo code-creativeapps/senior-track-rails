@@ -4,7 +4,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
 <Layout title="Rescue only what you can recover from" description="Why a generic rescue swallows your own bugs along with the network errors you meant to handle.">
-  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> All lessons
@@ -14,7 +14,8 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <p class="text-xl text-gray-600">Why a generic <code class="bg-gray-100 px-2 py-1 rounded text-base">rescue =&gt; e</code> hides every bug, including the ones you wrote last week.</p>
     </div>
 
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <span class="text-red-600">❌</span> The code
@@ -36,22 +37,27 @@ end`} language="ruby" />
         <p class="text-gray-700 leading-relaxed">A bare <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">rescue =&gt; e</code> catches every <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">StandardError</code>. Network timeouts, JSON parse errors, typos in your code, missing methods, renamed parameters — they all hit the same log line and the method silently returns <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">nil</code>. <strong>The call site can't tell anything went wrong</strong>, the UI happily reports success, and the audit log says "synced". Six weeks later somebody notices that 4% of users haven't been synced since the last deploy, and the only trace is grep-able lines in production logs that nobody reads.</p>
       </div>
 
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
-        <p class="text-base text-gray-700 leading-relaxed">
-          <strong>Take a moment.</strong> Before revealing, ask yourself: which exceptions can this code actually do something useful about? Everything else should probably propagate.
-        </p>
       </div>
 
-      <div class="flex gap-4 pt-4 border-t border-gray-200">
-        <button
-          id="show-solution-btn"
-          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-        >
-          Reveal the solution and the principle
-        </button>
-      </div>
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Before revealing, ask yourself: which exceptions can this code actually do something useful about? Everything else should probably propagate.
+            </p>
+          </div>
 
-      <div id="solution-section" class="hidden space-y-6">
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the solution and the principle →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span class="text-green-600">✅</span> The solution
@@ -82,6 +88,7 @@ end`} language="ruby" />
             <p>The rule is to rescue the smallest set of exceptions you can actually do something useful about. Everything else propagates — to a higher-level handler that knows more, or all the way up to your error tracker, where someone can see the stack trace and fix the underlying cause.</p>
           </div>
         </div>
+        </div>
       </div>
     </div>
 
@@ -93,11 +100,15 @@ end`} language="ruby" />
 
   <script>
     const btn = document.getElementById('show-solution-btn');
-    const section = document.getElementById('solution-section');
-    if (btn && section) {
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
       btn.addEventListener('click', () => {
-        section.classList.remove('hidden');
-        btn.classList.add('hidden');
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });
     }
   </script>
