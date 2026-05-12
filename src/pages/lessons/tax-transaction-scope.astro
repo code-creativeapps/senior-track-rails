@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <span class="text-red-600">❌</span> The code
+          <Icon name="lucide:circle-x" class="w-5 h-5 text-red-600 inline-block" aria-hidden="true" /> The code
         </h3>
         <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
         <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
@@ -65,7 +66,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-green-600">✅</span> The solution
+            <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The solution
           </h3>
           <p class="text-gray-700 leading-relaxed mb-4"><strong>Pull the Mailchimp call out of the model's lifecycle entirely</strong>. Once the controller has finished saving the user, enqueue a background job that handles the Mailchimp sync separately. That way the save no longer depends on Mailchimp being up, and a slow API response can't slow down your signups.</p>
           <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
@@ -90,7 +91,7 @@ end`} language="ruby" />
 
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span>💡</span> The principle at play — Transaction scope
+            <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The principle at play — Transaction scope
           </h3>
           <div class="space-y-3 text-gray-700 leading-relaxed">
             <p>Rails wraps every save in a database transaction, which is essentially a deal with the database: do all of these writes together, and if anything fails, undo all of them. While the transaction is open, <strong>the database is also holding locks on the rows being changed</strong>, so any other request that wants to touch those same rows has to wait its turn.</p>

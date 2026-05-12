@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The code
+            <Icon name="lucide:search" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The code
           </h3>
           <p class="text-gray-700 italic mb-3">A class method on User. Five filters, an order, a limit, two joins.</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
@@ -70,7 +71,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> What's wrong
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> What's wrong
             </h3>
             <p class="text-gray-700 leading-relaxed">The method is named after a business concept ("churn risks") that the User model doesn't otherwise know about. Putting it on User means: every developer reading User has to scroll past it, the User model now depends on NotificationLog and Payment query details, and the method can't be reused or tested without loading the full User model with its concerns and validations.</p>
             <p class="text-gray-700 leading-relaxed mt-3">It's also doing too many things: scoping, joining, filtering, grouping, and ordering — all about answering one specific question. Each change to the business rule means editing this method, which means risking the rest of User indirectly.</p>
@@ -78,7 +79,7 @@ end`} language="ruby" />
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>💡</span> Extract a query object
+              <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> Extract a query object
             </h3>
             <div class="space-y-3 text-gray-700 leading-relaxed">
               <p>A query object is a class whose entire job is one business question. It can hold its parameters as instance state, its filters as private methods, and its result as the return of a single public <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">call</code> method.</p>
@@ -113,7 +114,7 @@ risks = ChurnRiskQuery.new(min_spend_cents: 100_00).call`} language="ruby" />
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📚</span> Theory
+              <Icon name="lucide:library" class="w-5 h-5 inline-block" aria-hidden="true" /> Theory
             </h3>
             <p class="text-gray-700 leading-relaxed">For the full walkthrough of query objects anchored in real OSS code, read <a href="/lessons/senior-srp-query-objects" class="text-ruby hover:text-ruby-dark font-medium">SOLID · SRP · Query Objects</a>.</p>
           </div>

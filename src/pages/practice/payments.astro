@@ -1,13 +1,14 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 
 const cards = [
-  { slug: 'practice-payments-no-idempotency',  emoji: '🔁', title: "What's the right idempotency key for this job?" },
-  { slug: 'practice-payments-webhook-verify',  emoji: '🛡️', title: 'Why does this webhook controller skip CSRF?' },
-  { slug: 'practice-payments-trust-redirect',  emoji: '🚨', title: 'Trusting the redirect: what goes wrong?' },
-  { slug: 'practice-payments-event-ordering',  emoji: '🔀', title: 'Refunded event arrived first. Now what?' },
-  { slug: 'practice-payments-refund-state',    emoji: '↩️', title: 'Modeling a partial refund: where does the data go?' },
-  { slug: 'practice-payments-ledger-pick',     emoji: '📒', title: 'Wallet balance: column or ledger?' },
+  { slug: 'practice-payments-no-idempotency',  icon: 'lucide:repeat', title: "What's the right idempotency key for this job?" },
+  { slug: 'practice-payments-webhook-verify',  icon: 'lucide:shield', title: 'Why does this webhook controller skip CSRF?' },
+  { slug: 'practice-payments-trust-redirect',  icon: 'lucide:siren', title: 'Trusting the redirect: what goes wrong?' },
+  { slug: 'practice-payments-event-ordering',  icon: 'lucide:shuffle', title: 'Refunded event arrived first. Now what?' },
+  { slug: 'practice-payments-refund-state',    icon: 'lucide:undo-2', title: 'Modeling a partial refund: where does the data go?' },
+  { slug: 'practice-payments-ledger-pick',     icon: 'lucide:notebook-pen', title: 'Wallet balance: column or ledger?' },
 ];
 ---
 
@@ -26,7 +27,7 @@ const cards = [
       {cards.map((card, i) => (
         <a href={`/lessons/${card.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
           <div class="flex items-start gap-3">
-            <span class="text-2xl" aria-hidden="true">{card.emoji}</span>
+            <Icon name={card.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
             <div class="flex-1">
               <p class="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Card {i + 1}</p>
               <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug">{card.title}</h3>

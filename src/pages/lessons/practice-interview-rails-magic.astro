@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🎤</span> The question
+            <Icon name="lucide:mic" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The question
           </h3>
           <p class="text-gray-700 italic mb-3">An interviewer asks:</p>
           <blockquote class="border-l-4 border-ruby/40 pl-4 italic text-gray-700">
@@ -53,7 +54,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> The senior framing
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The senior framing
             </h3>
             <div class="space-y-3 text-gray-700 leading-relaxed">
               <p>A senior answer names the <strong>surface</strong> generated, the <strong>class-level metadata</strong> registered, the <strong>validation</strong> installed, and at least one <strong>implementation file</strong>. You don't have to recite every method; you have to convey that you know there's a list.</p>
@@ -66,7 +67,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 
           <div class="bg-red-50 border border-red-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>🚧</span> Junior framings that don't land
+              <Icon name="lucide:construction" class="w-5 h-5 inline-block" aria-hidden="true" /> Junior framings that don't land
             </h3>
             <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
               <li><strong>"It adds a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user</code> method."</strong> Names one of about eight things. The interviewer asked for depth; this signals shallow exposure.</li>
@@ -78,7 +79,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>💡</span> What the rubric scores
+              <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> What the rubric scores
             </h3>
             <ul class="space-y-2 text-gray-700 leading-relaxed list-disc list-inside ml-2">
               <li><strong>Surface enumeration.</strong> Do you name the family of methods (reader, writer, build, create, reload, dirty-tracking) or just one?</li>
@@ -90,7 +91,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📚</span> Theory
+              <Icon name="lucide:library" class="w-5 h-5 inline-block" aria-hidden="true" /> Theory
             </h3>
             <p class="text-gray-700 leading-relaxed">For the full walkthrough — every method generated, every option's effect, where each piece lives in the Rails source — read <a href="/lessons/source-belongs-to" class="text-ruby hover:text-ruby-dark font-medium">Reading the Source · What belongs_to :user actually adds</a>.</p>
           </div>

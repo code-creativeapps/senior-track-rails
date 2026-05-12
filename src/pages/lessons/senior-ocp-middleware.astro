@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -11,7 +12,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">OCP Series · 3 of 5</p>
       <div class="flex items-center gap-4 mb-4">
-        <span class="text-5xl" aria-hidden="true">🔗</span>
+        <Icon name="lucide:link" class="w-12 h-12 inline-block" aria-hidden="true" />
         <h1 class="text-4xl font-bold text-gray-900">The Middleware Pattern</h1>
       </div>
       <p class="text-xl text-gray-600">Where middleware comes from, why it is the convention that runs the entire Rails request stack, and how Sidekiq uses the same shape to let teams add behavior to every job without modifying the worker.</p>

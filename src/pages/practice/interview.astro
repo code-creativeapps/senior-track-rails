@@ -1,13 +1,14 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 
 const cards = [
-  { slug: 'practice-interview-includes-variants', emoji: '🔎', title: 'includes vs preload vs eager_load vs joins' },
-  { slug: 'practice-interview-service-objects',   emoji: '⚙️', title: '"Tell me about service objects."' },
-  { slug: 'practice-interview-n-plus-one',        emoji: '🔢', title: '"How do you find and fix N+1?"' },
-  { slug: 'practice-interview-sidekiq-solid',     emoji: '⏱️', title: '"Sidekiq or Solid Queue?"' },
-  { slug: 'practice-interview-hotwire',           emoji: '⚡', title: '"Turbo Frames vs Turbo Streams?"' },
-  { slug: 'practice-interview-rails-magic',       emoji: '🔧', title: '"Walk me through what belongs_to does."' },
+  { slug: 'practice-interview-includes-variants', icon: 'lucide:search', title: 'includes vs preload vs eager_load vs joins' },
+  { slug: 'practice-interview-service-objects',   icon: 'lucide:cog', title: '"Tell me about service objects."' },
+  { slug: 'practice-interview-n-plus-one',        icon: 'lucide:hash', title: '"How do you find and fix N+1?"' },
+  { slug: 'practice-interview-sidekiq-solid',     icon: 'lucide:timer', title: '"Sidekiq or Solid Queue?"' },
+  { slug: 'practice-interview-hotwire',           icon: 'lucide:zap', title: '"Turbo Frames vs Turbo Streams?"' },
+  { slug: 'practice-interview-rails-magic',       icon: 'lucide:wrench', title: '"Walk me through what belongs_to does."' },
 ];
 ---
 
@@ -26,7 +27,7 @@ const cards = [
       {cards.map((card, i) => (
         <a href={`/lessons/${card.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
           <div class="flex items-start gap-3">
-            <span class="text-2xl" aria-hidden="true">{card.emoji}</span>
+            <Icon name={card.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
             <div class="flex-1">
               <p class="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Card {i + 1}</p>
               <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug">{card.title}</h3>

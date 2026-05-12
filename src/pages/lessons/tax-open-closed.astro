@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <span class="text-red-600">❌</span> The code
+          <Icon name="lucide:circle-x" class="w-5 h-5 text-red-600 inline-block" aria-hidden="true" /> The code
         </h3>
         <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
         <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
@@ -65,7 +66,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-green-600">✅</span> The solution
+            <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The solution
           </h3>
           <p class="text-gray-700 leading-relaxed mb-4">Replace the scattered <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">case</code> statements with <strong>a single registry that maps each kind to a handler class</strong>. Anywhere in the code that needs to dispatch on the kind goes through the registry. Adding Slack now means writing a new <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">SlackHandler</code> class and adding one line to the registry, and none of the existing files need to change.</p>
           <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
@@ -96,7 +97,7 @@ end`} language="ruby" />
 
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span>💡</span> The principle at play — Open for extension, closed for modification
+            <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The principle at play — Open for extension, closed for modification
           </h3>
           <div class="space-y-3 text-gray-700 leading-relaxed">
             <p>The Open/Closed Principle says that the parts of your codebase you've already written should be "closed" — <strong>you shouldn't have to keep editing them every time you add a new variant of something</strong>. Instead, your code should be "open" to extension, meaning new functionality can be added by writing new code rather than going back and rewriting existing code.</p>

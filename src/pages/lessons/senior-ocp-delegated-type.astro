@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -11,7 +12,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">OCP Series · 5 of 5</p>
       <div class="flex items-center gap-4 mb-4">
-        <span class="text-5xl" aria-hidden="true">🧬</span>
+        <Icon name="lucide:dna" class="w-12 h-12 inline-block" aria-hidden="true" />
         <h1 class="text-4xl font-bold text-gray-900">delegated_type</h1>
       </div>
       <p class="text-xl text-gray-600">Where the pattern comes from, why STI hits a wall in real apps, and how Rails 6.1's <code class="text-lg">delegated_type</code> lets Basecamp's Hey handle Messages, Documents, and Comments through a single <code class="text-lg">Entry</code> without modifying the parent.</p>

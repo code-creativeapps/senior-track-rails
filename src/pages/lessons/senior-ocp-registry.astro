@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -11,7 +12,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">OCP Series · 1 of 5</p>
       <div class="flex items-center gap-4 mb-4">
-        <span class="text-5xl" aria-hidden="true">🗂️</span>
+        <Icon name="lucide:folders" class="w-12 h-12 inline-block" aria-hidden="true" />
         <h1 class="text-4xl font-bold text-gray-900">The Registry Pattern</h1>
       </div>
       <p class="text-xl text-gray-600">Where the Open/Closed Principle comes from, what "open for extension, closed for modification" looks like in real Rails, and how Gumroad's <code class="text-lg">PayoutProcessorType</code> lets the team add a new payment processor without touching the existing ones.</p>

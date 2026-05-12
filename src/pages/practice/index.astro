@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 
 const categories = [
@@ -6,42 +7,42 @@ const categories = [
     title: 'Spot the Tax',
     href: '/practice/spot-the-tax',
     count: '20 cards',
-    emoji: '🪙',
+    icon: 'lucide:coins',
     summary: 'Code that works today and costs something specific in six months. Look at the snippet, predict the cost, reveal the principle. Reveal-only format.',
   },
   {
     title: 'Reading the Source',
     href: '/practice/reading-the-source',
     count: '5 cards',
-    emoji: '🔎',
+    icon: 'lucide:search',
     summary: 'Multiple-choice drills on how Rails actually works behind the magic. Discrete answers, wrong picks explain themselves.',
   },
   {
     title: 'Scaling',
     href: '/practice/scaling',
     count: '8 cards',
-    emoji: '📈',
+    icon: 'lucide:trending-up',
     summary: 'One scaling-bug shape per card. Index design, N+1, caching, pagination, contention, concurrency, jobs, bulk operations.',
   },
   {
     title: 'SOLID',
     href: '/practice/solid',
     count: '10 cards',
-    emoji: '🧩',
+    icon: 'lucide:puzzle',
     summary: 'Design-judgment cards, two per principle. The "answer" is a shape, not a discrete pick.',
   },
   {
     title: 'Payments',
     href: '/practice/payments',
     count: '6 cards',
-    emoji: '💳',
+    icon: 'lucide:credit-card',
     summary: 'The shapes that show up in real payment integrations: idempotency, webhook verification, async confirmation, refund modeling, event ordering, ledger picks.',
   },
   {
     title: 'Interview Prep',
     href: '/practice/interview',
     count: '6 cards',
-    emoji: '🎤',
+    icon: 'lucide:mic',
     summary: 'Common senior Rails interview questions with answer rubrics. Each card explains what the right answer signals to the interviewer (and what the wrong ones do too).',
   },
 ];
@@ -68,7 +69,7 @@ const categories = [
       {categories.map((cat) => (
         <a href={cat.href} class="block bg-white rounded-lg border border-gray-200 p-6 hover:border-ruby/40 hover:shadow-md transition-all group">
           <div class="flex items-start gap-4">
-            <span class="text-4xl" aria-hidden="true">{cat.emoji}</span>
+            <Icon name={cat.icon} class="w-10 h-10 inline-block" aria-hidden="true" />
             <div class="flex-1">
               <div class="flex items-baseline justify-between mb-2">
                 <h2 class="text-xl font-bold text-gray-900 group-hover:text-ruby-dark transition-colors">{cat.title}</h2>

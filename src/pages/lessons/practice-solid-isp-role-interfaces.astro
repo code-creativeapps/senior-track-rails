@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The code
+            <Icon name="lucide:search" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The code
           </h3>
           <p class="text-gray-700 italic mb-3">A class that sends a one-off email. It takes a User.</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
@@ -66,7 +67,7 @@ NotifyAdmin.new.call(User.system_bot, "Cleanup", "...")`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> The cost
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The cost
             </h3>
             <ul class="space-y-2 text-gray-700 leading-relaxed list-disc list-inside ml-4">
               <li><strong>You can't call it without a User.</strong> A test that wants to verify behavior has to set up a User. Sending to a literal email string (a CI-only admin alias) requires inventing or stubbing a fake user with that email.</li>
@@ -77,7 +78,7 @@ NotifyAdmin.new.call(User.system_bot, "Cleanup", "...")`} language="ruby" />
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>💡</span> Depend on the smallest interface
+              <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> Depend on the smallest interface
             </h3>
             <div class="space-y-3 text-gray-700 leading-relaxed">
               <p>The interface this method needs is "something with an email." That can be expressed two ways:</p>
@@ -111,7 +112,7 @@ end
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📚</span> Theory
+              <Icon name="lucide:library" class="w-5 h-5 inline-block" aria-hidden="true" /> Theory
             </h3>
             <p class="text-gray-700 leading-relaxed">For the full walkthrough on role interfaces, read <a href="/lessons/senior-isp-role-interfaces" class="text-ruby hover:text-ruby-dark font-medium">SOLID · ISP · Role Interfaces</a>.</p>
           </div>

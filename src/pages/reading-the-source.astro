@@ -1,19 +1,20 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../layouts/Layout.astro';
 
 const cards = [
-  { slug: 'source-belongs-to',           emoji: '🔗', title: 'What <code>belongs_to :user</code> actually adds', kind: 'Short Socratic' },
-  { slug: 'source-routing',              emoji: '🛤️', title: 'How <code>get "/posts"</code> becomes a controller call', kind: 'Walkthrough' },
-  { slug: 'source-activerecord-query',   emoji: '🔎', title: 'How <code>User.where(...)</code> becomes SQL', kind: 'Walkthrough' },
-  { slug: 'source-view-rendering',       emoji: '🖼️', title: 'How a view gets rendered after your action', kind: 'Walkthrough' },
-  { slug: 'source-params',               emoji: '📥', title: 'How <code>params</code> works (and what <code>permit</code> does)', kind: 'Walkthrough' },
-  { slug: 'source-before-action',        emoji: '⛓️', title: 'How <code>before_action</code> chains run', kind: 'Walkthrough' },
-  { slug: 'source-form-with',            emoji: '📝', title: 'How <code>form_with</code> builds an HTML form', kind: 'Walkthrough' },
-  { slug: 'source-has-many',             emoji: '📚', title: 'What <code>has_many</code> actually adds', kind: 'Short Socratic' },
-  { slug: 'source-enum',                 emoji: '🔤', title: 'What <code>enum</code> generates', kind: 'Short Socratic' },
-  { slug: 'source-has-secure-password',  emoji: '🔐', title: 'What <code>has_secure_password</code> installs', kind: 'Short Socratic' },
-  { slug: 'source-attribute',            emoji: '🏷️', title: 'What <code>attribute</code> gives you', kind: 'Short Socratic' },
-  { slug: 'source-delegated-type',       emoji: '🧬', title: 'What <code>delegated_type</code> sets up', kind: 'Short Socratic' },
+  { slug: 'source-belongs-to',           icon: 'lucide:link', title: 'What <code>belongs_to :user</code> actually adds', kind: 'Short Socratic' },
+  { slug: 'source-routing',              icon: 'lucide:route', title: 'How <code>get "/posts"</code> becomes a controller call', kind: 'Walkthrough' },
+  { slug: 'source-activerecord-query',   icon: 'lucide:search', title: 'How <code>User.where(...)</code> becomes SQL', kind: 'Walkthrough' },
+  { slug: 'source-view-rendering',       icon: 'lucide:image', title: 'How a view gets rendered after your action', kind: 'Walkthrough' },
+  { slug: 'source-params',               icon: 'lucide:inbox', title: 'How <code>params</code> works (and what <code>permit</code> does)', kind: 'Walkthrough' },
+  { slug: 'source-before-action',        icon: 'lucide:link-2', title: 'How <code>before_action</code> chains run', kind: 'Walkthrough' },
+  { slug: 'source-form-with',            icon: 'lucide:file-pen-line', title: 'How <code>form_with</code> builds an HTML form', kind: 'Walkthrough' },
+  { slug: 'source-has-many',             icon: 'lucide:library', title: 'What <code>has_many</code> actually adds', kind: 'Short Socratic' },
+  { slug: 'source-enum',                 icon: 'lucide:case-sensitive', title: 'What <code>enum</code> generates', kind: 'Short Socratic' },
+  { slug: 'source-has-secure-password',  icon: 'lucide:lock', title: 'What <code>has_secure_password</code> installs', kind: 'Short Socratic' },
+  { slug: 'source-attribute',            icon: 'lucide:tag', title: 'What <code>attribute</code> gives you', kind: 'Short Socratic' },
+  { slug: 'source-delegated-type',       icon: 'lucide:dna', title: 'What <code>delegated_type</code> sets up', kind: 'Short Socratic' },
 ];
 ---
 
@@ -38,7 +39,7 @@ const cards = [
       {cards.map((card, i) => (
         <a href={`/lessons/${card.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
           <div class="flex items-start gap-3">
-            <span class="text-2xl" aria-hidden="true">{card.emoji}</span>
+            <Icon name={card.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
             <div class="flex-1">
               <div class="flex items-baseline justify-between mb-1">
                 <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Card {i + 1}</p>

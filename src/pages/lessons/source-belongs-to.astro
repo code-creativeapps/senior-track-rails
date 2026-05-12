@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -19,7 +20,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The familiar line
+            <Icon name="lucide:search" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The familiar line
           </h3>
           <p class="text-gray-700 italic mb-3">You've written this dozens of times. What does it actually generate?</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
@@ -57,7 +58,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> What Rails generates
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> What Rails generates
             </h3>
             <p class="text-gray-700 leading-relaxed mb-4">On every Post object, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to :user</code> adds these methods:</p>
             <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
@@ -81,7 +82,7 @@ post.user_previously_changed?   # dirty tracking, after save`} language="ruby" /
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📂</span> Where this happens in Rails
+              <Icon name="lucide:folder" class="w-5 h-5 inline-block" aria-hidden="true" /> Where this happens in Rails
             </h3>
             <div class="space-y-3 text-gray-700 leading-relaxed">
               <p>The starting point is the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> class method, defined in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/associations.rb</code>. It hands the work off to a helper class called <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Associations::Builder::BelongsTo</code> in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/associations/builder/belongs_to.rb</code>. That helper is what actually adds the methods to your model, stores the reflection, and sets up callbacks if you passed <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">touch:</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">counter_cache:</code>.</p>
@@ -91,7 +92,7 @@ post.user_previously_changed?   # dirty tracking, after save`} language="ruby" /
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>🎯</span> Why this is worth knowing
+              <Icon name="lucide:target" class="w-5 h-5 inline-block" aria-hidden="true" /> Why this is worth knowing
             </h3>
             <div class="space-y-3 text-gray-700 leading-relaxed">
               <p>Memorizing the exact list isn't the goal. The point is to get used to a pattern: every Rails declaration like this one adds a small family of methods, stores some info about the class, and sometimes plugs in a validation or a callback. Once that pattern is familiar, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.build_user</code> in someone else's code reads as "oh, that came from <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code>" instead of "where is this method defined?"</p>

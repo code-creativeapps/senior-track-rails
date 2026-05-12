@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <span class="text-red-600">❌</span> The code
+          <Icon name="lucide:circle-x" class="w-5 h-5 text-red-600 inline-block" aria-hidden="true" /> The code
         </h3>
         <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
         <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
@@ -72,7 +73,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-green-600">✅</span> The solution
+            <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The solution
           </h3>
           <p class="text-gray-700 leading-relaxed mb-4"><strong>Stop pretending <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GuestUser</code> is a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code></strong>. If something can't honor the contract that <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code> defines, then it isn't really a subclass — it's a different concept that happens to share some attributes. Make <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Guest</code> its own class, and have any code that needs to handle guests check for them explicitly.</p>
           <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
@@ -93,7 +94,7 @@ end`} language="ruby" />
 
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span>💡</span> The principle at play — Liskov substitution
+            <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The principle at play — Liskov substitution
           </h3>
           <div class="space-y-3 text-gray-700 leading-relaxed">
             <p>The Liskov Substitution Principle says that if class B is a subclass of A, then anywhere your code expects an A, it should be safe to pass a B. <strong>The subclass has to honor the parent's contract</strong>: the same methods, the same expectations about what they return, the same conditions under which they succeed.</p>

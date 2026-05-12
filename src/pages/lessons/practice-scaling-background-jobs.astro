@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The action
+            <Icon name="lucide:search" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The action
           </h3>
           <p class="text-gray-700 italic mb-3">The user posts the signup form. The page takes about 3 seconds before redirecting.</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
@@ -63,7 +64,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> The right move
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The right move
             </h3>
             <div class="space-y-3 text-gray-700 leading-relaxed">
               <p><strong>Move the email, the Segment event, and the Slack notification into background jobs.</strong> The user doesn't need any of those three to complete before seeing the dashboard. They are slow, networked, and failure-tolerant — perfect candidates.</p>
@@ -84,7 +85,7 @@ end`} language="ruby" />
 
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-blue-600">🔧</span> The question to ask
+              <Icon name="lucide:wrench" class="w-5 h-5 text-blue-600 inline-block" aria-hidden="true" /> The question to ask
             </h3>
             <p class="text-gray-700 leading-relaxed mb-3">For any side effect inside a controller action, ask one question: <strong>does the user need to see this complete before getting their response?</strong></p>
             <ul class="list-disc list-inside text-gray-700 space-y-1 ml-2">
@@ -95,7 +96,7 @@ end`} language="ruby" />
 
           <div class="bg-red-50 border border-red-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>🚧</span> Wrong moves
+              <Icon name="lucide:construction" class="w-5 h-5 inline-block" aria-hidden="true" /> Wrong moves
             </h3>
             <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
               <li><strong>"Add a loading spinner."</strong> Makes the 3s wait visible, not absent. User is still blocked. Solve the wait, don't decorate it.</li>
@@ -106,14 +107,14 @@ end`} language="ruby" />
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>💡</span> The principle
+              <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The principle
             </h3>
             <p class="text-gray-700 leading-relaxed">Background jobs aren't a performance tool, they're a <strong>responsibility-boundary tool</strong>. The user is responsible for one outcome (their signup). The system is responsible for the rest. Crossing that boundary into the synchronous path is what makes pages slow.</p>
           </div>
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📚</span> Theory
+              <Icon name="lucide:library" class="w-5 h-5 inline-block" aria-hidden="true" /> Theory
             </h3>
             <p class="text-gray-700 leading-relaxed">Full walkthrough at <a href="/lessons/senior-scaling-background-jobs" class="text-ruby hover:text-ruby-dark font-medium">Scaling · Background Jobs as a Scaling Tool</a>.</p>
           </div>

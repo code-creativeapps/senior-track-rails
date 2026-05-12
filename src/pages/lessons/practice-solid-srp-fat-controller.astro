@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The code
+            <Icon name="lucide:search" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The code
           </h3>
           <p class="text-gray-700 italic mb-3">A signup controller. What does this action actually do, end to end?</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
@@ -65,7 +66,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> The four responsibilities
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The four responsibilities
             </h3>
             <ul class="space-y-3 text-gray-700 leading-relaxed list-decimal list-inside ml-2">
               <li><strong>Default values.</strong> Generating a random password if none was given is a model concern, not a controller one. It belongs in a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_validation</code> on User, or in a User factory.</li>
@@ -77,7 +78,7 @@ end`} language="ruby" />
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>💡</span> The shape of the fix
+              <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The shape of the fix
             </h3>
             <div class="space-y-3 text-gray-700 leading-relaxed">
               <p>The senior version of this action is short. It validates the input, calls a service or domain method, and renders the response. The controller is the front door, not the kitchen.</p>
@@ -99,7 +100,7 @@ end`} language="ruby" />
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📚</span> Theory
+              <Icon name="lucide:library" class="w-5 h-5 inline-block" aria-hidden="true" /> Theory
             </h3>
             <p class="text-gray-700 leading-relaxed">For the full walkthrough of service-object extraction and other SRP moves, read <a href="/lessons/senior-srp-service-objects" class="text-ruby hover:text-ruby-dark font-medium">SOLID · Service Objects</a> and the other six SRP lessons.</p>
           </div>

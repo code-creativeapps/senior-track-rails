@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -11,7 +12,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SRP Series · 5 of 7</p>
       <div class="flex items-center gap-4 mb-4">
-        <span class="text-5xl" aria-hidden="true">🎨</span>
+        <Icon name="lucide:palette" class="w-12 h-12 inline-block" aria-hidden="true" />
         <h1 class="text-4xl font-bold text-gray-900">Decorators</h1>
       </div>
       <p class="text-xl text-gray-600">Where the pattern comes from, why display logic keeps creeping into models, and how Forem uses <code class="text-lg">OrganizationDecorator</code> to keep view concerns out of its data layer.</p>

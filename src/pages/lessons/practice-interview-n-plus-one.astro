@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🎤</span> The question
+            <Icon name="lucide:mic" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The question
           </h3>
           <blockquote class="border-l-4 border-ruby/40 pl-4 italic text-gray-700">
             "You suspect a view has an N+1. How do you confirm it, and how do you fix it?"
@@ -52,7 +53,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> The senior framing
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The senior framing
             </h3>
             <div class="space-y-3 text-gray-700 leading-relaxed">
               <p><strong>Diagnose first.</strong> Three concrete ways:</p>
@@ -74,7 +75,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 
           <div class="bg-red-50 border border-red-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>🚧</span> Junior framings that don't land
+              <Icon name="lucide:construction" class="w-5 h-5 inline-block" aria-hidden="true" /> Junior framings that don't land
             </h3>
             <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
               <li><strong>"I'd add <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.includes(:user)</code>."</strong> Fix without diagnosis. The interviewer asked how you'd <em>confirm</em> the N+1; this skips that half.</li>
@@ -86,7 +87,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>💡</span> What the rubric scores
+              <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> What the rubric scores
             </h3>
             <ul class="space-y-2 text-gray-700 leading-relaxed list-disc list-inside ml-2">
               <li><strong>Two halves answered.</strong> Diagnose + fix, not just fix.</li>
@@ -98,7 +99,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📚</span> Theory
+              <Icon name="lucide:library" class="w-5 h-5 inline-block" aria-hidden="true" /> Theory
             </h3>
             <p class="text-gray-700 leading-relaxed">Full walkthrough at <a href="/lessons/senior-scaling-diagnose" class="text-ruby hover:text-ruby-dark font-medium">Scaling · Diagnose Before You Scale</a> and <a href="/lessons/senior-eager-loading" class="text-ruby hover:text-ruby-dark font-medium">Eager Loading</a>.</p>
           </div>

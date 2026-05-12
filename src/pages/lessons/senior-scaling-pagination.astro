@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -11,7 +12,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Scaling Series · 7 of 8</p>
       <div class="flex items-center gap-4 mb-4">
-        <span class="text-5xl" aria-hidden="true">📑</span>
+        <Icon name="lucide:bookmark" class="w-12 h-12 inline-block" aria-hidden="true" />
         <h1 class="text-4xl font-bold text-gray-900">Pagination at Scale</h1>
       </div>
       <p class="text-xl text-gray-600">Where offset pagination came from, why it collapses at large page numbers, and how cursor pagination — used by Mastodon, Stripe's API, and GitHub — keeps pagination fast at any scale.</p>

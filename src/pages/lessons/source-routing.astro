@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -147,7 +148,7 @@ PostsController.action(:index).call(env)
     <!-- Why this matters -->
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-8 space-y-3">
       <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
-        <span>🎯</span> Why this is worth knowing
+        <Icon name="lucide:target" class="w-5 h-5 inline-block" aria-hidden="true" /> Why this is worth knowing
       </h3>
       <p class="text-gray-700 leading-relaxed">Plenty of Rails developers ship features for years without knowing any of this. What changes once you do know it:</p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">

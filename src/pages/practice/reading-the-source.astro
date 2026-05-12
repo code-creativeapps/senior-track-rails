@@ -1,12 +1,13 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 
 const cards = [
-  { slug: 'practice-source-belongs-to-optional', emoji: '🔗', title: 'What <code>optional: true</code> actually changes' },
-  { slug: 'practice-source-when-sql-runs',       emoji: '🔎', title: 'Which line actually runs the SQL?' },
-  { slug: 'practice-source-require-vs-bracket',  emoji: '📥', title: '<code>require</code> vs <code>[]</code> failure modes' },
-  { slug: 'practice-source-before-action-halt',  emoji: '⛔', title: "Why is the unauthorized user still through?" },
-  { slug: 'practice-source-raw-form-missing',    emoji: '📝', title: "What's missing from this hand-written form?" },
+  { slug: 'practice-source-belongs-to-optional', icon: 'lucide:link', title: 'What <code>optional: true</code> actually changes' },
+  { slug: 'practice-source-when-sql-runs',       icon: 'lucide:search', title: 'Which line actually runs the SQL?' },
+  { slug: 'practice-source-require-vs-bracket',  icon: 'lucide:inbox', title: '<code>require</code> vs <code>[]</code> failure modes' },
+  { slug: 'practice-source-before-action-halt',  icon: 'lucide:ban', title: "Why is the unauthorized user still through?" },
+  { slug: 'practice-source-raw-form-missing',    icon: 'lucide:file-pen-line', title: "What's missing from this hand-written form?" },
 ];
 ---
 
@@ -25,7 +26,7 @@ const cards = [
       {cards.map((card, i) => (
         <a href={`/lessons/${card.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
           <div class="flex items-start gap-3">
-            <span class="text-2xl" aria-hidden="true">{card.emoji}</span>
+            <Icon name={card.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
             <div class="flex-1">
               <p class="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Card {i + 1}</p>
               <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug" set:html={card.title}></h3>

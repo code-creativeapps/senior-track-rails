@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <span class="text-red-600">❌</span> The code
+          <Icon name="lucide:circle-x" class="w-5 h-5 text-red-600 inline-block" aria-hidden="true" /> The code
         </h3>
         <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
         <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
@@ -66,7 +67,7 @@ LineItem.find(123).update!(quantity: 0)
         <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-green-600">✅</span> The solution
+            <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The solution
           </h3>
           <p class="text-gray-700 leading-relaxed mb-4"><strong>Make the Order the only thing that can change its line items.</strong> Every change to a line item goes through a method on the Order, which can recalculate the total and check the rules. Outside code talks to the order; the order talks to its line items.</p>
           <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
@@ -104,7 +105,7 @@ order.remove_line_item(456)`} language="ruby" />
 
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span>💡</span> The principle at play — Aggregate roots
+            <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The principle at play — Aggregate roots
           </h3>
           <div class="space-y-3 text-gray-700 leading-relaxed">
             <p>Some objects only make sense as part of a bigger whole. <strong>A line item only makes sense as part of an order</strong>; a comment only makes sense as part of a post; a payment line only makes sense as part of an invoice. The whole has rules that span the parts (the total has to match the lines, the post has to be visible for the comments to be), and only the whole can enforce them.</p>

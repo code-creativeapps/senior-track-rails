@@ -1,15 +1,16 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 
 const cards = [
-  { slug: 'practice-scaling-index-choice',         emoji: '📇', title: 'Which single index helps this query most?' },
-  { slug: 'practice-scaling-n-plus-one-count',     emoji: '🔢', title: 'Count the queries this view runs' },
-  { slug: 'practice-scaling-cache-stampede',       emoji: '🐎', title: 'Failure mode of this cache under high traffic' },
-  { slug: 'practice-scaling-offset-pagination',    emoji: '📑', title: 'Why is page 50,000 so much slower?' },
-  { slug: 'practice-scaling-hot-row-contention',   emoji: '🔥', title: 'Why is the counter cache slowing down inserts?' },
-  { slug: 'practice-scaling-concurrency-race',     emoji: '🏁', title: "What's wrong with this counter increment?" },
-  { slug: 'practice-scaling-background-jobs',      emoji: '⏱️', title: 'The signup is slow. What moves first?' },
-  { slug: 'practice-scaling-bulk-operations',      emoji: '📦', title: 'How many writes does this loop fire?' },
+  { slug: 'practice-scaling-index-choice',         icon: 'lucide:list-ordered', title: 'Which single index helps this query most?' },
+  { slug: 'practice-scaling-n-plus-one-count',     icon: 'lucide:hash', title: 'Count the queries this view runs' },
+  { slug: 'practice-scaling-cache-stampede',       icon: 'lucide:rabbit', title: 'Failure mode of this cache under high traffic' },
+  { slug: 'practice-scaling-offset-pagination',    icon: 'lucide:bookmark', title: 'Why is page 50,000 so much slower?' },
+  { slug: 'practice-scaling-hot-row-contention',   icon: 'lucide:flame', title: 'Why is the counter cache slowing down inserts?' },
+  { slug: 'practice-scaling-concurrency-race',     icon: 'lucide:flag', title: "What's wrong with this counter increment?" },
+  { slug: 'practice-scaling-background-jobs',      icon: 'lucide:timer', title: 'The signup is slow. What moves first?' },
+  { slug: 'practice-scaling-bulk-operations',      icon: 'lucide:package', title: 'How many writes does this loop fire?' },
 ];
 ---
 
@@ -28,7 +29,7 @@ const cards = [
       {cards.map((card, i) => (
         <a href={`/lessons/${card.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
           <div class="flex items-start gap-3">
-            <span class="text-2xl" aria-hidden="true">{card.emoji}</span>
+            <Icon name={card.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
             <div class="flex-1">
               <p class="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Card {i + 1}</p>
               <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug">{card.title}</h3>

@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The choice
+            <Icon name="lucide:search" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The choice
           </h3>
           <p class="text-gray-700 italic mb-3">Two candidate schemas, both valid Rails.</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
@@ -73,7 +74,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> When to pick which
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> When to pick which
             </h3>
             <div class="space-y-3 text-gray-700 leading-relaxed">
               <p><strong>Use the ledger when:</strong></p>
@@ -94,7 +95,7 @@ end`} language="ruby" />
 
           <div class="bg-red-50 border border-red-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>🚧</span> Wrong takes worth noticing
+              <Icon name="lucide:construction" class="w-5 h-5 inline-block" aria-hidden="true" /> Wrong takes worth noticing
             </h3>
             <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
               <li><strong>"The balance column is always wrong; never use it."</strong> Too absolute. For flag-style "did this happen yes/no" cases, a column is fine.</li>
@@ -105,14 +106,14 @@ end`} language="ruby" />
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>💡</span> The principle
+              <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The principle
             </h3>
             <p class="text-gray-700 leading-relaxed">The ledger pattern's value is in <strong>correctness, not performance</strong>. When SUM gets slow on huge accounts, add a periodic snapshot row and sum forward from there — you almost never need this until you measure it.</p>
           </div>
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📚</span> Theory
+              <Icon name="lucide:library" class="w-5 h-5 inline-block" aria-hidden="true" /> Theory
             </h3>
             <p class="text-gray-700 leading-relaxed">Full walkthrough at <a href="/lessons/payments-ledger" class="text-ruby hover:text-ruby-dark font-medium">Payments · The Ledger Pattern</a>.</p>
           </div>

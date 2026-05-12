@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../layouts/Layout.astro';
 
 const solidSeries = [
@@ -9,13 +10,13 @@ const solidSeries = [
     count: 7,
     summary: 'Seven extractions for fat models and fat controllers. Service, form, query, policy, decorator, concern, and value objects.',
     lessons: [
-      { slug: 'senior-srp-service-objects',  emoji: '⚙️', label: 'Service Objects' },
-      { slug: 'senior-srp-form-objects',     emoji: '📋', label: 'Form Objects' },
-      { slug: 'senior-srp-query-objects',    emoji: '🔍', label: 'Query Objects' },
-      { slug: 'senior-srp-policy-objects',   emoji: '🚦', label: 'Policy Objects' },
-      { slug: 'senior-srp-decorators',       emoji: '🎨', label: 'Decorators' },
-      { slug: 'senior-srp-concerns',         emoji: '🧩', label: 'Concerns' },
-      { slug: 'senior-srp-value-objects',    emoji: '💎', label: 'Value Objects' },
+      { slug: 'senior-srp-service-objects',  icon: 'lucide:cog', label: 'Service Objects' },
+      { slug: 'senior-srp-form-objects',     icon: 'lucide:clipboard-list', label: 'Form Objects' },
+      { slug: 'senior-srp-query-objects',    icon: 'lucide:search', label: 'Query Objects' },
+      { slug: 'senior-srp-policy-objects',   icon: 'lucide:traffic-cone', label: 'Policy Objects' },
+      { slug: 'senior-srp-decorators',       icon: 'lucide:palette', label: 'Decorators' },
+      { slug: 'senior-srp-concerns',         icon: 'lucide:puzzle', label: 'Concerns' },
+      { slug: 'senior-srp-value-objects',    icon: 'lucide:gem', label: 'Value Objects' },
     ],
   },
   {
@@ -25,11 +26,11 @@ const solidSeries = [
     count: 5,
     summary: 'Five shapes for adding behavior without modifying existing code. Registry, adapter, middleware, pub-sub, delegated_type.',
     lessons: [
-      { slug: 'senior-ocp-registry',         emoji: '🗂️', label: 'Registry' },
-      { slug: 'senior-ocp-adapter',          emoji: '🔌', label: 'Adapter' },
-      { slug: 'senior-ocp-middleware',       emoji: '🔗', label: 'Middleware' },
-      { slug: 'senior-ocp-pub-sub',          emoji: '📣', label: 'Pub-Sub' },
-      { slug: 'senior-ocp-delegated-type',   emoji: '🧬', label: 'delegated_type' },
+      { slug: 'senior-ocp-registry',         icon: 'lucide:folders', label: 'Registry' },
+      { slug: 'senior-ocp-adapter',          icon: 'lucide:plug', label: 'Adapter' },
+      { slug: 'senior-ocp-middleware',       icon: 'lucide:link', label: 'Middleware' },
+      { slug: 'senior-ocp-pub-sub',          icon: 'lucide:megaphone', label: 'Pub-Sub' },
+      { slug: 'senior-ocp-delegated-type',   icon: 'lucide:dna', label: 'delegated_type' },
     ],
   },
   {
@@ -39,8 +40,8 @@ const solidSeries = [
     count: 2,
     summary: "Duck typing as Ruby's native idiom for substitutability, and where inheritance breaks the contract.",
     lessons: [
-      { slug: 'senior-lsp-duck-typing',       emoji: '🪞', label: 'Duck Typing' },
-      { slug: 'senior-lsp-contract-breaking', emoji: '🪞', label: 'Contract Breaking' },
+      { slug: 'senior-lsp-duck-typing',       icon: 'lucide:square', label: 'Duck Typing' },
+      { slug: 'senior-lsp-contract-breaking', icon: 'lucide:square', label: 'Contract Breaking' },
     ],
   },
   {
@@ -50,8 +51,8 @@ const solidSeries = [
     count: 2,
     summary: 'Focused concerns over fat mixins, and role-based interfaces over class-based dispatch.',
     lessons: [
-      { slug: 'senior-isp-focused-concerns', emoji: '✂️', label: 'Focused Concerns' },
-      { slug: 'senior-isp-role-interfaces',  emoji: '✂️', label: 'Role Interfaces' },
+      { slug: 'senior-isp-focused-concerns', icon: 'lucide:scissors', label: 'Focused Concerns' },
+      { slug: 'senior-isp-role-interfaces',  icon: 'lucide:scissors', label: 'Role Interfaces' },
     ],
   },
   {
@@ -61,9 +62,9 @@ const solidSeries = [
     count: 3,
     summary: 'Inject collaborators, centralize configuration, and let the test environment swap dependencies cleanly.',
     lessons: [
-      { slug: 'senior-dip-dependency-injection', emoji: '🔁', label: 'Dependency Injection' },
-      { slug: 'senior-dip-config-injection',     emoji: '🔁', label: 'Config Injection' },
-      { slug: 'senior-dip-test-seams',           emoji: '🔁', label: 'Test Seams' },
+      { slug: 'senior-dip-dependency-injection', icon: 'lucide:repeat', label: 'Dependency Injection' },
+      { slug: 'senior-dip-config-injection',     icon: 'lucide:repeat', label: 'Config Injection' },
+      { slug: 'senior-dip-test-seams',           icon: 'lucide:repeat', label: 'Test Seams' },
     ],
   },
 ];
@@ -97,7 +98,7 @@ const solidSeries = [
             {series.lessons.map((lesson, i) => (
               <li>
                 <a href={`/lessons/${lesson.slug}`} class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-                  <span class="text-xl" aria-hidden="true">{lesson.emoji}</span>
+                  <Icon name={lesson.icon} class="w-6 h-6 inline-block" aria-hidden="true" />
                   <span class="text-sm text-gray-500 w-6 tabular-nums">{i + 1}.</span>
                   <span class="text-gray-700 group-hover:text-ruby transition-colors">{lesson.label}</span>
                 </a>
@@ -119,7 +120,7 @@ const solidSeries = [
       <p class="text-sm text-gray-600">Two deep-dive articles that show OCP applied at the codebase scale. Pair with the OCP lessons above.</p>
       <a href="/lessons/senior-open-closed-payouts" class="block p-4 bg-white rounded-lg border border-gray-200 hover:border-ruby transition-colors group">
         <div class="flex items-center gap-3">
-          <span class="text-xl" aria-hidden="true">💰</span>
+          <Icon name="lucide:wallet" class="w-6 h-6 inline-block" aria-hidden="true" />
           <div>
             <h3 class="font-semibold text-gray-900 group-hover:text-ruby transition-colors">Open/Closed in Practice — Gumroad payout system</h3>
             <p class="text-sm text-gray-500 mt-1">Walks through Gumroad's open-source payout processor code. Real OSS, real OCP.</p>
@@ -128,7 +129,7 @@ const solidSeries = [
       </a>
       <a href="/lessons/senior-open-closed-payouts-2" class="block p-4 bg-white rounded-lg border border-gray-200 hover:border-ruby transition-colors group">
         <div class="flex items-center gap-3">
-          <span class="text-xl" aria-hidden="true">🧪</span>
+          <Icon name="lucide:flask-conical" class="w-6 h-6 inline-block" aria-hidden="true" />
           <div>
             <h3 class="font-semibold text-gray-900 group-hover:text-ruby transition-colors">Open/Closed in Practice — invented examples</h3>
             <p class="text-sm text-gray-500 mt-1">The same teaching shape with all-original examples (e-commerce discount strategies).</p>

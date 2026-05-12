@@ -1,11 +1,12 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../layouts/Layout.astro';
 
 const lessons = [
-  { slug: 'interview-approach',       emoji: '🧭', label: 'How Senior Rails Interviews Actually Work', n: 1 },
-  { slug: 'interview-system-design',  emoji: '🏗️', label: 'System Design for Rails Interviews',       n: 2 },
-  { slug: 'interview-behavioral',     emoji: '🗣️', label: 'Behavioral Stories for Senior Roles',      n: 3 },
-  { slug: 'interview-modern-stack',   emoji: '⚡', label: 'The Modern Rails Stack (Rails 8+)',         n: 4 },
+  { slug: 'interview-approach',       icon: 'lucide:compass', label: 'How Senior Rails Interviews Actually Work', n: 1 },
+  { slug: 'interview-system-design',  icon: 'lucide:building-2', label: 'System Design for Rails Interviews',       n: 2 },
+  { slug: 'interview-behavioral',     icon: 'lucide:message-square', label: 'Behavioral Stories for Senior Roles',      n: 3 },
+  { slug: 'interview-modern-stack',   icon: 'lucide:zap', label: 'The Modern Rails Stack (Rails 8+)',         n: 4 },
 ];
 ---
 
@@ -23,7 +24,7 @@ const lessons = [
     <div class="grid gap-3">
       {lessons.map((lesson) => (
         <a href={`/lessons/${lesson.slug}`} class="flex items-center gap-4 bg-white rounded-lg border border-gray-200 p-4 hover:border-ruby/40 hover:shadow-sm transition-all group">
-          <span class="text-2xl" aria-hidden="true">{lesson.emoji}</span>
+          <Icon name={lesson.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
           <span class="text-sm text-gray-500 w-6 tabular-nums font-semibold">{lesson.n}.</span>
           <span class="text-gray-900 font-medium group-hover:text-ruby-dark transition-colors">{lesson.label}</span>
         </a>

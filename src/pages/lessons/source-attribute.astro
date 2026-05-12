@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The familiar (or maybe unfamiliar) line
+            <Icon name="lucide:search" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The familiar (or maybe unfamiliar) line
           </h3>
           <p class="text-gray-700 italic mb-3">Two uses. The first has no matching database column. The second overrides the type of one.</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
@@ -60,7 +61,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> The two use cases
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The two use cases
             </h3>
             <p class="text-gray-700 leading-relaxed mb-3"><strong>Virtual attributes.</strong> Add an attribute that lives on the instance without needing a column. You get a reader, writer, default, type casting, and dirty tracking — same as a real column. Useful for form-only fields, computed temporary state, or service-object inputs.</p>
             <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
@@ -97,14 +98,14 @@ order.total.cents   # => 2500`} language="ruby" />
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📂</span> Where this happens in Rails
+              <Icon name="lucide:folder" class="w-5 h-5 inline-block" aria-hidden="true" /> Where this happens in Rails
             </h3>
             <p class="text-gray-700 leading-relaxed">Defined in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/attributes.rb</code>. The method registers a type for the named attribute. Type classes live under <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/type/</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activemodel/lib/active_model/type/</code>. Each type defines <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">cast</code> (Ruby in), <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">serialize</code> (Ruby out to the database), and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">deserialize</code> (database in to Ruby).</p>
           </div>
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>🎯</span> Why this is worth knowing
+              <Icon name="lucide:target" class="w-5 h-5 inline-block" aria-hidden="true" /> Why this is worth knowing
             </h3>
             <p class="text-gray-700 leading-relaxed">Most Rails developers reach for <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">attr_accessor</code> for virtual attributes, which works but loses dirty tracking, defaults, and casting. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">attribute</code> gives you all three for free. And when you need a value object (Money, Coordinates, Color) backed by a primitive column, registering a custom type is the senior-flavored move that keeps the rest of the app reading clean Ruby instead of strings or hashes.</p>
           </div>

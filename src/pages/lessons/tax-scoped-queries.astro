@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <span class="text-red-600">❌</span> The code
+          <Icon name="lucide:circle-x" class="w-5 h-5 text-red-600 inline-block" aria-hidden="true" /> The code
         </h3>
         <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
         <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
@@ -60,7 +61,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-green-600">✅</span> The solution
+            <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The solution
           </h3>
           <p class="text-gray-700 leading-relaxed mb-4"><strong>Build the ownership check directly into the query</strong>, by going through the user's own invoices instead of looking up invoices globally. If the invoice doesn't belong to the user, the query simply matches nothing and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find</code> raises <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">RecordNotFound</code> — exactly the same response you'd get if the invoice didn't exist at all.</p>
           <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
@@ -77,7 +78,7 @@ end`} language="ruby" />
 
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span>💡</span> The principle at play — Scoped queries
+            <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The principle at play — Scoped queries
           </h3>
           <div class="space-y-3 text-gray-700 leading-relaxed">
             <p>The web works on URLs, and anyone can change a URL. So when your server receives a request for <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">/invoices/123</code>, it has to decide what to send back. There are really two questions in that decision, and they need to be answered separately. Authentication asks "who is making this request?", which is what Devise or any other auth library handles. Authorization asks "is this person allowed to see this resource?", which is <strong>a completely different question and needs different code.</strong></p>

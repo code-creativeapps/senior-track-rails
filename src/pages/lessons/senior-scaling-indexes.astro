@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -11,7 +12,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Scaling Series · 2 of 8</p>
       <div class="flex items-center gap-4 mb-4">
-        <span class="text-5xl" aria-hidden="true">📇</span>
+        <Icon name="lucide:list-ordered" class="w-12 h-12 inline-block" aria-hidden="true" />
         <h1 class="text-4xl font-bold text-gray-900">Indexes &amp; EXPLAIN</h1>
       </div>
       <p class="text-xl text-gray-600">Where database indexes come from, why a single missing index is the most common Rails scaling problem, and how to read EXPLAIN well enough to fix it.</p>

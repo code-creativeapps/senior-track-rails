@@ -2,9 +2,10 @@
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
 import sitemap from '@astrojs/sitemap';
+import icon from 'astro-icon';
 
 export default defineConfig({
   // Change this to your real production URL before deploying.
   site: 'https://senior-track.railsfullstack.com',
-  integrations: [tailwind(), sitemap()],
+  integrations: [tailwind(), sitemap(), icon()],
 });

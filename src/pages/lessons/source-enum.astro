@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-gray-500">🔍</span> The familiar line
+            <Icon name="lucide:search" class="w-5 h-5 text-gray-500 inline-block" aria-hidden="true" /> The familiar line
           </h3>
           <p class="text-gray-700 italic mb-3">A Post model with three lifecycle states.</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
@@ -55,7 +56,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
           <div>
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> What Rails generates
+              <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> What Rails generates
             </h3>
             <p class="text-gray-700 leading-relaxed mb-4">On every Post instance:</p>
             <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
@@ -86,14 +87,14 @@ Post.statuses     # => { "draft" => 0, "published" => 1, "archived" => 2 }`} lan
 
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📂</span> Where this happens in Rails
+              <Icon name="lucide:folder" class="w-5 h-5 inline-block" aria-hidden="true" /> Where this happens in Rails
             </h3>
             <p class="text-gray-700 leading-relaxed">Defined in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/enum.rb</code>. The method walks the values you provided, calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">define_method</code> for each predicate and bang-setter, registers a scope for each value, and installs a custom attribute type that handles the integer&lt;-&gt;string casting on read and write. The Post class ends up with a lot of methods, but they all dispatch through the same enum metadata table.</p>
           </div>
 
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>🎯</span> Why this is worth knowing
+              <Icon name="lucide:target" class="w-5 h-5 inline-block" aria-hidden="true" /> Why this is worth knowing
             </h3>
             <p class="text-gray-700 leading-relaxed">When you see <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Post.published.recent</code>, you know the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">published</code> scope came from the enum, and you can chain it freely. When you see <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.archived!</code>, you know it saves immediately (the bang is a clue). When the column type in the migration is integer but the model reads it as a string, you know an enum is doing the casting. Same pattern as <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">has_many</code>: one declaration, a family of methods, a bit of class metadata.</p>
           </div>

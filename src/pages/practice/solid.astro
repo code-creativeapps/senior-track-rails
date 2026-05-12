@@ -1,17 +1,18 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 
 const cards = [
-  { slug: 'practice-solid-srp-fat-controller',     emoji: '⚙️', title: 'SRP — Spot the responsibilities in this controller' },
-  { slug: 'practice-solid-ocp-case-statement',     emoji: '🔌', title: 'OCP — Adding a third payment type' },
-  { slug: 'practice-solid-lsp-rectangle-square',   emoji: '🪞', title: 'LSP — Why this subclass breaks callers' },
-  { slug: 'practice-solid-isp-fat-concern',        emoji: '✂️', title: 'ISP — Cost of including a big concern everywhere' },
-  { slug: 'practice-solid-dip-hardcoded-dep',      emoji: '🔁', title: 'DIP — Why is this class hard to test?' },
-  { slug: 'practice-solid-srp-query-object',       emoji: '🔍', title: 'SRP — Where does this query belong?' },
-  { slug: 'practice-solid-ocp-status-spread',      emoji: '🗂️', title: 'OCP — Adding a status touches how many files?' },
-  { slug: 'practice-solid-lsp-duck-shape',         emoji: '🦆', title: 'LSP — Two exporters with different shapes' },
-  { slug: 'practice-solid-isp-role-interfaces',    emoji: '🧷', title: 'ISP — Why does this method take a whole User?' },
-  { slug: 'practice-solid-dip-test-clock',         emoji: '⏰', title: 'DIP — Why is the test flaky at midnight?' },
+  { slug: 'practice-solid-srp-fat-controller',     icon: 'lucide:cog', title: 'SRP — Spot the responsibilities in this controller' },
+  { slug: 'practice-solid-ocp-case-statement',     icon: 'lucide:plug', title: 'OCP — Adding a third payment type' },
+  { slug: 'practice-solid-lsp-rectangle-square',   icon: 'lucide:square', title: 'LSP — Why this subclass breaks callers' },
+  { slug: 'practice-solid-isp-fat-concern',        icon: 'lucide:scissors', title: 'ISP — Cost of including a big concern everywhere' },
+  { slug: 'practice-solid-dip-hardcoded-dep',      icon: 'lucide:repeat', title: 'DIP — Why is this class hard to test?' },
+  { slug: 'practice-solid-srp-query-object',       icon: 'lucide:search', title: 'SRP — Where does this query belong?' },
+  { slug: 'practice-solid-ocp-status-spread',      icon: 'lucide:folders', title: 'OCP — Adding a status touches how many files?' },
+  { slug: 'practice-solid-lsp-duck-shape',         icon: 'lucide:bird', title: 'LSP — Two exporters with different shapes' },
+  { slug: 'practice-solid-isp-role-interfaces',    icon: 'lucide:pin', title: 'ISP — Why does this method take a whole User?' },
+  { slug: 'practice-solid-dip-test-clock',         icon: 'lucide:alarm-clock', title: 'DIP — Why is the test flaky at midnight?' },
 ];
 ---
 
@@ -30,7 +31,7 @@ const cards = [
       {cards.map((card, i) => (
         <a href={`/lessons/${card.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
           <div class="flex items-start gap-3">
-            <span class="text-2xl" aria-hidden="true">{card.emoji}</span>
+            <Icon name={card.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
             <div class="flex-1">
               <p class="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Card {i + 1}</p>
               <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug">{card.title}</h3>

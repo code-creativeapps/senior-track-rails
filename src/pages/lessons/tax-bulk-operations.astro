@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <span class="text-red-600">❌</span> The code
+          <Icon name="lucide:circle-x" class="w-5 h-5 text-red-600 inline-block" aria-hidden="true" /> The code
         </h3>
         <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
         <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
@@ -64,7 +65,7 @@ end`} language="ruby" />
         <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-green-600">✅</span> The solution
+            <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The solution
           </h3>
           <p class="text-gray-700 leading-relaxed mb-4"><strong>Choose the cascade that matches the work you actually need to do</strong>. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:delete_all</code> sends a single DELETE statement to the database without ever loading the rows into Ruby, which is what you want most of the time. Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:destroy</code> only when you genuinely need each child's destroy callbacks to fire — and when you do, run the deletion in a background job so a slow user doesn't take down your controller.</p>
           <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
@@ -83,7 +84,7 @@ end`} language="ruby" />
 
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span>💡</span> The principle at play — Bulk operations in SQL
+            <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The principle at play — Bulk operations in SQL
           </h3>
           <div class="space-y-3 text-gray-700 leading-relaxed">
             <p><strong>SQL and Ruby operate at very different layers</strong>, and the difference becomes a big deal as soon as you're working with many rows at once. SQL runs inside the database, in a single round trip, with the query planner figuring out the most efficient way to do the work. Ruby runs inside your application, one object at a time, and each object carries the cost of being loaded, instantiated, and pushed through whatever callbacks are defined on it.</p>

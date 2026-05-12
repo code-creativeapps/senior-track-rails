@@ -1,4 +1,5 @@
 ---
+import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
@@ -18,7 +19,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
       <div>
         <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <span class="text-red-600">❌</span> The code
+          <Icon name="lucide:circle-x" class="w-5 h-5 text-red-600 inline-block" aria-hidden="true" /> The code
         </h3>
         <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
         <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
@@ -67,7 +68,7 @@ end
         <div id="solution-section" class="hidden space-y-6">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span class="text-green-600">✅</span> The solution
+            <Icon name="lucide:circle-check" class="w-5 h-5 text-green-600 inline-block" aria-hidden="true" /> The solution
           </h3>
           <p class="text-gray-700 leading-relaxed mb-4"><strong>Take only what the service actually needs</strong>. Either accept the values directly as keyword arguments, or accept any object that responds to those two methods. Either way, the service is no longer tied to the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code> class, and any other type with the same two attributes can pass through it without anyone having to fake a User.</p>
           <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
@@ -96,7 +97,7 @@ ReportPdfService.new(full_name: lead.full_name, email: lead.email).generate`} la
 
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span>💡</span> The principle at play — Interface segregation
+            <Icon name="lucide:lightbulb" class="w-5 h-5 inline-block" aria-hidden="true" /> The principle at play — Interface segregation
           </h3>
           <div class="space-y-3 text-gray-700 leading-relaxed">
             <p>The Interface Segregation Principle says that <strong>a class shouldn't depend on more of an interface than it actually uses</strong>. If your service only needs two methods on the object you're passing in, then it should accept anything that has those two methods, not demand a specific class with twenty.</p>
