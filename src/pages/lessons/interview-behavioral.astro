@@ -1,0 +1,78 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Behavioral Stories for Senior Roles" description="The STAR framework for telling stories at senior interviews, the specific kinds of stories interviewers ask for, and the trap of having only one story.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/interview" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Interview Prep
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview · Lesson 3</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Behavioral Stories for Senior Roles</h1>
+      <p class="text-xl text-gray-600">Senior-level behavioral rounds aren't about culture-fit charm; they're about whether you've actually done the senior-level things in your past jobs. The proof is specific stories with names, numbers, and outcomes.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The STAR shape</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          Most behavioral answers should fit a four-part shape, even if you don't name it out loud:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>Situation.</strong> The specific project, team, or moment. One or two sentences. Name names if they're public.</li>
+          <li><strong>Task.</strong> What was your job to do. Not what the team did — what was yours specifically.</li>
+          <li><strong>Action.</strong> The thing you did, in active voice. Three or four sentences. The interviewer is scoring on specificity here.</li>
+          <li><strong>Result.</strong> What happened. A number if possible. "Reduced p95 latency from 1.2s to 280ms" beats "the app got faster."</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The stories you should have ready</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          Senior interviewers ask the same five kinds of question. Have a story prepared for each.
+        </p>
+        <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>"Tell me about a hard technical decision you made."</strong> They want: the trade-off you weighed, how you decided, how you communicated the decision, what happened.</li>
+          <li><strong>"Tell me about a time you disagreed with a coworker or manager."</strong> They want: how you held a position without making it about you, how you escalated or didn't, what the outcome was. Disagreements that ended with you changing your mind score well.</li>
+          <li><strong>"Tell me about a mistake you made and what you learned."</strong> They want: real ownership without performative humility. A specific mistake, specific consequence, specific change to your process.</li>
+          <li><strong>"Tell me about mentoring someone."</strong> They want: a junior or struggling teammate, what you specifically did, what they ended up doing. Bonus: the person's name and where they are now.</li>
+          <li><strong>"Tell me about a time you led without authority."</strong> They want: a project you drove that wasn't formally yours. How you got buy-in. What you did when someone pushed back.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The trap of having one story</h3>
+        <p class="text-gray-700 leading-relaxed">
+          Some candidates have one strong story about a project and try to fit every behavioral question into it. The interviewer notices. "That's the same project you described for the technical decision question." Have at least three distinct projects ready. Different companies, different time periods, different roles if possible. The variety signals that you've actually been in many situations, not just one.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">What junior-level answers look like (avoid)</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>"We" instead of "I."</strong> Behavioral rounds ask what <em>you</em> did. "We migrated to Sidekiq" is opaque; "I owned the Sidekiq migration; here's what I did" is what the interviewer wants.</li>
+          <li><strong>No outcome.</strong> "We tried that and it kind of worked" is not a result. Even a failed project has a result: what happened, what you learned, what you'd do differently.</li>
+          <li><strong>Vague positives.</strong> "It went well, the team was happy." Replace with a number, a name, or a quote from a stakeholder.</li>
+          <li><strong>Stories that are just technical.</strong> "I refactored the auth code" is a coding story, not a behavioral story. Behavioral stories have other humans in them.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Senior-mindset shifts to surface</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li>You ask "should we build this?" before "how do we build this?"</li>
+          <li>You write the proposal doc, not just the code.</li>
+          <li>You notice when the team is solving the wrong problem and you say so.</li>
+          <li>You're explicit about scope and trade-offs in pull requests.</li>
+          <li>You mentor by asking questions, not by handing answers.</li>
+        </ul>
+      </section>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/interview-system-design" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 2</a>
+      <a href="/lessons/interview-modern-stack" class="text-ruby hover:text-ruby-dark transition-colors">Lesson 4 →</a>
+    </div>
+  </article>
+</Layout>

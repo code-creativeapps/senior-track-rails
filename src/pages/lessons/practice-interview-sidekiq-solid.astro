@@ -1,0 +1,65 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title='"Sidekiq or Solid Queue?"' description="Practice card. A trade-off question disguised as a 'pick one' question. Drills how to articulate when each fits.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Interview · Card 4</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">"Sidekiq or Solid Queue?"</h1>
+      <p class="text-xl text-gray-600">The right answer is "it depends," followed by a clear articulation of what it depends on. Pick the version that lands.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The question
+          </h3>
+          <p class="text-gray-700 leading-relaxed">"For a new Rails 8 app, would you reach for Sidekiq or Solid Queue?" Which answer reads as senior?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: '"Sidekiq. It\'s the industry standard."',
+              explanation: 'A default without a reason. Sidekiq is excellent, but Solid Queue is the new default for Rails 8 apps with moderate throughput. Picking Sidekiq without naming why is leaving signal on the table.',
+            },
+            {
+              label: 'B',
+              text: '"Solid Queue for moderate throughput (low thousands of jobs/min) where the team prefers one fewer infrastructure dependency — Postgres handles everything. Sidekiq when you need very high throughput, complex workflows like batches and pipelines, or you already run Redis for other reasons. For a greenfield app under a few thousand jobs/min, I\'d default to Solid Queue."',
+              explanation: 'Concrete throughput threshold, specific reasons in each direction, and a default for a clear scenario. The "I\'d default to" sentence is the close. This reads as someone who has actually made this choice on a real project.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: '"Solid Queue. Redis is dead."',
+              explanation: 'Hyperbolic and incorrect. Redis is fine, widely used, and Sidekiq remains the right tool for many workloads. "X is dead" is rarely a senior-sounding answer.',
+            },
+            {
+              label: 'D',
+              text: '"They\'re basically the same; you can swap one for the other with a config change."',
+              explanation: 'ActiveJob lets you swap, yes, but they\'re not the same. Sidekiq has push-based polling, Pro/Enterprise features (batches, rate limiting, unique jobs), Redis under it. Solid Queue has polling-based execution, Postgres under it. Different scaling characteristics, different ops profiles.',
+            },
+          ]}
+          principle={`<p>Trade-off questions test calibration, not memorization. The shape that scores:</p><ul class="list-disc list-inside ml-4 space-y-1"><li>Name the dimension the choice turns on (throughput, ops complexity, existing infrastructure).</li><li>Give a concrete threshold or condition.</li><li>State your default for the most likely case.</li></ul><p>Bonus: be explicit about not having all the data. "If you tell me the expected throughput and what other infrastructure the team already runs, I can refine the answer." Senior engineers make decisions under uncertainty and say so.</p>`}
+          theoryHref="/lessons/interview-modern-stack"
+          theoryLabel="Interview · The Modern Rails Stack"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-interview-n-plus-one" class="text-ruby hover:text-ruby-dark transition-colors">← Card 3</a>
+      <a href="/lessons/practice-interview-hotwire" class="text-ruby hover:text-ruby-dark transition-colors">Card 5 →</a>
+    </div>
+  </article>
+</Layout>

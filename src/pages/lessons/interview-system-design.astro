@@ -1,0 +1,85 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="System Design for Rails Interviews" description="The standard system-design rounds in Rails interviews, the framework interviewers use to score, and the trade-offs that come up over and over.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/interview" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Interview Prep
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview · Lesson 2</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">System Design for Rails Interviews</h1>
+      <p class="text-xl text-gray-600">Most senior Rails roles have one system-design round. It looks open-ended; it isn't. Interviewers are scoring on five specific things.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The frame interviewers use</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          Most senior Rails system-design rounds score on the same five axes. Knowing the axes is half the battle.
+        </p>
+        <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>Requirements clarification.</strong> Did you ask what scale, what reads vs writes, what consistency model, what's in scope vs out.</li>
+          <li><strong>Data model.</strong> What tables, what relationships, what indexes, what to denormalize and why.</li>
+          <li><strong>Request lifecycle.</strong> What happens end-to-end when a user does the thing. Where the work happens (synchronous vs background), where the bottlenecks are.</li>
+          <li><strong>Trade-offs named.</strong> Every design choice has a cost. Did you name it without being asked.</li>
+          <li><strong>Failure modes.</strong> What happens when the cache is down, when the queue backs up, when the database is at 95% CPU, when a retry happens.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The common prompts (and what they're really testing)</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-3 ml-4">
+          <li><strong>"Design a URL shortener."</strong> Testing: do you know about ID generation strategies (auto-increment vs base62-encoded UUID vs hash), read-heavy caching, and what a write-amplification looks like.</li>
+          <li><strong>"Design a notification system."</strong> Testing: synchronous vs async dispatch, fan-out (in-memory vs database vs queue-per-user), at-least-once vs exactly-once delivery, deduplication.</li>
+          <li><strong>"Design a rate limiter."</strong> Testing: token bucket vs sliding window vs fixed window, where state lives (Redis vs database), what happens when the rate-limit store is down (fail open vs fail closed).</li>
+          <li><strong>"Design a multi-tenant SaaS."</strong> Testing: row-level vs schema-level isolation, how authorization is scoped, how migrations work across tenants, how billing is modeled.</li>
+          <li><strong>"Design X for Rails specifically."</strong> Testing: do you reach for the framework's idioms (ActiveJob, ActiveRecord, Hotwire) or treat Rails like a generic web framework. The former scores higher.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The structure that works</h3>
+        <CodeBlock code={`# 5 min: clarify requirements
+#   "Reads: how many per second? Writes? Latency target?"
+#   "What's in scope? Auth? Analytics? Multi-region?"
+#   "How long does the system have to live? Hours? Years?"
+#
+# 5 min: data model
+#   Draw the tables. Name the indexes. Call out denormalizations.
+#   "users(id), short_urls(id, code, target_url, user_id),
+#    clicks(id, short_url_id, ip, timestamp)"
+#
+# 10 min: request lifecycle
+#   GET /a1b2: hot path. Redis cache by code → target_url.
+#   Cache miss: DB lookup, populate cache. Async-record the click.
+#   POST /shorten: generate code, INSERT, return.
+#
+# 5 min: trade-offs and failure modes
+#   "If Redis is down, fall back to DB. Slower but correct."
+#   "If the click-recorder queue backs up, we lose analytics but
+#    not redirects. That's the right priority."
+#   "At 100x scale, the bottleneck moves to the DB. Read replicas
+#    next, then maybe a NoSQL store for clicks specifically."`} language="ruby" />
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Trade-offs that come up over and over</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>Synchronous vs background job.</strong> "The user doesn't need to see this complete" goes to a job.</li>
+          <li><strong>Cache vs query every time.</strong> Read-heavy data with tolerable staleness goes to cache. Show you know about cache stampede and TTL jitter.</li>
+          <li><strong>Strong vs eventual consistency.</strong> Money strong, analytics eventual.</li>
+          <li><strong>Database vs Redis vs S3.</strong> Right tool for the shape. Don't store images in the database. Don't store transactions in Redis without a durable backup.</li>
+          <li><strong>Vertical vs horizontal scale.</strong> Bigger box vs more boxes. Bigger box wins until ~50K req/min for most Rails apps; after that, you start sharding.</li>
+        </ul>
+      </section>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/interview-approach" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 1</a>
+      <a href="/lessons/interview-behavioral" class="text-ruby hover:text-ruby-dark transition-colors">Lesson 3 →</a>
+    </div>
+  </article>
+</Layout>

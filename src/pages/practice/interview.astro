@@ -1,0 +1,50 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const cards = [
+  { slug: 'practice-interview-includes-variants', emoji: '🔎', title: 'includes vs preload vs eager_load vs joins' },
+  { slug: 'practice-interview-service-objects',   emoji: '⚙️', title: '"Tell me about service objects."' },
+  { slug: 'practice-interview-n-plus-one',        emoji: '🔢', title: '"How do you find and fix N+1?"' },
+  { slug: 'practice-interview-sidekiq-solid',     emoji: '⏱️', title: '"Sidekiq or Solid Queue?"' },
+  { slug: 'practice-interview-hotwire',           emoji: '⚡', title: '"Turbo Frames vs Turbo Streams?"' },
+  { slug: 'practice-interview-rails-magic',       emoji: '🔧', title: '"Walk me through what belongs_to does."' },
+];
+---
+
+<Layout title="Interview Prep — Practice" description="Multiple-choice drills on common senior Rails interview questions. Each card includes the answer rubric — what the interviewer is actually looking for.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-8">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Interview Prep</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Drill the senior interview questions</h1>
+      <p class="text-xl text-gray-600 leading-relaxed">Common Rails interview questions, four candidate answers each. The right pick names not just the fact but the trade-off — that's what interviewers score on. Wrong picks explain what each one signals to the interviewer.</p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      {cards.map((card, i) => (
+        <a href={`/lessons/${card.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl" aria-hidden="true">{card.emoji}</span>
+            <div class="flex-1">
+              <p class="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Card {i + 1}</p>
+              <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug">{card.title}</h3>
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        <strong>Want the theory?</strong> The four interview-prep long-forms live at <a href="/interview" class="text-ruby hover:text-ruby-dark font-medium">Interview Prep</a> — how senior interviews actually work, system-design framing, behavioral stories, and the modern Rails stack questions.
+      </p>
+    </div>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Practice</a>
+      <span class="text-gray-400 text-sm">Practice · Interview Prep · 6 cards</span>
+    </div>
+  </article>
+</Layout>

@@ -1,0 +1,65 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title='"How do you find and fix an N+1 query?"' description="Practice card. The most-asked Rails performance question. Drills the senior-quality answer.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Interview · Card 3</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">"How do you find and fix an N+1 query?"</h1>
+      <p class="text-xl text-gray-600">Every Rails interview asks this. The naive answer names <code class="bg-gray-100 px-2 py-1 rounded text-base">includes</code>. The senior answer is broader.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The question
+          </h3>
+          <p class="text-gray-700 leading-relaxed">"You suspect a view has an N+1. How do you confirm it, and how do you fix it?" Which answer reads as senior?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: '"I\'d add <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.includes(:user)</code> to the query."',
+              explanation: 'A fix without a diagnosis. The interviewer asked "how do you find and fix." This skips the find. A senior names both halves.',
+            },
+            {
+              label: 'B',
+              text: '"I find it three ways: I install the Bullet gem in development, I read the dev log for repeating SELECT lines, or I use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_sql</code> to inspect the query I\'m sending. I fix it with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> by default, switching to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> if I need to filter on the association, or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code> if I want to avoid a giant LEFT JOIN result set. For collections big enough that loading them all is wasteful, I switch to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_each</code> with batched preloading."',
+              explanation: 'Names the diagnosis (three concrete tools), names the fix in detail (three variants with when to use each), and adds the bonus answer about large collections. This is the senior shape: tools + when to apply each.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: '"I look at the database query logs and rewrite the SQL by hand."',
+              explanation: 'Possible, but skips the Rails-idiomatic tools and isn\'t what most Rails teams reach for first. Bullet, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code>, and rack-mini-profiler are the standard kit.',
+            },
+            {
+              label: 'D',
+              text: '"N+1 queries are rare in production; I usually don\'t need to worry about them."',
+              explanation: 'Wrong direction. N+1 is the single most common Rails performance bug; under-confidence here is a red flag.',
+            },
+          ]}
+          principle={`<p>Senior answers to "how do you do X" name <strong>both the diagnosis and the fix</strong>. Two thirds of candidates skip the diagnosis. Saying "first I confirm it\'s the bug I think it is" before saying "here\'s how I fix it" lands every time.</p><p>Bonus: name production tooling. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">rack-mini-profiler</code> in dev, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Bullet</code> in dev with a test-mode raise, query logs in production, APM (Skylight, New Relic, Datadog) for production aggregates. The interviewer hears these and knows you\'ve shipped real Rails apps.</p>`}
+          theoryHref="/lessons/senior-scaling-diagnose"
+          theoryLabel="Scaling · Diagnose Before You Scale"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-interview-service-objects" class="text-ruby hover:text-ruby-dark transition-colors">← Card 2</a>
+      <a href="/lessons/practice-interview-sidekiq-solid" class="text-ruby hover:text-ruby-dark transition-colors">Card 4 →</a>
+    </div>
+  </article>
+</Layout>

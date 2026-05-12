@@ -1,0 +1,99 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="The Modern Rails Stack (Rails 8+)" description="The shape interviewers expect when they ask about modern Rails: Solid Queue, Solid Cache, Solid Cable, Hotwire, Kamal. What each one replaced and why.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/interview" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Interview Prep
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview · Lesson 4</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">The Modern Rails Stack (Rails 8+)</h1>
+      <p class="text-xl text-gray-600">Rails 8 added a stack of "Solid" libraries that replace Redis-backed defaults with Postgres-backed ones. Interviewers ask about them. Here's the shape of the answer.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The big shift</h3>
+        <p class="text-gray-700 leading-relaxed">
+          Rails 8 made the "database does everything" stance the default. Background jobs, cache, cable, and HTTP cache used to require Redis or Memcached in production. The Solid family of libraries lets Postgres handle all of them. The motivation: one fewer infrastructure dependency, one less thing to provision, one less thing to monitor.
+        </p>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          The trade-off: Postgres is slower than Redis for cache reads and queue polls. For most apps under a few thousand requests per minute, the difference doesn't matter. For very high traffic, you still reach for Redis.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Solid Queue (replaces Sidekiq for many apps)</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          A background job processor that uses Postgres for its queue. ActiveJob-compatible, so you don't change job code; you change the adapter.
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>When to choose:</strong> moderate throughput (low thousands of jobs per minute), team already maintains Postgres, prefers fewer moving parts.</li>
+          <li><strong>When to stay on Sidekiq:</strong> very high throughput, complex workflows (Sidekiq Pro/Enterprise features like batches), or you already have Redis for other reasons.</li>
+          <li><strong>Interview tell:</strong> if you can name "polling vs push" as the architectural difference (Solid Queue polls Postgres; Sidekiq listens on Redis), you've understood the question.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Solid Cache (replaces Memcached/Redis for Rails.cache)</h3>
+        <p class="text-gray-700 leading-relaxed">
+          <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Rails.cache</code> backed by a Postgres table. Same API; <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Rails.cache.fetch</code> works exactly the same way. The difference is where the data lives. For cache stampede protection, the same patterns (race_condition_ttl, TTL jitter, soft-expiration) apply identically.
+        </p>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          Trade-off: Postgres can cache megabytes of HTML responses and tolerate a billion-key working set with disk-backed durability; Memcached can't. Memcached is faster for very hot small keys; Solid Cache wins on cold-key recovery (no warmup after a restart).
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Solid Cable (replaces Redis for Action Cable)</h3>
+        <p class="text-gray-700 leading-relaxed">
+          The pub/sub layer that backs Action Cable. Pushes broadcasts through Postgres LISTEN/NOTIFY instead of Redis Pub/Sub. Same Action Cable API on the application side.
+        </p>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          Trade-off: works well for typical chat / live-update workloads. Postgres LISTEN/NOTIFY has lower throughput than Redis Pub/Sub at the high end; if your app is broadcasting tens of thousands of messages per second across a fleet, Redis is still the right choice.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Hotwire (Turbo + Stimulus)</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          Rails 7 made Hotwire the default JS layer. Rails 8 doubled down. Two pieces:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>Turbo Drive.</strong> Intercepts link clicks and form submissions, replaces the body of the response, no full page reload. Free.</li>
+          <li><strong>Turbo Frames.</strong> A region of the page that can be replaced independently. Server-rendered HTML, no JSON.</li>
+          <li><strong>Turbo Streams.</strong> The server pushes HTML fragments down a WebSocket (or after a form submit) that target specific elements: append, prepend, replace, update, remove. The "live update" pattern.</li>
+          <li><strong>Stimulus.</strong> Small JS controllers for sprinkles of behavior. Not a SPA framework. Adds event handlers to existing HTML.</li>
+        </ul>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          Interview tell: if you can explain "Turbo Frame vs Turbo Stream" — frame is a region the client can reload, stream is the server pushing changes — you've grasped the model.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Kamal (replaces Heroku-style deploys)</h3>
+        <p class="text-gray-700 leading-relaxed">
+          The DHH-flavored deploy tool. SSH into your servers, pull a Docker image, swap containers with zero downtime, run on commodity hardware (Hetzner, your own data center). The "post-Heroku" story: own your servers, deploy with one command.
+        </p>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          Trade-off: less hand-holding than Heroku or Render. You manage SSH keys, certs, and the underlying VMs. For teams that want it, the cost savings are dramatic. For teams that don't have the operational appetite, hosted PaaS is still right.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">What this signals in an interview</h3>
+        <p class="text-gray-700 leading-relaxed">
+          Saying "I use Solid Queue" or "I use Sidekiq" is a syntax answer. Saying "we picked Solid Queue because our throughput is under 500 jobs per minute and we wanted one fewer infrastructure dependency; if we cross 5K/min we'll re-evaluate" is a senior answer. The interviewer is listening for the trade-off, not the choice.
+        </p>
+      </section>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/interview-behavioral" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 3</a>
+      <a href="/interview" class="text-ruby hover:text-ruby-dark transition-colors">Back to Interview Prep →</a>
+    </div>
+  </article>
+</Layout>

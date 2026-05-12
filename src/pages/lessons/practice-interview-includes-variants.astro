@@ -1,0 +1,65 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="includes vs preload vs eager_load vs joins" description="Practice card. Four ActiveRecord methods that look similar; each has a specific use. Drills the classic Rails interview question.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Interview · Card 1</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">includes vs preload vs eager_load vs joins</h1>
+      <p class="text-xl text-gray-600">The interviewer asks you to explain the difference. Pick the answer that gets a senior nod.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The question
+          </h3>
+          <p class="text-gray-700 leading-relaxed">All four are used to deal with associations. They do different things. Which option correctly names the four behaviors?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'All four are aliases of each other; you can pick whichever reads best.',
+              explanation: 'They\'re not aliases. They generate different SQL and behave differently when you add WHERE clauses on joined tables.',
+            },
+            {
+              label: 'B',
+              text: '<strong>preload</strong> = two queries, no SQL join. <strong>eager_load</strong> = one query, LEFT OUTER JOIN. <strong>includes</strong> = Rails picks preload or eager_load based on whether you reference the joined table. <strong>joins</strong> = INNER JOIN, doesn\'t load the associated records, only filters by them.',
+              explanation: 'The canonical explanation. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code> always does N+1 queries → 2 queries: one for the parent, one IN(...) for the children. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> always does one query with LEFT OUTER JOIN and loads everything. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> picks whichever fits: preload by default, eager_load if you reference the joined table in a WHERE. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> joins for filtering only; it doesn\'t load the rows into <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.user</code>, so accessing <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.user.name</code> still N+1s.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: 'All four issue one query; they differ only in syntax.',
+              explanation: 'preload always issues two queries (or more, for nested associations). The "one query" answer is wrong.',
+            },
+            {
+              label: 'D',
+              text: '<strong>includes</strong> and <strong>preload</strong> are the same. <strong>eager_load</strong> and <strong>joins</strong> are the same.',
+              explanation: 'No. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> doesn\'t load associations; it only filters by them. That\'s the most-confused pair on interview answers.',
+            },
+          ]}
+          principle={`<p>Quick rules of thumb for the interview:</p><ul class="list-disc list-inside ml-4 space-y-1"><li>Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code> by default and let Rails pick.</li><li>Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code> when you know you want two queries (avoids a giant LEFT JOIN result set).</li><li>Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> when you need to filter by the joined table\'s columns (forces the JOIN).</li><li>Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> when you only need to filter, not access. Often paired with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.where</code> on the joined table.</li></ul><p>The trap: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> + accessing the association is the most common silent N+1 in Rails code. Senior answer: never use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">joins</code> alone when you\'ll touch the joined record.</p>`}
+          theoryHref="/lessons/senior-eager-loading"
+          theoryLabel="Eager Loading — includes vs preload vs eager_load vs joins"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/practice/interview" class="text-ruby hover:text-ruby-dark transition-colors">← Practice · Interview</a>
+      <a href="/lessons/practice-interview-service-objects" class="text-ruby hover:text-ruby-dark transition-colors">Card 2 →</a>
+    </div>
+  </article>
+</Layout>

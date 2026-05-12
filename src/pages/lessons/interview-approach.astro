@@ -1,0 +1,63 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="How Senior Rails Interviews Actually Work" description="What interviewers are scoring on, what 'senior' means in the room, and how to ace the parts most candidates underestimate.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/interview" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Interview Prep
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview · Lesson 1</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">How Senior Rails Interviews Actually Work</h1>
+      <p class="text-xl text-gray-600">The same candidate can pass at one company and fail at another, with the same answers. Knowing what each interview round is scoring on closes that gap.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">What "senior" means in an interview</h3>
+        <p class="text-gray-700 leading-relaxed">
+          For an intermediate candidate, interviewers are checking "can you write the code." For a senior candidate, they're checking "can you defend the decision." A senior who reaches for a service object should be ready to explain when they wouldn't reach for one. A senior who picks Solid Queue over Sidekiq should be able to articulate the trade-off. The interview surfaces this by asking <em>why</em>, not just <em>what</em>.
+        </p>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          The shortcut: every technical answer ends with a sentence that names the trade-off. "I'd extract a service object. The cost is one more file and indirection; the benefit is testability of this specific flow without the rest of the controller. I'd skip it if the action stays under twenty lines."
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The typical loop</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          A senior Rails interview usually has four rounds. Each one is scored differently:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>Coding round.</strong> A real-feeling Rails problem. Not LeetCode-style algorithms; closer to "implement this controller action" or "fix this N+1." Scoring: do you write idiomatic Rails, do you ask clarifying questions, do you handle edge cases without being asked.</li>
+          <li><strong>System design.</strong> "Design a URL shortener" or "Design a notification system." Scoring: can you reason about scale, draw out data models, name trade-offs explicitly, and pick a finite scope.</li>
+          <li><strong>Deep dive / debugging.</strong> "Tell me about a hard bug you fixed" or "Walk me through how Rails routing works." Scoring: depth of understanding, ability to verbalize what's under the abstraction.</li>
+          <li><strong>Behavioral.</strong> Mentorship, conflict, leading without authority, calibrating other engineers. Scoring: are you the kind of person who makes the team better.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">What most candidates underestimate</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>Asking clarifying questions.</strong> Juniors dive into code. Seniors spend 2-5 minutes confirming requirements. Interviewers count this. "What's the expected scale? Is this read-heavy or write-heavy? Do we need to handle X edge case?" Every question is a signal that you've shipped real software.</li>
+          <li><strong>Naming trade-offs unprompted.</strong> "I'd use a counter cache here. Tradeoff: hot rows under high concurrency, which I'd fix by moving the increment to a background job if that becomes a problem." You don't wait to be asked.</li>
+          <li><strong>Saying "I don't know" cleanly.</strong> "I haven't used Solid Cable in production. From what I've read, it works like Action Cable but with a Postgres backend instead of Redis. I'd want to verify that on the docs before recommending it." This reads as senior. "Yes, of course I've used it" when you haven't reads as junior.</li>
+          <li><strong>The deep-dive round.</strong> Most candidates prepare for coding and skip the "explain how X works" round. That round is where senior gets confirmed. Reading the Source lessons exist for this reason.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Calibrating yourself before the interview</h3>
+        <p class="text-gray-700 leading-relaxed">
+          Ask yourself, for each topic the role lists: "Could I explain this on a whiteboard to someone who hasn't seen it?" Not "do I know it." Explanation is the test. If the answer is hesitant, you have a gap. Pick three topics, read them deeply, write notes in your own words. That's the prep that moves the needle.
+        </p>
+      </section>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/interview" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Interview Prep</a>
+      <a href="/lessons/interview-system-design" class="text-ruby hover:text-ruby-dark transition-colors">Lesson 2 →</a>
+    </div>
+  </article>
+</Layout>
