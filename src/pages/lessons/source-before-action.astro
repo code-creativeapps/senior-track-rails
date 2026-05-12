@@ -1,0 +1,200 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="How before_action chains run (and where halting happens)" description="A plain-language walkthrough of what before_action is doing, why declaration order matters, and how rendering in a callback stops the chain.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source · Card 6</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">How <code class="bg-gray-100 px-2 py-1 rounded text-3xl">before_action</code> chains run (and where halting happens)</h1>
+      <p class="text-xl text-gray-600">You write <code class="bg-gray-100 px-2 py-1 rounded text-base">before_action :authenticate_user!</code> at the top of a controller and somehow every action runs that method first. Then your controller inherits from another one that has more callbacks, and the order matters. Here's what's actually happening.</p>
+    </div>
+
+    <div class="space-y-6">
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">1. <code class="bg-gray-100 px-2 py-1 rounded text-lg">before_action</code> is a method call at boot.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Like <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">get</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_action</code> is a regular method that runs when the class is loaded. It takes the method name you passed and adds it to a list called the callback chain, stored on the controller class. No callback fires at this point. Rails just remembers the registration.
+        </p>
+        <CodeBlock code={`class PostsController < ApplicationController
+  before_action :authenticate_user!
+  before_action :set_post, only: [:show, :edit, :update, :destroy]
+
+  def show; end
+  # ...
+end
+
+# When this file loads, Rails has done roughly:
+#
+#   PostsController._process_action_callbacks
+#     << Callback.new(:authenticate_user!, kind: :before, options: {})
+#   PostsController._process_action_callbacks
+#     << Callback.new(:set_post, kind: :before,
+#                                options: { only: [:show, :edit, :update, :destroy] })
+#
+# Two entries on the chain. Still no execution.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/abstract_controller/callbacks.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">2. The chain is shared with parent classes.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Your <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ApplicationController</code> usually has its own <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_action</code>s. So does Devise's mixin if you use it. When your controller inherits from them, the chain gets concatenated. Parent callbacks come first, then child callbacks, in declaration order.
+        </p>
+        <CodeBlock code={`class ApplicationController < ActionController::Base
+  before_action :set_locale
+  before_action :authenticate_user!
+end
+
+class PostsController < ApplicationController
+  before_action :set_post, only: [:show, :edit]
+end
+
+# When a request hits PostsController#show, the chain that runs is:
+#
+#   1. :set_locale         (from ApplicationController)
+#   2. :authenticate_user! (from ApplicationController)
+#   3. :set_post           (from PostsController, this action is in :only)
+#
+# Order matters. set_post can rely on current_user being available
+# because authenticate_user! ran first. Reverse the order and you
+# can get nil pointer errors.`} language="ruby" />
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">3. The chain runs around your action, not just before.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Rails actually has three kinds of callbacks: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_action</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">around_action</code>, and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">after_action</code>. Together they wrap your action method. Around-actions get a block they have to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">yield</code> to, which runs the inner part of the chain (more befores, the action, the afters).
+        </p>
+        <CodeBlock code={`# Conceptually, what Rails does on each request:
+#
+#   run_before_actions
+#     for each around_action:
+#       around_action.call do
+#         run_before_actions
+#         call_the_action
+#         run_after_actions
+#       end
+#     end
+#   run_after_actions
+
+# A typical around-action looks like:
+
+class PostsController < ApplicationController
+  around_action :with_locale
+
+  private
+
+  def with_locale
+    I18n.with_locale(params[:locale] || I18n.default_locale) do
+      yield   # <-- the inner chain (including your action) runs here
+    end
+  end
+end`} language="ruby" />
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">4. Rendering or redirecting halts the chain.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          If a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_action</code> calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">render</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">redirect_to</code>, Rails skips the rest of the before-callbacks AND your action. The after-callbacks still run. This is how authentication and authorization stop a request cleanly.
+        </p>
+        <CodeBlock code={`class PostsController < ApplicationController
+  before_action :authenticate_user!
+  before_action :require_admin
+
+  def index; @posts = Post.all; end
+
+  private
+
+  def authenticate_user!
+    redirect_to login_path unless current_user
+  end
+
+  def require_admin
+    render :forbidden, status: :forbidden unless current_user.admin?
+  end
+end
+
+# Anonymous user hits GET /posts:
+#   1. authenticate_user! runs → redirect_to login_path
+#   2. Rails sees a response has been set → halts the chain
+#   3. require_admin does NOT run
+#   4. index does NOT run
+#   5. after-callbacks still run (logging, etc.)`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/abstract_controller/callbacks.rb</code>, the response check</p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">5. <code class="bg-gray-100 px-2 py-1 rounded text-lg">only:</code> and <code class="bg-gray-100 px-2 py-1 rounded text-lg">except:</code> filter which actions get the callback.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The options you pass to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_action</code> are stored on the Callback object. At request time, Rails checks the current action name against the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">only:</code> / <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">except:</code> lists and skips the callback if it doesn't apply.
+        </p>
+        <CodeBlock code={`class PostsController < ApplicationController
+  before_action :set_post, only: [:show, :edit, :update, :destroy]
+end
+
+# At request time:
+#
+#   action = :index   → set_post is SKIPPED (not in :only list)
+#   action = :show    → set_post RUNS
+#   action = :edit    → set_post RUNS
+#   action = :new     → set_post is SKIPPED
+#
+# You can also use a Proc for dynamic filtering:
+#
+#   before_action :set_post, if: -> { params[:id].present? }
+#
+# The Proc runs at request time, evaluated against the controller instance.`} language="ruby" />
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">6. Skipping inherited callbacks in a subclass.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          When a subclass needs to opt out of a parent's callback, you use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">skip_before_action</code>. It removes the entry from this controller's copy of the chain, without touching the parent.
+        </p>
+        <CodeBlock code={`class ApplicationController < ActionController::Base
+  before_action :authenticate_user!
+end
+
+class PublicController < ApplicationController
+  skip_before_action :authenticate_user!, only: [:landing, :pricing]
+end
+
+# A request to PublicController#landing runs:
+#   (no authenticate_user! — it was skipped)
+#   landing
+#
+# A request to PublicController#dashboard (an action not in :only) runs:
+#   authenticate_user!
+#   dashboard
+#
+# skip_before_action is the escape hatch. Use it sparingly. Each
+# \`skip\` is a place a future reader has to remember exists.`} language="ruby" />
+      </section>
+
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-8 space-y-3">
+      <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span>🎯</span> Why this is worth knowing
+      </h3>
+      <p class="text-gray-700 leading-relaxed">Once you see the chain, a lot of "weird controller behavior" becomes readable:</p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">current_user</code> is nil inside <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">set_post</code>."</strong> <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">set_post</code> is declared before <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">authenticate_user!</code> in the chain. Reorder, or move <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">authenticate_user!</code> to the parent class.</li>
+        <li><strong>"My before_action keeps running on actions where it shouldn't."</strong> The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">only:</code> / <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">except:</code> list got out of sync with the actions. Or the callback was declared on a parent class without scoping.</li>
+        <li><strong>"My action runs even though the user isn't logged in."</strong> A before_action returned without calling <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">render</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">redirect_to</code>. The chain only halts if a response has been set.</li>
+        <li><strong>"My after_action ran even after a redirect."</strong> That's by design. Only befores and the action itself get skipped on halt. Afters and arounds (around the response) still run.</li>
+      </ul>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/source-params" class="text-ruby hover:text-ruby-dark transition-colors">← Card 5</a>
+      <a href="/lessons/source-form-with" class="text-ruby hover:text-ruby-dark transition-colors">Card 7 →</a>
+    </div>
+  </article>
+</Layout>

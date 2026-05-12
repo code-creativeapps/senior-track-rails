@@ -1,0 +1,188 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="How params actually works (and what permit does)" description="A plain-language walkthrough of where params come from, why they aren't a Hash, and what strong parameters are doing under the hood.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source · Card 5</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">How <code class="bg-gray-100 px-2 py-1 rounded text-3xl">params</code> actually works (and what <code class="bg-gray-100 px-2 py-1 rounded text-3xl">permit</code> does)</h1>
+      <p class="text-xl text-gray-600">You read <code class="bg-gray-100 px-2 py-1 rounded text-base">params[:id]</code> in every controller. You write <code class="bg-gray-100 px-2 py-1 rounded text-base">params.require(:post).permit(:title, :body)</code> for every form. The first looks like a hash. The second feels like magic. Both are doing something specific that's worth seeing.</p>
+    </div>
+
+    <div class="space-y-6">
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">1. <code class="bg-gray-100 px-2 py-1 rounded text-lg">params</code> is not a Hash.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          When you read <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params[:title]</code>, you're reading from an object of type <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ActionController::Parameters</code>. It looks like a hash and supports most of the same methods (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">[]</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">dig</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">to_h</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">each</code>), but it has one extra rule on top: ActiveModel will refuse to mass-assign attributes from it unless you've explicitly marked which keys are safe.
+        </p>
+        <CodeBlock code={`params.class
+# => ActionController::Parameters
+
+# Reading works like a Hash:
+params[:id]               # => "42"
+params.dig(:user, :name)  # => "Karim"
+
+# But this raises ActiveModel::ForbiddenAttributesError:
+Post.create(params[:post])
+
+# Why? Because params is "unpermitted" by default. Until you've
+# explicitly named which keys are safe, Rails won't let you assign
+# them in bulk to a model.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_controller/metal/strong_parameters.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">2. Rails fills params from three places.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The same <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params</code> object holds keys from the URL query string, the request body (form fields or JSON), and the route captures (the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:id</code> in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/posts/:id</code>). Rails merges them all into one object before your action runs. If the same key appears in two sources, the rules of merging decide which wins, but in practice you rarely see this collision.
+        </p>
+        <CodeBlock code={`# Given this request:
+#
+#   PATCH /posts/42?utm_source=email
+#   Body (form): post[title]=New+Title&post[body]=Hi
+#
+# params ends up as (roughly):
+#
+#   {
+#     "controller" => "posts",
+#     "action"     => "update",
+#     "id"         => "42",              # from /posts/:id  (route capture)
+#     "utm_source" => "email",           # from ?utm_source (query string)
+#     "post" => {                        # from the form body
+#       "title" => "New Title",
+#       "body"  => "Hi"
+#     }
+#   }`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_dispatch/http/parameters.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">3. <code class="bg-gray-100 px-2 py-1 rounded text-lg">permit</code> returns a new object.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">permit(:title, :body)</code> doesn't mark the original params as safe. It returns a brand new <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Parameters</code> object that contains only the keys you listed, with an internal flag set to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">permitted = true</code>. ActiveModel checks that flag when it does mass-assignment.
+        </p>
+        <CodeBlock code={`# params[:post] contains: title, body, admin_flag
+safe = params[:post].permit(:title, :body)
+
+safe                       # => <Parameters {title: "...", body: "..."} permitted: true>
+safe[:admin_flag]          # => nil (filtered out)
+safe.permitted?            # => true
+
+# The original is unchanged:
+params[:post][:admin_flag] # => "yes"  (still there in the original)
+params[:post].permitted?   # => false
+
+# Now this works:
+Post.create(safe)`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_controller/metal/strong_parameters.rb</code>, the <code>permit</code> method</p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">4. <code class="bg-gray-100 px-2 py-1 rounded text-lg">require</code> just narrows the focus.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params.require(:post)</code> returns the inner <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Parameters</code> object for the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:post</code> key, and raises an error if that key is missing or empty. It's a one-liner that says "the form should have submitted a post hash, and if it didn't, fail fast."
+        </p>
+        <CodeBlock code={`# Equivalent to:
+#
+#   if params[:post].blank?
+#     raise ActionController::ParameterMissing, :post
+#   end
+#   params[:post]
+
+# Chained, the common pattern is:
+params.require(:post).permit(:title, :body)
+
+# Step by step:
+#   1. require(:post) — pull out params[:post] or raise
+#   2. permit(:title, :body) — keep only these two keys
+
+# The result is a permitted Parameters with just title and body,
+# safe to pass to Post.create or Post#update.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 same file, the <code>require</code> method</p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">5. For nested data, you describe the shape.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">permit</code> only lets through scalar values (strings, numbers, booleans) by default. If your form sends an array, a hash, or nested attributes, you have to spell out the structure so Rails knows it's intentional.
+        </p>
+        <CodeBlock code={`# A flat list of strings:
+params.permit(tags: [])
+# allows params[:tags] = ["a", "b", "c"]
+
+# A hash of known keys:
+params.permit(address: [:street, :city, :zip])
+# allows params[:address] = { street: "...", city: "...", zip: "..." }
+
+# Nested attributes (has_many with accepts_nested_attributes_for):
+params.require(:post).permit(
+  :title,
+  :body,
+  comments_attributes: [:id, :body, :_destroy]
+)
+
+# Anything not described is silently filtered out. This is the
+# "permit only what you describe" contract.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 same file, the nested-attributes handling inside <code>permit</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">6. The Rails idiom: a private <code class="bg-gray-100 px-2 py-1 rounded text-lg">*_params</code> method.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The convention is to put the permit logic in a private method named after the resource. The action calls it. This keeps the actions clean and gives you one place to update if the permitted shape changes.
+        </p>
+        <CodeBlock code={`class PostsController < ApplicationController
+  def create
+    @post = Post.new(post_params)
+    if @post.save
+      redirect_to @post
+    else
+      render :new, status: :unprocessable_entity
+    end
+  end
+
+  def update
+    if @post.update(post_params)
+      redirect_to @post
+    else
+      render :edit, status: :unprocessable_entity
+    end
+  end
+
+  private
+
+  def post_params
+    params.require(:post).permit(:title, :body, tag_ids: [])
+  end
+end
+
+# If you add a new field, you change one method, not every action.`} language="ruby" />
+      </section>
+
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-8 space-y-3">
+      <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span>🎯</span> Why this is worth knowing
+      </h3>
+      <p class="text-gray-700 leading-relaxed">Once params + permit makes sense, a few common bugs become obvious:</p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"My checkbox value is missing on update."</strong> A checkbox isn't in the permit list. The fix is one line, in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post_params</code>.</li>
+        <li><strong>"The form submitted but the model didn't update."</strong> A new field was added to the form, but <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post_params</code> was forgotten. The value is in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params[:post]</code>, but it gets filtered out by permit.</li>
+        <li><strong>"I'm getting <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ActionController::ParameterMissing</code>."</strong> The form didn't submit the expected wrapper key. Usually because <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">form_with</code> wasn't given a model and the field names came out un-namespaced.</li>
+        <li><strong>"Strong params blocked a nested array."</strong> The nested shape needs to be described in permit. Arrays need <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">key: []</code>, hashes need <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">key: [:a, :b]</code>.</li>
+      </ul>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/source-view-rendering" class="text-ruby hover:text-ruby-dark transition-colors">← Card 4</a>
+      <a href="/lessons/source-before-action" class="text-ruby hover:text-ruby-dark transition-colors">Card 6 →</a>
+    </div>
+  </article>
+</Layout>

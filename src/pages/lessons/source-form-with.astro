@@ -1,0 +1,190 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="How form_with builds an HTML form" description="A plain-language walkthrough of how Rails picks the URL, the HTTP verb, the CSRF token, and the input names from one form_with call.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source · Card 7</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">How <code class="bg-gray-100 px-2 py-1 rounded text-3xl">form_with</code> builds an HTML form</h1>
+      <p class="text-xl text-gray-600">You write <code class="bg-gray-100 px-2 py-1 rounded text-base">form_with model: @post do |f|</code> and Rails produces a complete <code class="bg-gray-100 px-2 py-1 rounded text-base">&lt;form&gt;</code> with the right URL, the right verb, a CSRF token, and inputs named like <code class="bg-gray-100 px-2 py-1 rounded text-base">post[title]</code>. Every piece of that has a reason.</p>
+    </div>
+
+    <div class="space-y-6">
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">1. Rails figures out the URL from the model.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          When you pass <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">model: @post</code>, Rails uses your routes to decide where the form should POST. A new (unsaved) record goes to the collection URL (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/posts</code>). A persisted record goes to the member URL (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/posts/42</code>). The choice between create and update is driven by whether the model has been saved.
+        </p>
+        <CodeBlock code={`# Controller:
+@post = Post.new                  # new, unsaved
+@post = Post.find(params[:id])    # persisted
+
+# View:
+<%= form_with model: @post do |f| %>
+  ...
+<% end %>
+
+# What Rails decides:
+#
+#   @post.new_record? == true   → action="/posts",    method="POST"  (create)
+#   @post.new_record? == false  → action="/posts/42", method="POST"  (update*)
+#
+# *The form ALWAYS uses method="POST". The actual verb (PATCH for update)
+# is sent via a hidden field. See step 3.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionview/lib/action_view/helpers/form_helper.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">2. The <code class="bg-gray-100 px-2 py-1 rounded text-lg">&lt;form&gt;</code> tag gets standard attributes.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Rails opens a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">&lt;form&gt;</code> element with the URL, the HTTP method, and a few attributes that matter (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">accept-charset</code>, a default <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">class</code> based on whether the model is new or persisted, and the auto-generated <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">id</code>).
+        </p>
+        <CodeBlock code={`# For a new Post, the rendered output starts with:
+
+<form action="/posts"
+      accept-charset="UTF-8"
+      method="post">
+
+# For an existing Post (id: 42):
+
+<form action="/posts/42"
+      accept-charset="UTF-8"
+      method="post">
+
+# Note: method is always "post" in the HTML. HTML forms can only
+# do GET or POST. The real verb (PATCH/PUT/DELETE) gets carried
+# by a hidden field, which is the next thing Rails writes.`} language="ruby" />
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">3. PATCH/PUT/DELETE travels in a hidden <code class="bg-gray-100 px-2 py-1 rounded text-lg">_method</code> field.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          HTML forms only support GET and POST as the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">method</code> attribute. For PATCH, PUT, and DELETE, Rails uses a hidden input named <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">_method</code> that holds the intended verb. On the server, the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Rack::MethodOverride</code> middleware reads that field and pretends the request used the right verb before it reaches your routes.
+        </p>
+        <CodeBlock code={`# For a persisted Post (an update form), Rails inserts:
+
+<input type="hidden" name="_method" value="patch" autocomplete="off">
+
+# When the form submits, the browser sends a real POST. But by the
+# time the request reaches your controller, Rack::MethodOverride
+# has changed the request verb to PATCH. The router sees PATCH /posts/42,
+# matches the resourceful update route, and dispatches to #update.
+
+# This is also how button_to "Delete", post, method: :delete works.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_dispatch/middleware/method_override.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">4. Every form gets a CSRF token.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Rails inserts another hidden input named <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">authenticity_token</code> with a token Rails generated for the session. When the form is submitted, the controller's <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">protect_from_forgery</code> mechanism checks that the token matches what's in the session. A missing or wrong token gets the request rejected with a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">InvalidAuthenticityToken</code> error.
+        </p>
+        <CodeBlock code={`# Every form Rails emits has this:
+
+<input type="hidden"
+       name="authenticity_token"
+       value="A7nF...long_random_string..."
+       autocomplete="off">
+
+# The value is signed and tied to the user's session. An attacker
+# who tries to submit a form from another site can guess the URL
+# and the field names, but not this token. Without it, the request
+# is rejected before reaching your action.
+
+# This is why opting out of form_with and writing raw <form> tags
+# usually breaks: you forget the token, every POST 422s.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_controller/metal/request_forgery_protection.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">5. The block yields a FormBuilder that names inputs after the model.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">|f|</code> in the block is a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">FormBuilder</code> object. Every helper you call on it (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">f.text_field :title</code>) generates an HTML input whose <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">name</code> attribute is namespaced under the model. That's why on the server <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params[:post][:title]</code> works.
+        </p>
+        <CodeBlock code={`# View:
+
+<%= form_with model: @post do |f| %>
+  <%= f.label :title %>
+  <%= f.text_field :title %>
+
+  <%= f.label :body %>
+  <%= f.text_area :body %>
+
+  <%= f.submit %>
+<% end %>
+
+# Rendered HTML (inside the <form>):
+
+<label for="post_title">Title</label>
+<input type="text" name="post[title]" id="post_title" value="...">
+
+<label for="post_body">Body</label>
+<textarea name="post[body]" id="post_body">...</textarea>
+
+<input type="submit" name="commit" value="Update Post" data-disable-with="...">
+
+# The "post[..]" naming is what makes Rack parse the body into:
+#   { "post" => { "title" => "...", "body" => "..." } }
+# which is how params.require(:post).permit(:title, :body) works.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionview/lib/action_view/helpers/form_helper.rb</code>, the <code>FormBuilder</code> class</p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">6. The submitted form walks back through the same machinery.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          When the user clicks Submit, the browser POSTs the form body to the action URL. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Rack::MethodOverride</code> sees the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">_method</code> field and adjusts the verb. The router matches the route (the same Journey state machine from Card 2). The controller's <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">protect_from_forgery</code> checks the CSRF token. Then your action runs with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params[:post]</code> populated.
+        </p>
+        <CodeBlock code={`# Round trip for "edit a post":
+#
+#   GET  /posts/42/edit
+#     → renders the form with action="/posts/42", _method=patch, CSRF token
+#
+#   User edits the title and clicks Update.
+#
+#   POST /posts/42
+#     headers: Content-Type: application/x-www-form-urlencoded
+#     body:    _method=patch
+#              &authenticity_token=A7nF...
+#              &post[title]=New+Title
+#              &post[body]=Hi
+#
+#   Middleware stack:
+#     Rack::MethodOverride sees _method=patch → request verb becomes PATCH
+#     ActionDispatch::Cookies, Session, etc.
+#
+#   Router:
+#     PATCH /posts/42 matches  → PostsController#update, params[:id] = "42"
+#
+#   Controller:
+#     protect_from_forgery checks authenticity_token (it matches)
+#     before_actions run
+#     update action runs with params.require(:post).permit(...)`} language="ruby" />
+      </section>
+
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-8 space-y-3">
+      <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span>🎯</span> Why this is worth knowing
+      </h3>
+      <p class="text-gray-700 leading-relaxed">Once you see what form_with assembles, a lot of "weird form" problems get easy to debug:</p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"My update form is sending a POST instead of a PATCH."</strong> The hidden <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">_method</code> field is missing or the form isn't going through <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">form_with</code>. The browser can only send POST; Rack does the rewrite based on <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">_method</code>.</li>
+        <li><strong>"<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">InvalidAuthenticityToken</code> in production."</strong> Either the page was cached and served a stale token, or the form was hand-written without the token. The auto-generated CSRF input is what makes the controller's forgery check pass.</li>
+        <li><strong>"My params are flat instead of nested under <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post</code>."</strong> The form was opened without a model, so the inputs are named bare (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">title</code> instead of <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post[title]</code>). Either pass <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">model:</code>, or use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">scope: :post</code>.</li>
+        <li><strong>"My delete link doesn't actually delete."</strong> Same root cause as the update form: the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">_method</code> field has to be present and Rack::MethodOverride has to be in the middleware stack (it is by default; if you customized the stack, check).</li>
+      </ul>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/source-before-action" class="text-ruby hover:text-ruby-dark transition-colors">← Card 6</a>
+      <span class="text-gray-400">More Reading the Source coming</span>
+    </div>
+  </article>
+</Layout>
