@@ -1,0 +1,81 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="The user lands on /success. The code marks the order paid. What's wrong?" description="Practice card. The classic 'trust the redirect' bug. Drills async confirmation.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Payments · Card 3</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">The user lands on /success. The code marks the order paid. What's wrong?</h1>
+      <p class="text-xl text-gray-600">A controller that trusts the redirect. The bug is invisible 99% of the time. The 1% is the bug.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`# routes.rb
+get "/orders/:id/success", to: "orders#success"
+
+# orders_controller.rb
+def success
+  @order = Order.find(params[:id])
+  @order.update!(status: "paid", paid_at: Time.current)
+  GrantAccessJob.perform_later(@order.id)
+  OrderMailer.with(order: @order).receipt.deliver_later
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">The intent: "after the user pays at Stripe, they redirect to this URL, and we mark them paid." The user finds an edge case where they get access without the money clearing. What's the bug?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'The mailer should be sent before the access is granted.',
+              explanation: 'Reordering side effects doesn\'t address the root issue. The deeper problem is that the order is being marked paid based on the redirect arriving, not on the payment actually clearing.',
+            },
+            {
+              label: 'B',
+              text: 'The order is marked paid based on the user reaching this URL, not on the payment actually succeeding. The redirect is a UX signal, not a payment confirmation.',
+              explanation: 'The redirect proves only that the user\'s browser made it back to your site. It doesn\'t prove the payment cleared. A user can hit this URL by sharing it, by being redirected back from an aborted 3DS challenge, or by an attacker crafting the URL. The mark-paid logic belongs in the webhook handler (signed, server-to-server). The redirect should land on a status page that polls or uses Turbo Streams to react when the webhook flips the status.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: 'The action should use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_by</code> instead of <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find</code> to avoid raising on missing orders.',
+              explanation: 'A code style choice, not the payment bug. Both raise/return-nil are valid; neither addresses trusting the redirect.',
+            },
+            {
+              label: 'D',
+              text: 'The action should require the user to be logged in.',
+              explanation: 'Authentication would help with one attack vector (random users seeing other orders), but the core bug — trusting the redirect for payment state — applies even with auth in place.',
+            },
+          ]}
+          principle={`<p>Two channels carry information about a payment: the client redirect and the server-to-server webhook. They look similar (both deliver a payment_intent ID) but mean very different things:</p><ul class="list-disc list-inside ml-4 space-y-1"><li><strong>Redirect</strong> = the user reached your site. UX signal.</li><li><strong>Webhook</strong> = the money moved. State signal.</li></ul><p>Senior code uses each for what it\'s for. The redirect lands on a "we\'re processing" page. The webhook updates the order. The status page reacts when the order flips via Turbo Streams, polling, or Cable.</p>`}
+          theoryHref="/lessons/payments-async-confirmation"
+          theoryLabel="Payments · Async Confirmation"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-payments-webhook-verify" class="text-ruby hover:text-ruby-dark transition-colors">← Card 2</a>
+      <a href="/lessons/practice-payments-event-ordering" class="text-ruby hover:text-ruby-dark transition-colors">Card 4 →</a>
+    </div>
+  </article>
+</Layout>

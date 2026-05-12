@@ -1,0 +1,91 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Payment Intents vs Direct Charges" description="Why the modern payment API is built around 'intents' instead of just 'charge this card now'. The state machine that makes payments survive failures.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/payments" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Payments
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Payments · Lesson 1</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Payment Intents vs Direct Charges</h1>
+      <p class="text-xl text-gray-600">The old API said "charge $50 to this card, return success or failure." The modern API says "create an intent to charge $50, walk it through a state machine." Why the change, and what it means for your Rails app.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The problem with "charge now, return result"</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          A direct-charge API has one step. You call it, the result comes back. That works until something fails in the middle: a 3D Secure challenge, a bank that requires authentication, a network timeout, an intermediate state where you don't know whether the charge succeeded. With a single-call API, your code has to figure out "did this work? did it half-work? should I retry?" — and a retry might double-charge the user.
+        </p>
+        <CodeBlock code={`# Old style:
+charge = Stripe::Charge.create(amount: 5000, source: token)
+if charge.status == "succeeded"
+  order.update!(paid_at: Time.current)
+else
+  # What happened? Timeout? 3DS? Bank decline?
+  # If we retry, we might charge twice.
+end`} language="ruby" />
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The intent: a multi-step state machine</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          A PaymentIntent is a server-side object that represents the entire lifecycle of a single payment. You create it once with a unique idempotency key. It moves through states: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">requires_payment_method</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">requires_confirmation</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">requires_action</code> (e.g., 3DS), <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">processing</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">succeeded</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">canceled</code>. At every step you know exactly where the payment is.
+        </p>
+        <CodeBlock code={`# Step 1: server creates the intent
+intent = Stripe::PaymentIntent.create(
+  amount: 5000,
+  currency: "usd",
+  metadata: { order_id: order.id }
+)
+order.update!(payment_intent_id: intent.id, status: "awaiting_payment")
+
+# Step 2: client confirms with the payment method
+# Step 3: bank may require action (3DS), client handles it
+# Step 4: Stripe sends a webhook when status reaches succeeded
+
+# Your job: react to the webhook, not to the client's redirect.`} language="ruby" />
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">What this buys you</h3>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>Resumability.</strong> A payment that needs 3DS doesn't fail; it pauses in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">requires_action</code>. The user authenticates, the intent resumes. Your code didn't have to model "half-done."</li>
+          <li><strong>One source of truth.</strong> The intent ID is in your database. Every webhook references the same ID. Disputes, refunds, retries — all the same ID.</li>
+          <li><strong>No double charges from retries.</strong> Creating an intent with the same idempotency key returns the existing intent. The charge can only happen once per intent.</li>
+          <li><strong>Provider-agnostic shape.</strong> Stripe, Adyen, Braintree, and others have converged on this pattern. Modeling your domain around "Payment" with a state machine fits all of them.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The Rails-side shape</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          You usually keep a Payment record that mirrors the provider's intent. Its state column shadows the provider's lifecycle. Webhooks update the state. Your application reads the state. The provider is the source of truth; your database is a cache of it.
+        </p>
+        <CodeBlock code={`class Payment < ApplicationRecord
+  belongs_to :order
+
+  enum status: {
+    pending:           0,
+    requires_action:   1,
+    processing:        2,
+    succeeded:         3,
+    failed:            4,
+    canceled:          5,
+  }
+
+  # Update from webhook events. Never set "succeeded" from the
+  # client redirect. The webhook is authoritative.
+end`} language="ruby" />
+      </section>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/payments" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Payments</a>
+      <a href="/lessons/payments-idempotency" class="text-ruby hover:text-ruby-dark transition-colors">Lesson 2 →</a>
+    </div>
+  </article>
+</Layout>

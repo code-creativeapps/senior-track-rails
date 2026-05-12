@@ -1,0 +1,86 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="Why does this webhook controller skip CSRF?" description="Practice card. A webhook endpoint with skip_before_action :verify_authenticity_token. Four candidate reasons, only one is the real one.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Payments · Card 2</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Why does this webhook controller skip CSRF?</h1>
+      <p class="text-xl text-gray-600">A controller that takes Stripe webhook posts. <code class="bg-gray-100 px-2 py-1 rounded text-base">skip_before_action :verify_authenticity_token</code> on the first line. Why?</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class WebhooksController < ApplicationController
+  skip_before_action :verify_authenticity_token
+
+  def stripe
+    event = Stripe::Webhook.construct_event(
+      request.body.read,
+      request.env["HTTP_STRIPE_SIGNATURE"],
+      ENV.fetch("STRIPE_WEBHOOK_SECRET")
+    )
+    ProcessStripeEventJob.perform_later(event.id)
+    head :ok
+  rescue Stripe::SignatureVerificationError
+    head :bad_request
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">Why does skipping CSRF make sense here, and what's preventing an attacker from forging webhook calls?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'CSRF can\'t be skipped safely. This is a security bug.',
+              explanation: 'CSRF tokens defend against cross-site form submission from a logged-in user\'s browser. A webhook is a server-to-server POST from Stripe; there\'s no logged-in user session, and the protective signature is the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Stripe-Signature</code> HTTP header instead.',
+            },
+            {
+              label: 'B',
+              text: 'Stripe is whitelisted by IP, so CSRF is unnecessary.',
+              explanation: 'Stripe doesn\'t guarantee a stable IP range, and IP whitelisting isn\'t how the protection works. The protection is the HMAC signature on the request body.',
+            },
+            {
+              label: 'C',
+              text: 'CSRF doesn\'t apply to webhook (server-to-server) requests. The signature check (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">construct_event</code>) is what proves authenticity here.',
+              explanation: 'CSRF protection assumes a browser session with a stored token. Webhooks don\'t come from a browser session, so CSRF would fail every request. The HMAC signature on the body, verified with the shared secret, is what proves "Stripe sent this." An attacker who doesn\'t know the secret can\'t forge a valid signature.',
+              correct: true,
+            },
+            {
+              label: 'D',
+              text: 'The controller inherits CSRF from ApplicationController and doesn\'t need to skip it.',
+              explanation: 'Default Rails controllers inherit CSRF protection. Skipping is required to bypass it. Without the skip, Rails would reject every webhook with InvalidAuthenticityToken.',
+            },
+          ]}
+          principle={`<p>CSRF protection and webhook signature verification solve different problems:</p><ul class="list-disc list-inside ml-4 space-y-1"><li><strong>CSRF</strong> defends against a logged-in user\'s browser being tricked into submitting a malicious form to your app.</li><li><strong>Webhook signatures</strong> defend against an attacker forging a request to your webhook endpoint when no user session is involved.</li></ul><p>One can be skipped only when the other replaces it. The shape: skip CSRF, verify signature, return 400 on bad signature. Always log signature failures; a sustained stream of them is an active attack signal.</p>`}
+          theoryHref="/lessons/payments-webhooks"
+          theoryLabel="Payments · Webhooks: Verify, Idempotent, Replayable"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-payments-no-idempotency" class="text-ruby hover:text-ruby-dark transition-colors">← Card 1</a>
+      <a href="/lessons/practice-payments-trust-redirect" class="text-ruby hover:text-ruby-dark transition-colors">Card 3 →</a>
+    </div>
+  </article>
+</Layout>

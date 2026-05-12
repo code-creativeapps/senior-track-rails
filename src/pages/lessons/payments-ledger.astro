@@ -1,0 +1,107 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="The Ledger Pattern (vs Balance Columns)" description="Why money-handling apps keep an append-only ledger instead of a balance column. The pattern, the cost, and when to reach for it.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/payments" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Payments
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Payments · Lesson 6</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">The Ledger Pattern (vs Balance Columns)</h1>
+      <p class="text-xl text-gray-600">Once money is involved, "store the balance in a column and update it" stops being good enough. The pattern that serious money-handling apps use is the same one accountants used before computers: an append-only ledger.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Why the balance column breaks</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The naive shape is a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">balance_cents</code> column on User or Account. Every transaction adds or subtracts. The current balance is one query: read the column.
+        </p>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          What breaks:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>You can't audit it.</strong> "Why does this user have $42.13 instead of $42.50?" The column has the answer "right now" and no history. You can't trace how it got there.</li>
+          <li><strong>Concurrent writes race.</strong> Two payments arriving at the same time both read 0, both write 100. You end up with 100 instead of 200. The Concurrency lesson covered this; for money, the bug is unacceptable.</li>
+          <li><strong>Reversals require knowing the original transaction.</strong> A refund needs to subtract exactly what was added. If you didn't store the per-transaction history, you can't reverse correctly when amounts diverged from rounding or fees.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The ledger</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          A ledger is an append-only table where each row is one financial event. No row is ever updated or deleted. To know the current balance, you sum the rows.
+        </p>
+        <CodeBlock code={`# Schema (simplified):
+create_table :ledger_entries do |t|
+  t.references :account, null: false
+  t.integer    :amount_cents, null: false   # positive credit, negative debit
+  t.string     :kind, null: false           # "payment", "refund", "fee", "adjustment"
+  t.references :source, polymorphic: true   # the Payment, Refund, etc. that caused this
+  t.string     :memo
+  t.datetime   :created_at, null: false
+end
+
+add_index :ledger_entries, [:account_id, :created_at]
+
+# Balance:
+account.ledger_entries.sum(:amount_cents)`} language="ruby" />
+        <p class="text-gray-700 leading-relaxed mt-3">
+          The polymorphic <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">source</code> reference lets you trace every entry back to the event that caused it. The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">kind</code> column lets you slice the ledger by purpose: just payments, just fees, just adjustments.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Concurrency is solved by the design</h3>
+        <p class="text-gray-700 leading-relaxed">
+          Two concurrent payments both INSERT. The database handles concurrent INSERTs cleanly without serialization. Whatever order they land, the balance is the sum, and the sum doesn't depend on order. The race-condition bug from the balance-column shape can't happen, because no two operations are racing to update the same row.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Reversals are insertions, not updates</h3>
+        <p class="text-gray-700 leading-relaxed">
+          A refund doesn't update the original payment entry. It adds a new entry with the opposite sign, referencing the original. The original entry stays. The history is intact. You can ask "what happened on this account?" and read the answer row by row.
+        </p>
+        <CodeBlock code={`# Original payment:
+# +5000 cents, kind: "payment", source: Payment#42
+
+# Customer is refunded $25:
+# -2500 cents, kind: "refund",  source: Refund#7  (which references Payment#42)
+
+# Current balance: +5000 + -2500 = +2500
+# Audit query: "show me everything that touched this account" — straightforward.`} language="ruby" />
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">When the SUM gets slow</h3>
+        <p class="text-gray-700 leading-relaxed">
+          A real account might accumulate millions of entries over years. Summing them on every balance read becomes a hot query. Standard fixes:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mt-2">
+          <li><strong>Periodic snapshots.</strong> Once a day, write a "balance as of midnight" row. Balance = snapshot + sum(entries after snapshot). Fast read, full history retained.</li>
+          <li><strong>Caching layer.</strong> Memcached / Redis stores the current balance; the ledger entries are still the source of truth. Cache invalidation on every write. The cache stampede lesson applies — use a single-flight refresh.</li>
+          <li><strong>Materialized view.</strong> Postgres can maintain a materialized view of per-account balances, refreshed on writes. Native to the database, no app-layer cache.</li>
+        </ul>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          You only need these if you actually measure the SUM as slow. Modern Postgres indexes a hundred million rows comfortably. Premature optimization here is a real cost; the ledger's value is in correctness, not in micro-optimizations against a cost that may never appear.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">When you can skip the ledger</h3>
+        <p class="text-gray-700 leading-relaxed">
+          The ledger is the right pattern for credit-style features: store credits, wallets, account balances, anywhere users hold money. For a simple "did the order get paid? yes/no" model, the Payment record is enough. Use the ledger when you need a history of credits and debits on a balance that accumulates. Use a simple balance flag when the question is just "is this order paid."
+        </p>
+      </section>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/payments-refunds-chargebacks" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 5</a>
+      <a href="/payments" class="text-ruby hover:text-ruby-dark transition-colors">Back to Payments →</a>
+    </div>
+  </article>
+</Layout>

@@ -1,0 +1,99 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Refunds & Chargebacks as State" description="Refunds you initiated and chargebacks the bank initiated. Same money flowing back, different states, different downstream effects. How to model both.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/payments" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Payments
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Payments · Lesson 5</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Refunds & Chargebacks as State</h1>
+      <p class="text-xl text-gray-600">Refunds you initiated. Chargebacks the bank initiated. The money flows the same direction; everything else is different.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The two shapes</h3>
+        <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-2">
+          <li><strong>Refund.</strong> You decided to send money back. The user asked, support agreed, or a return triggered an automated flow. You call the provider's refund API, the provider sends money back from your account. Full control, predictable timing, low fees.</li>
+          <li><strong>Chargeback.</strong> The user told their bank "I don't recognize this charge" or "I didn't get what I paid for." The bank pulls the money back from your account, often with a fee added on top. You can dispute it with evidence. You can't prevent it from being initiated.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Modeling as state</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The Payment record has more states than "succeeded" and "failed." The full lifecycle for a payment that completes:
+        </p>
+        <CodeBlock code={`class Payment < ApplicationRecord
+  enum status: {
+    pending:             0,
+    succeeded:           3,
+    refund_pending:      6,    # refund requested, not yet completed
+    refunded:            7,    # full refund completed
+    partially_refunded:  8,    # refund completed but less than full
+    disputed:            9,    # chargeback opened, evidence period
+    chargeback_lost:    10,    # we lost the dispute
+    chargeback_won:     11,    # we won the dispute, money returned
+  }
+end`} language="ruby" />
+        <p class="text-gray-700 leading-relaxed mt-3">
+          The state transitions are driven by webhooks. Don't try to mirror every provider state — pick the ones your application's downstream behavior actually depends on.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">What changes downstream</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          Both refunds and chargebacks may need to:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li>Reverse the order state (mark order canceled, or set a new "refunded" state).</li>
+          <li>Re-grant any inventory the order had reserved.</li>
+          <li>Revoke any access that was granted (cancel a subscription, revoke a digital license, etc.).</li>
+          <li>Trigger an email (refund processed, or dispute notice).</li>
+          <li>Update the ledger (next lesson).</li>
+        </ul>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          Chargebacks add two more things refunds don't:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>Evidence collection.</strong> The provider gives you a window (often 7-21 days) to submit evidence: shipping confirmation, IP address at checkout, customer communication, terms of service acceptance. Some apps automate parts of this.</li>
+          <li><strong>Fraud signal.</strong> Multiple chargebacks from the same user, IP, or card fingerprint is a sign to block. The chargeback is the event that lets you flag.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Partial refunds and the math</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          A user buys three items, returns one. The refund is partial. The order can't transition cleanly from "paid" to "refunded" — it's somewhere in between.
+        </p>
+        <p class="text-gray-700 leading-relaxed">
+          Two ways to handle the bookkeeping:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mt-2">
+          <li><strong>Sum refunds against the original charge.</strong> Each Refund record references the Payment and has an amount. The order's "net paid" is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">payment.amount_cents - refunds.sum(:amount_cents)</code>. Easy to compute, easy to display, never wrong.</li>
+          <li><strong>Maintain a balance column.</strong> Faster reads, but you have to update it on every refund event and you risk drift. Use only if reads are dominant and you're disciplined about the update path. Counter-cache gotchas apply.</li>
+        </ul>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          For most apps, the first shape is simpler. The query is fast (one SUM, indexed). You only need a balance column when "net paid" is read in hot paths thousands of times per minute.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The principle</h3>
+        <p class="text-gray-700 leading-relaxed">
+          Money moving back isn't the inverse of money moving forward; it's a separate event with its own state and its own downstream consequences. Modeling refunds and chargebacks as distinct records (not just a flag on the Payment) makes the history readable and the bookkeeping correct.
+        </p>
+      </section>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/payments-async-confirmation" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 4</a>
+      <a href="/lessons/payments-ledger" class="text-ruby hover:text-ruby-dark transition-colors">Lesson 6 →</a>
+    </div>
+  </article>
+</Layout>

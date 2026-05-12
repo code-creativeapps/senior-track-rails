@@ -1,0 +1,93 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="Two ways to track a user's wallet balance. Pick one." description="Practice card. A balance column vs an append-only ledger. Drills when the ledger pattern is the right move.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Payments · Card 6</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Wallet balance: balance column or ledger?</h1>
+      <p class="text-xl text-gray-600">Users hold store credit. Many small credits and debits. Two reasonable shapes. The right one depends on what you'll need to ask.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The choice
+          </h3>
+          <p class="text-gray-700 italic mb-3">Two candidate schemas, both valid Rails.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`# Option 1: balance column
+class User < ApplicationRecord
+  # users.wallet_balance_cents
+  def credit!(amount, source:)
+    increment!(:wallet_balance_cents, amount)
+  end
+  def debit!(amount, source:)
+    decrement!(:wallet_balance_cents, amount)
+  end
+end
+
+# Option 2: ledger
+class LedgerEntry < ApplicationRecord
+  # ledger_entries.user_id, .amount_cents, .kind, .source_type, .source_id
+end
+class User < ApplicationRecord
+  has_many :ledger_entries
+  def wallet_balance_cents
+    ledger_entries.sum(:amount_cents)
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">When does the balance-column shape break, and when is the ledger the obvious choice?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'The balance column is always wrong; never use it.',
+              explanation: 'Too absolute. For a flag-style "did the user pay yes/no," a column is fine. The balance column breaks when balances accumulate over many events and you need history or auditing.',
+            },
+            {
+              label: 'B',
+              text: 'Use the ledger when you need an audit trail, when balances accumulate over many transactions, or when concurrent writes are likely (the balance column races).',
+              explanation: 'Three good reasons in one. Auditability ("how did this user end up with $42.13?"), accumulation (many small entries summing to a balance), and concurrency safety (multiple concurrent INSERTs don\'t race; concurrent UPDATEs to the same row do). For wallets, store credit, internal accounts, escrow, refund pools — the ledger is the right answer.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: 'The ledger is always more correct; always use it.',
+              explanation: 'It comes with a real cost: every balance read is a SUM. For some apps that doesn\'t matter; for others (very high read load on accounts with millions of entries) it requires caching or materialized views. Use it when the audit trail and concurrency-safety wins justify the cost.',
+            },
+            {
+              label: 'D',
+              text: 'Both options have the same concurrency properties.',
+              explanation: 'They don\'t. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User#increment!</code> issues an atomic SQL UPDATE, which is concurrency-safe at the SQL level but races on the model read-modify-write pattern unless you\'re careful. Ledger INSERTs are independently concurrent; the database serializes them only by row, and they\'re all on different rows.</p>',
+            },
+          ]}
+          principle={`<p>The ledger pattern\'s value is in <strong>correctness, not performance</strong>. Three signals that you want it:</p><ul class="list-disc list-inside ml-4 space-y-1"><li>You need to answer "how did this balance get to be this number?" — the row history is your answer.</li><li>Multiple concurrent operations can credit or debit the same account — INSERTs don\'t race the way UPDATEs do.</li><li>Reversing a transaction means knowing exactly what to reverse — each entry references its source (Payment, Refund, Adjustment).</li></ul><p>When the SUM gets slow on huge accounts, add a periodic snapshot (a "balance as of midnight" row) and sum forward from there. You almost never need this until you measure it.</p>`}
+          theoryHref="/lessons/payments-ledger"
+          theoryLabel="Payments · The Ledger Pattern"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-payments-refund-state" class="text-ruby hover:text-ruby-dark transition-colors">← Card 5</a>
+      <a href="/practice/payments" class="text-ruby hover:text-ruby-dark transition-colors">Back to Payments Practice →</a>
+    </div>
+  </article>
+</Layout>

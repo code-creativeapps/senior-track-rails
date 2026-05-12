@@ -1,0 +1,84 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="Modeling a partial refund: where does the data go?" description="Practice card. A user returns one of three items. The order isn't fully refunded. Where should the partial-refund data live?">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Payments · Card 5</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">A user returns one of three items. Where does the data go?</h1>
+      <p class="text-xl text-gray-600">The order was $150. The refund is $50. The order isn't "refunded" but it's not "paid in full" either. How should the schema represent that?</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The setup
+          </h3>
+          <p class="text-gray-700 italic mb-3">Existing schema:</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class Order < ApplicationRecord
+  has_one :payment
+
+  enum status: { pending: 0, paid: 1, refunded: 2 }
+end
+
+class Payment < ApplicationRecord
+  belongs_to :order
+  enum status: { pending: 0, succeeded: 3, refunded: 7 }
+end
+
+# A user paid $150. They return one $50 item. You need to refund $50.`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">Where should the partial refund live, and how should "how much was refunded so far?" be answered?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'Add <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">refunded_amount_cents</code> to Payment, incremented on each refund.',
+              explanation: 'A balance column. Works for the simple case but loses history (which refund was for which item? when did it happen? was there a partial-of-a-partial?). Also subject to concurrent-update races if two refunds arrive at the same moment.',
+            },
+            {
+              label: 'B',
+              text: 'Reuse the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">refunded</code> status on Payment, even though the refund is partial.',
+              explanation: 'Lies to the rest of the application. Code that reads "payment.refunded?" will treat a partially-refunded payment as fully refunded. Downstream effects (canceling access, blocking deliveries) misfire.',
+            },
+            {
+              label: 'C',
+              text: 'Create a separate Refund model. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">payment.refunds</code> has many. "How much was refunded?" is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">payment.refunds.sum(:amount_cents)</code>.',
+              explanation: 'Each refund is its own event with its own amount, timestamp, reason, and provider ID. The history is queryable. The Payment can carry a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">partially_refunded</code> state that reflects "some but not all." Multiple partial refunds compose naturally. Reconciliation against the provider is straightforward — each Refund maps to one provider refund object.',
+              correct: true,
+            },
+            {
+              label: 'D',
+              text: 'Store the refund as a row in the Order\'s metadata JSON column.',
+              explanation: 'JSON-as-text blocks queries (the Spot the Tax card "Indexable Storage" covers this). You can\'t easily ask "all refunds for this order" or "total refunded across the system this month."',
+            },
+          ]}
+          principle={`<p>Money moving back is its own event, not a flag on the money that moved forward. Modeling Refund as a record (belongs_to :payment) gives you:</p><ul class="list-disc list-inside ml-4 space-y-1"><li>History (you can answer "what happened on this order?" by listing rows).</li><li>Provider mapping (each Refund stores its provider refund ID for reconciliation).</li><li>Composability (multiple partial refunds are just multiple rows).</li><li>Auditability (every refund has timestamp, amount, reason, who initiated it).</li></ul><p>The Payment\'s status becomes a summary of the Refund history. If <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">refunds.sum(:amount_cents)</code> equals the payment amount, fully refunded. Less than, partially refunded. Zero, succeeded.</p>`}
+          theoryHref="/lessons/payments-refunds-chargebacks"
+          theoryLabel="Payments · Refunds & Chargebacks as State"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-payments-event-ordering" class="text-ruby hover:text-ruby-dark transition-colors">← Card 4</a>
+      <a href="/lessons/practice-payments-ledger-pick" class="text-ruby hover:text-ruby-dark transition-colors">Card 6 →</a>
+    </div>
+  </article>
+</Layout>

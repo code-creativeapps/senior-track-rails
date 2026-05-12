@@ -1,0 +1,113 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Webhooks: Verify, Idempotent, Replayable" description="The three properties every payment webhook handler needs. Signature verification, event-level idempotency, and replay-safe processing.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/payments" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Payments
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Payments · Lesson 3</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Webhooks: Verify, Idempotent, Replayable</h1>
+      <p class="text-xl text-gray-600">The provider POSTs to your endpoint when something changes. Your endpoint has to handle three realities: spoofed requests, duplicate events, and out-of-order delivery. Three properties solve all three.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">1. Verify the signature</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Anyone who knows your webhook URL can POST to it. Without verification, an attacker who knows the URL can fake "payment succeeded" events and walk off with your goods. Every reputable provider signs webhook payloads. Your code has to verify the signature before trusting anything in the body.
+        </p>
+        <CodeBlock code={`# Stripe-style example:
+class WebhooksController < ApplicationController
+  skip_before_action :verify_authenticity_token
+
+  def stripe
+    payload   = request.body.read
+    signature = request.env["HTTP_STRIPE_SIGNATURE"]
+    secret    = ENV.fetch("STRIPE_WEBHOOK_SECRET")
+
+    event = Stripe::Webhook.construct_event(payload, signature, secret)
+    # Raises Stripe::SignatureVerificationError on bad signatures.
+
+    ProcessStripeEvent.call(event)
+    head :ok
+  rescue Stripe::SignatureVerificationError
+    head :bad_request
+  end
+end`} language="ruby" />
+        <p class="text-gray-700 leading-relaxed mt-3">
+          Note the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">skip_before_action :verify_authenticity_token</code>. Webhooks are cross-origin POSTs from the provider, so Rails' CSRF check would reject them. The signature is what proves authenticity here, not the CSRF token.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">2. Make event processing idempotent</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Providers send webhooks at-least-once. If your endpoint times out or returns a 5xx, the provider retries — sometimes minutes later, sometimes hours. The same event arrives more than once. Processing it twice can move a payment forward twice, send two emails, or credit two ledger entries.
+        </p>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          The fix: every event has a unique ID. Store it. If you've seen it, skip.
+        </p>
+        <CodeBlock code={`class ProcessStripeEvent
+  def self.call(event)
+    return if WebhookEvent.exists?(provider: "stripe", event_id: event.id)
+
+    ActiveRecord::Base.transaction do
+      WebhookEvent.create!(provider: "stripe", event_id: event.id, kind: event.type)
+      dispatch(event)
+    end
+  end
+
+  def self.dispatch(event)
+    case event.type
+    when "payment_intent.succeeded" then PaymentSucceeded.call(event.data.object)
+    when "payment_intent.payment_failed" then PaymentFailed.call(event.data.object)
+    # ...
+    end
+  end
+end`} language="ruby" />
+        <p class="text-gray-700 leading-relaxed mt-3">
+          The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">webhook_events</code> table has a unique index on <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">(provider, event_id)</code>. Two duplicate events racing each other will both try to insert; the second one hits the unique violation and gets rolled back. The first one wins, processes once.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">3. Be safe under reordering</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          Webhooks don't always arrive in the order the events happened. You might receive <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">payment_intent.succeeded</code> after <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">payment_intent.refunded</code>. If your handler naively applies "succeeded → mark order paid," you've now marked a refunded order as paid.
+        </p>
+        <p class="text-gray-700 leading-relaxed">
+          Two defenses:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mt-2">
+          <li><strong>Check the current state of the payment in your database before applying the transition.</strong> If the payment is already refunded, ignore the late "succeeded" event.</li>
+          <li><strong>For non-trivial state changes, re-fetch the truth from the provider.</strong> The webhook is a notification; the provider's API is the truth. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Stripe::PaymentIntent.retrieve(id)</code> tells you the current state, regardless of which webhook arrived first.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Return fast, do the work in a job</h3>
+        <p class="text-gray-700 leading-relaxed">
+          Webhook providers have a timeout (Stripe's is ~30s, but 2-3s is the polite target). If your handler does database work, sends emails, hits other APIs, you run out the clock and get a retry. Return <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">200 OK</code> as soon as you've persisted the event. Enqueue a job to do the rest.
+        </p>
+        <CodeBlock code={`def stripe
+  event = verify_event!
+  WebhookEvent.find_or_create_by!(provider: "stripe", event_id: event.id) do |we|
+    we.payload = event.to_hash
+    we.kind = event.type
+  end
+  ProcessStripeEventJob.perform_later(event.id)
+  head :ok
+end`} language="ruby" />
+      </section>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/payments-idempotency" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 2</a>
+      <a href="/lessons/payments-async-confirmation" class="text-ruby hover:text-ruby-dark transition-colors">Lesson 4 →</a>
+    </div>
+  </article>
+</Layout>

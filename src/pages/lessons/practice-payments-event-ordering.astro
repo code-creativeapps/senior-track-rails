@@ -1,0 +1,88 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="The refunded event arrived before the succeeded event. Now what?" description="Practice card. Webhook ordering isn't guaranteed. How a senior handler stays correct anyway.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Payments · Card 4</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">The <code class="bg-gray-100 px-2 py-1 rounded text-3xl">refunded</code> event arrived first. Now what?</h1>
+      <p class="text-xl text-gray-600">Webhooks aren't guaranteed to arrive in the order things happened. Your handler has to stay correct when the order is wrong.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The handler
+          </h3>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`# What actually happened in time at the provider:
+#   t=0   payment_intent.succeeded
+#   t=10s payment_intent.refunded  (full refund)
+#
+# What your server received, in order:
+#   1) payment_intent.refunded   (arrived first)
+#   2) payment_intent.succeeded  (arrived second)
+#
+# Naive handler:
+case event.type
+when "payment_intent.succeeded"
+  Payment.find_by!(intent_id: event.data.object.id)
+         .update!(status: :succeeded)
+when "payment_intent.refunded"
+  Payment.find_by!(intent_id: event.data.object.id)
+         .update!(status: :refunded)
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">With the order of arrival above, what's the final state of the Payment, and what's the right way to fix the handler?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'Final state is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">refunded</code>. The handler is fine because both events still got applied.',
+              explanation: 'It looks fine in this specific sequence, but only by accident. The "refunded" event arrives, Payment is set to refunded. The "succeeded" event arrives, Payment is overwritten to succeeded. Final state is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">succeeded</code>, which is wrong — the money is back to the customer.',
+            },
+            {
+              label: 'B',
+              text: 'Final state is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">succeeded</code>, which is wrong. The handler needs to check the current state, or re-fetch the truth from the provider, before applying a transition.',
+              explanation: 'Exactly. The naive handler blindly applies the event\'s status to the Payment. When events arrive out of order, the last one wins regardless of what really happened. Two defenses: (1) before applying "succeeded," check if the Payment is already in a terminal state (refunded, disputed) and skip; (2) re-fetch the PaymentIntent from the provider — it always reports the current state — and apply that.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: 'Final state is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">refunded</code>. Stripe guarantees in-order delivery on the same intent.',
+              explanation: 'Stripe makes no such guarantee. Webhook ordering is best-effort. Especially with retries from your endpoint timing out, later events can land before earlier ones.',
+            },
+            {
+              label: 'D',
+              text: 'The Payment record will throw a state-machine error because succeeded → refunded isn\'t a legal transition.',
+              explanation: '<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.update!</code> doesn\'t enforce state-machine rules unless you wired them up. The default is "the new value wins." You\'d have to explicitly model the transitions to get an error.',
+            },
+          ]}
+          principle={`<p>Webhooks are notifications, not the source of truth. The provider\'s API is the source of truth. The shape that stays correct under reordering:</p><ol class="list-decimal list-inside ml-4 space-y-1"><li>On each event, identify which Payment it\'s about (by intent ID).</li><li>Either check the Payment\'s current state to decide if applying the transition makes sense, or re-fetch the PaymentIntent from the provider and apply <em>that</em>.</li><li>Treat each event as "something changed; let me look up the truth and reconcile."</li></ol><p>Bonus: the same shape is robust to duplicate deliveries. Re-fetching always gives you the current state, regardless of how many times the same event has arrived.</p>`}
+          theoryHref="/lessons/payments-webhooks"
+          theoryLabel="Payments · Webhooks: Verify, Idempotent, Replayable"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-payments-trust-redirect" class="text-ruby hover:text-ruby-dark transition-colors">← Card 3</a>
+      <a href="/lessons/practice-payments-refund-state" class="text-ruby hover:text-ruby-dark transition-colors">Card 5 →</a>
+    </div>
+  </article>
+</Layout>

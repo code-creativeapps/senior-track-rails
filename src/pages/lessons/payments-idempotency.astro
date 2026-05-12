@@ -1,0 +1,96 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Idempotency Keys in Payment APIs" description="The one parameter that prevents double charges. Why every payment-creating request must send one, where the key should come from, and how long the server remembers it.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/payments" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Payments
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Payments · Lesson 2</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Idempotency Keys in Payment APIs</h1>
+      <p class="text-xl text-gray-600">The single parameter that separates "this charge ran once" from "this charge ran twice because my Sidekiq worker retried." Worth a lesson because the bug it prevents is invisible until it isn't.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The retry problem</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Network failures don't tell you what happened. A timeout could mean "the request never arrived" or "the request was processed and the response was lost." If you retry on timeout without protection, you might create two charges for one order. The user sees a duplicate billing. Your refund process kicks in. The customer trust kicks out.
+        </p>
+        <p class="text-gray-700 leading-relaxed">
+          Payment providers solve this with idempotency keys. You send a key with each create request. The provider stores the first response keyed by that value, and if the same key arrives again, returns the cached response without doing the work twice.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">The shape</h3>
+        <CodeBlock code={`# Generate a stable key tied to the operation you're attempting:
+key = "create-intent-order-\#{order.id}"
+
+intent = Stripe::PaymentIntent.create(
+  { amount: order.total_cents, currency: "usd" },
+  { idempotency_key: key }
+)
+
+# Now if your job retries:
+#   - The first call created an intent and returned intent_1.
+#   - The retry sends the same key.
+#   - Stripe returns intent_1 again, without creating a new one.
+#   - Your code sees the same response. No duplicate.`} language="ruby" />
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Where the key should come from</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The key has to be the same across retries of the same operation, and different across different operations. Two safe patterns:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+          <li><strong>Tie it to the resource.</strong> "create-intent-order-42." If you retry creating the intent for order 42, you want the same key. If a new order is being created, you want a new key. This is the most common shape.</li>
+          <li><strong>Tie it to the job invocation.</strong> Pass the key as a job argument: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ChargeJob.perform_later(order_id, idempotency_key: SecureRandom.uuid)</code>. The retry uses the same arguments, so the same key.</li>
+        </ul>
+        <p class="text-gray-700 leading-relaxed mt-3">
+          What you don't want: a fresh <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">SecureRandom.uuid</code> generated at the moment of the API call. Every retry generates a new key, so every retry creates a new charge.
+        </p>
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">How long the server remembers</h3>
+        <p class="text-gray-700 leading-relaxed mb-3">
+          Idempotency-key storage is bounded. Stripe keeps keys for 24 hours, then forgets them. After that window, sending the same key creates a new charge. In practice: jobs that retry within minutes are safe; long-delayed retries (e.g., a Sidekiq job that sat in a dead queue for 48 hours) are not.
+        </p>
+        <p class="text-gray-700 leading-relaxed">
+          The defense: check your own database first. If you already have a Payment record for this order with a non-pending state, skip the API call entirely. The idempotency key is the second line of defense; the first is "we already did this."
+        </p>
+        <CodeBlock code={`class ChargeOrderJob < ApplicationJob
+  retry_on Stripe::APIConnectionError, wait: :exponentially_longer
+
+  def perform(order_id)
+    order = Order.find(order_id)
+    return if order.payment&.succeeded?    # already done, skip
+
+    intent = Stripe::PaymentIntent.create(
+      { amount: order.total_cents, currency: "usd" },
+      { idempotency_key: "create-intent-order-\#{order.id}" }
+    )
+    order.payment&.update!(intent_id: intent.id) || order.create_payment!(intent_id: intent.id)
+  end
+end`} language="ruby" />
+      </section>
+
+      <section>
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">Webhooks need idempotency too</h3>
+        <p class="text-gray-700 leading-relaxed">
+          The same providers that accept idempotency keys also send webhooks at-least-once. When your webhook handler processes the same event ID twice, the result has to be the same as processing it once. That's the topic of the next lesson.
+        </p>
+      </section>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/payments-intents" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 1</a>
+      <a href="/lessons/payments-webhooks" class="text-ruby hover:text-ruby-dark transition-colors">Lesson 3 →</a>
+    </div>
+  </article>
+</Layout>
