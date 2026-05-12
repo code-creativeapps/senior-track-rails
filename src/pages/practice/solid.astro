@@ -1,0 +1,49 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const cards = [
+  { slug: 'practice-solid-srp-fat-controller',     emoji: '⚙️', title: 'SRP — Spot the responsibilities in this controller' },
+  { slug: 'practice-solid-ocp-case-statement',     emoji: '🔌', title: 'OCP — Adding a third payment type' },
+  { slug: 'practice-solid-lsp-rectangle-square',   emoji: '🪞', title: 'LSP — Why this subclass breaks callers' },
+  { slug: 'practice-solid-isp-fat-concern',        emoji: '✂️', title: 'ISP — Cost of including a big concern everywhere' },
+  { slug: 'practice-solid-dip-hardcoded-dep',      emoji: '🔁', title: 'DIP — Why is this class hard to test?' },
+];
+---
+
+<Layout title="SOLID — Practice" description="Design-judgment drills, one card per principle. The 'answer' is a shape, not a discrete pick. Reveal-only format.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-8">
+    <div>
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Practice
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · SOLID</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Drill the design judgment</h1>
+      <p class="text-xl text-gray-600 leading-relaxed">One card per principle. Each one shows code or a scenario that violates the principle in a recognizable shape. Form your read, then reveal the breakdown.</p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      {cards.map((card, i) => (
+        <a href={`/lessons/${card.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl" aria-hidden="true">{card.emoji}</span>
+            <div class="flex-1">
+              <p class="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Card {i + 1}</p>
+              <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug">{card.title}</h3>
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        <strong>Want the theory?</strong> The full 19-lesson SOLID series lives at <a href="/solid" class="text-ruby hover:text-ruby-dark font-medium">SOLID</a>, with several lessons per principle anchored in real OSS Rails code.
+      </p>
+    </div>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/practice" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Practice</a>
+      <span class="text-gray-400 text-sm">Practice · SOLID · 5 cards</span>
+    </div>
+  </article>
+</Layout>

@@ -1,0 +1,75 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const categories = [
+  {
+    title: 'Spot the Tax',
+    href: '/practice/spot-the-tax',
+    count: '20 cards',
+    emoji: '🪙',
+    summary: 'Code that works today and costs something specific in six months. Look at the snippet, predict the cost, reveal the principle. Reveal-only format.',
+  },
+  {
+    title: 'Reading the Source',
+    href: '/practice/reading-the-source',
+    count: '5 cards',
+    emoji: '🔎',
+    summary: 'Multiple-choice drills on how Rails actually works behind the magic. Discrete answers, wrong picks explain themselves.',
+  },
+  {
+    title: 'Scaling',
+    href: '/practice/scaling',
+    count: '8 cards',
+    emoji: '📈',
+    summary: 'One scaling-bug shape per card. Index design, N+1, caching, pagination, contention, concurrency, jobs, bulk operations.',
+  },
+  {
+    title: 'SOLID',
+    href: '/practice/solid',
+    count: '5 cards',
+    emoji: '🧩',
+    summary: 'Design-judgment cards, one per principle. The "answer" is a shape, not a discrete pick.',
+  },
+];
+---
+
+<Layout title="Practice — Senior Track" description="Drill the theory until it sticks. Problem→reveal cards across four categories: Spot the Tax, Reading the Source, Scaling, and SOLID. 38 cards total.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Senior Track</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Practice</h1>
+      <p class="text-xl text-gray-600 leading-relaxed">Theory teaches the shape. Practice makes it stick. Each card here is a short problem you commit to an answer on before any explanation appears — that commitment is what builds the senior reflex.</p>
+    </div>
+
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        <strong>How to use Practice.</strong> Pick a category, look at the code or scenario, form an answer in your head, then reveal. The most valuable part is usually the breakdown of why the wrong picks were wrong. Coming back to the same cards weeks later is when the patterns stop feeling new.
+      </p>
+    </div>
+
+    <div class="grid gap-5">
+      {categories.map((cat) => (
+        <a href={cat.href} class="block bg-white rounded-lg border border-gray-200 p-6 hover:border-ruby/40 hover:shadow-md transition-all group">
+          <div class="flex items-start gap-4">
+            <span class="text-4xl" aria-hidden="true">{cat.emoji}</span>
+            <div class="flex-1">
+              <div class="flex items-baseline justify-between mb-2">
+                <h2 class="text-xl font-bold text-gray-900 group-hover:text-ruby-dark transition-colors">{cat.title}</h2>
+                <span class="text-sm text-gray-500">{cat.count}</span>
+              </div>
+              <p class="text-gray-700 leading-relaxed">{cat.summary}</p>
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">Senior Track · Practice · 38 cards</span>
+    </div>
+  </article>
+</Layout>

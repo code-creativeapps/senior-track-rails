@@ -1,0 +1,48 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const lessons = [
+  { slug: 'senior-scaling-diagnose',         emoji: '🩺', label: 'Diagnose Before You Scale',              n: 1 },
+  { slug: 'senior-scaling-indexes',          emoji: '📇', label: 'Indexes & EXPLAIN',                       n: 2 },
+  { slug: 'senior-scaling-concurrency',      emoji: '🧵', label: 'The Concurrency Model',                   n: 3 },
+  { slug: 'senior-scaling-hot-rows',         emoji: '🔥', label: 'Hot Rows & Contention',                   n: 4 },
+  { slug: 'senior-scaling-caching',          emoji: '🗄️', label: 'Caching, Properly',                       n: 5 },
+  { slug: 'senior-scaling-background-jobs',  emoji: '⏱️', label: 'Background Jobs as a Scaling Tool',       n: 6 },
+  { slug: 'senior-scaling-pagination',       emoji: '📑', label: 'Pagination at Scale',                     n: 7 },
+  { slug: 'senior-scaling-bulk-operations',  emoji: '📦', label: 'Bulk Operations & Memory',                n: 8 },
+];
+---
+
+<Layout title="Scaling Rails Apps — Senior Track" description="Eight lessons on diagnosing and fixing the scaling bottlenecks every Rails team hits. Where the bottleneck actually lives, the order to fix things in, and how real teams found theirs.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-8">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Senior Track</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Scaling Rails Apps</h1>
+      <p class="text-xl text-gray-600 leading-relaxed">Most "we need to scale!" conversations are three different problems pretending to be one. This series builds the diagnostic muscle: where the bottleneck actually lives, the order to fix things in, and the engineering blogs from Shopify, GitHub, and Artsy that document how real teams found theirs.</p>
+    </div>
+
+    <div class="grid gap-3">
+      {lessons.map((lesson) => (
+        <a href={`/lessons/${lesson.slug}`} class="flex items-center gap-4 bg-white rounded-lg border border-gray-200 p-4 hover:border-ruby/40 hover:shadow-sm transition-all group">
+          <span class="text-2xl" aria-hidden="true">{lesson.emoji}</span>
+          <span class="text-sm text-gray-500 w-6 tabular-nums font-semibold">{lesson.n}.</span>
+          <span class="text-gray-900 font-medium group-hover:text-ruby-dark transition-colors">{lesson.label}</span>
+        </a>
+      ))}
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        <strong>Want to drill these?</strong> The matching <a href="/practice/scaling" class="text-ruby hover:text-ruby-dark font-medium">Practice cards</a> turn each lesson into a multiple-choice scenario.
+      </p>
+    </div>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">Senior Track · Scaling · 8 lessons</span>
+    </div>
+  </article>
+</Layout>

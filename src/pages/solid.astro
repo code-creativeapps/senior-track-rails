@@ -1,0 +1,122 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const solidSeries = [
+  {
+    id: 'srp',
+    title: 'Single Responsibility',
+    letter: 'S',
+    count: 7,
+    summary: 'Seven extractions for fat models and fat controllers. Service, form, query, policy, decorator, concern, and value objects.',
+    lessons: [
+      { slug: 'senior-srp-service-objects',  emoji: '⚙️', label: 'Service Objects' },
+      { slug: 'senior-srp-form-objects',     emoji: '📋', label: 'Form Objects' },
+      { slug: 'senior-srp-query-objects',    emoji: '🔍', label: 'Query Objects' },
+      { slug: 'senior-srp-policy-objects',   emoji: '🚦', label: 'Policy Objects' },
+      { slug: 'senior-srp-decorators',       emoji: '🎨', label: 'Decorators' },
+      { slug: 'senior-srp-concerns',         emoji: '🧩', label: 'Concerns' },
+      { slug: 'senior-srp-value-objects',    emoji: '💎', label: 'Value Objects' },
+    ],
+  },
+  {
+    id: 'ocp',
+    title: 'Open/Closed',
+    letter: 'O',
+    count: 5,
+    summary: 'Five shapes for adding behavior without modifying existing code. Registry, adapter, middleware, pub-sub, delegated_type.',
+    lessons: [
+      { slug: 'senior-ocp-registry',         emoji: '🗂️', label: 'Registry' },
+      { slug: 'senior-ocp-adapter',          emoji: '🔌', label: 'Adapter' },
+      { slug: 'senior-ocp-middleware',       emoji: '🔗', label: 'Middleware' },
+      { slug: 'senior-ocp-pub-sub',          emoji: '📣', label: 'Pub-Sub' },
+      { slug: 'senior-ocp-delegated-type',   emoji: '🧬', label: 'delegated_type' },
+    ],
+  },
+  {
+    id: 'lsp',
+    title: 'Liskov Substitution',
+    letter: 'L',
+    count: 2,
+    summary: "Duck typing as Ruby's native idiom for substitutability, and where inheritance breaks the contract.",
+    lessons: [
+      { slug: 'senior-lsp-duck-typing',       emoji: '🪞', label: 'Duck Typing' },
+      { slug: 'senior-lsp-contract-breaking', emoji: '🪞', label: 'Contract Breaking' },
+    ],
+  },
+  {
+    id: 'isp',
+    title: 'Interface Segregation',
+    letter: 'I',
+    count: 2,
+    summary: 'Focused concerns over fat mixins, and role-based interfaces over class-based dispatch.',
+    lessons: [
+      { slug: 'senior-isp-focused-concerns', emoji: '✂️', label: 'Focused Concerns' },
+      { slug: 'senior-isp-role-interfaces',  emoji: '✂️', label: 'Role Interfaces' },
+    ],
+  },
+  {
+    id: 'dip',
+    title: 'Dependency Inversion',
+    letter: 'D',
+    count: 3,
+    summary: 'Inject collaborators, centralize configuration, and let the test environment swap dependencies cleanly.',
+    lessons: [
+      { slug: 'senior-dip-dependency-injection', emoji: '🔁', label: 'Dependency Injection' },
+      { slug: 'senior-dip-config-injection',     emoji: '🔁', label: 'Config Injection' },
+      { slug: 'senior-dip-test-seams',           emoji: '🔁', label: 'Test Seams' },
+    ],
+  },
+];
+---
+
+<Layout title="SOLID in Real Rails Code — Senior Track" description="The five SOLID principles, 19 lessons. Each principle anchored in source code from Mastodon, Forem, Discourse, Gumroad, and Rails core.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-8">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Senior Track</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">SOLID in Real Rails Code</h1>
+      <p class="text-xl text-gray-600 leading-relaxed">Each principle anchored in source code from Mastodon, Forem, Discourse, Gumroad, and Rails core. The lessons trace the rule back to where it came from, name the anti-pattern with a concrete scenario, and walk through how a senior codebase actually applies it.</p>
+    </div>
+
+    <div class="grid gap-5">
+      {solidSeries.map((series) => (
+        <article class="bg-white rounded-lg border border-gray-200 p-6">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-baseline gap-4">
+              <span class="text-5xl font-bold text-ruby leading-none">{series.letter}</span>
+              <div>
+                <h2 class="text-xl font-bold text-gray-900">{series.title}</h2>
+                <p class="text-sm text-gray-500">{series.count} lessons</p>
+              </div>
+            </div>
+          </div>
+          <p class="text-gray-700 mb-5">{series.summary}</p>
+          <ul class="grid gap-2 sm:grid-cols-2">
+            {series.lessons.map((lesson, i) => (
+              <li>
+                <a href={`/lessons/${lesson.slug}`} class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
+                  <span class="text-xl" aria-hidden="true">{lesson.emoji}</span>
+                  <span class="text-sm text-gray-500 w-6 tabular-nums">{i + 1}.</span>
+                  <span class="text-gray-700 group-hover:text-ruby transition-colors">{lesson.label}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </article>
+      ))}
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        <strong>Want to drill these?</strong> The matching <a href="/practice/solid" class="text-ruby hover:text-ruby-dark font-medium">Practice cards</a> turn each principle into a design-judgment exercise.
+      </p>
+    </div>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">Senior Track · SOLID · 19 lessons</span>
+    </div>
+  </article>
+</Layout>

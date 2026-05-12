@@ -1,70 +1,34 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
-const solidSeries = [
+const hubs = [
   {
-    id: 'srp',
-    title: 'Single Responsibility',
-    letter: 'S',
-    count: 7,
-    summary: 'Seven extractions for fat models and fat controllers. Service, form, query, policy, decorator, concern, and value objects.',
-    lessons: [
-      { slug: 'senior-srp-service-objects',  emoji: '⚙️', label: 'Service Objects' },
-      { slug: 'senior-srp-form-objects',     emoji: '📋', label: 'Form Objects' },
-      { slug: 'senior-srp-query-objects',    emoji: '🔍', label: 'Query Objects' },
-      { slug: 'senior-srp-policy-objects',   emoji: '🚦', label: 'Policy Objects' },
-      { slug: 'senior-srp-decorators',       emoji: '🎨', label: 'Decorators' },
-      { slug: 'senior-srp-concerns',         emoji: '🧩', label: 'Concerns' },
-      { slug: 'senior-srp-value-objects',    emoji: '💎', label: 'Value Objects' },
-    ],
+    href: '/practice',
+    title: 'Practice',
+    summary: 'Short problem→reveal cards across four categories. Spot the Tax, Reading the Source, Scaling, and SOLID. Commit to an answer before any explanation appears.',
+    pill: '38 cards',
+    emoji: '🎯',
   },
   {
-    id: 'ocp',
-    title: 'Open/Closed',
-    letter: 'O',
-    count: 5,
-    summary: 'Five shapes for adding behavior without modifying existing code. Registry, adapter, middleware, pub-sub, delegated_type.',
-    lessons: [
-      { slug: 'senior-ocp-registry',         emoji: '🗂️', label: 'Registry' },
-      { slug: 'senior-ocp-adapter',          emoji: '🔌', label: 'Adapter' },
-      { slug: 'senior-ocp-middleware',       emoji: '🔗', label: 'Middleware' },
-      { slug: 'senior-ocp-pub-sub',          emoji: '📣', label: 'Pub-Sub' },
-      { slug: 'senior-ocp-delegated-type',   emoji: '🧬', label: 'delegated_type' },
-    ],
+    href: '/reading-the-source',
+    title: 'Reading the Source',
+    summary: 'Plain-language walkthroughs of how Rails actually works. Twelve lessons covering routing, queries, rendering, params, callbacks, forms, and the model declarations you use every day.',
+    pill: '12 lessons',
+    emoji: '🔎',
   },
   {
-    id: 'lsp',
-    title: 'Liskov Substitution',
-    letter: 'L',
-    count: 2,
-    summary: "Duck typing as Ruby's native idiom for substitutability, and where inheritance breaks the contract.",
-    lessons: [
-      { slug: 'senior-lsp-duck-typing',       emoji: '🪞', label: 'Duck Typing' },
-      { slug: 'senior-lsp-contract-breaking', emoji: '🪞', label: 'Contract Breaking' },
-    ],
+    href: '/solid',
+    title: 'SOLID in Real Rails Code',
+    summary: 'The five SOLID principles, 19 lessons. Each anchored in production code from Mastodon, Forem, Discourse, Gumroad, and Rails core.',
+    pill: '19 lessons',
+    emoji: '🧩',
   },
   {
-    id: 'isp',
-    title: 'Interface Segregation',
-    letter: 'I',
-    count: 2,
-    summary: 'Focused concerns over fat mixins, and role-based interfaces over class-based dispatch.',
-    lessons: [
-      { slug: 'senior-isp-focused-concerns', emoji: '✂️', label: 'Focused Concerns' },
-      { slug: 'senior-isp-role-interfaces',  emoji: '✂️', label: 'Role Interfaces' },
-    ],
-  },
-  {
-    id: 'dip',
-    title: 'Dependency Inversion',
-    letter: 'D',
-    count: 3,
-    summary: 'Inject collaborators, centralize configuration, and let the test environment swap dependencies cleanly.',
-    lessons: [
-      { slug: 'senior-dip-dependency-injection', emoji: '🔁', label: 'Dependency Injection' },
-      { slug: 'senior-dip-config-injection',     emoji: '🔁', label: 'Config Injection' },
-      { slug: 'senior-dip-test-seams',           emoji: '🔁', label: 'Test Seams' },
-    ],
+    href: '/scaling',
+    title: 'Scaling Rails Apps',
+    summary: 'Eight lessons on diagnosing and fixing the bottlenecks every Rails team hits. Where the bottleneck actually lives, the order to fix things in.',
+    pill: '8 lessons',
+    emoji: '📈',
   },
 ];
 
@@ -76,219 +40,38 @@ const otherLessons = [
 ];
 ---
 
-<Layout title="Home" description="The Senior Track for Rails developers leveling up from mid to senior. SOLID principles in real OSS code, Spot the Tax cards, and the design judgment that separates intermediate from senior.">
+<Layout title="Home" description="The Senior Track for Rails developers leveling up from mid to senior. SOLID, Scaling, Reading the Source, plus 38 Practice drill cards. Anchored in real production Rails code.">
   <section class="bg-white border-b border-gray-200">
     <div class="max-w-4xl mx-auto px-6 py-16">
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-3">RailsFullStack</p>
       <h1 class="text-5xl font-bold text-gray-900 mb-4">Senior Track</h1>
       <p class="text-xl text-gray-600 max-w-2xl">
-        The gap from intermediate to senior Rails developer is not more syntax. It is design judgment, calibration, and the ability to defend technical decisions. <strong class="text-gray-900">This track closes that gap, anchored in real production Rails code.</strong>
+        The gap from intermediate to senior Rails developer isn't more syntax. It's design judgment, calibration, and the ability to defend technical decisions. <strong class="text-gray-900">This track closes that gap, anchored in real production Rails code.</strong>
       </p>
     </div>
   </section>
 
-  <section id="solid" class="max-w-4xl mx-auto px-6 py-12 space-y-8">
+  <section class="max-w-4xl mx-auto px-6 py-12 space-y-6">
     <div>
-      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SOLID in Real Rails Code</p>
-      <h2 class="text-3xl font-bold text-gray-900 mb-3">The five principles, 19 lessons</h2>
-      <p class="text-gray-700 max-w-2xl">
-        Each principle anchored in source code from Mastodon, Forem, Discourse, Gumroad, and Rails core. The lessons trace the rule back to where it came from, name the anti-pattern with a concrete scenario, and walk through how a senior codebase actually applies it.
-      </p>
+      <h2 class="text-3xl font-bold text-gray-900 mb-3">Pick a track</h2>
+      <p class="text-gray-700 max-w-2xl">Each section has its own landing page with the full list of lessons. Theory teaches the shape; Practice makes it stick.</p>
     </div>
-
     <div class="grid gap-5">
-      {solidSeries.map((series) => (
-        <article class="bg-white rounded-lg border border-gray-200 p-6">
-          <div class="flex items-start justify-between mb-4">
-            <div class="flex items-baseline gap-4">
-              <span class="text-5xl font-bold text-ruby leading-none">{series.letter}</span>
-              <div>
-                <h3 class="text-xl font-bold text-gray-900">{series.title}</h3>
-                <p class="text-sm text-gray-500">{series.count} lessons</p>
+      {hubs.map((hub) => (
+        <a href={hub.href} class="block bg-white rounded-lg border border-gray-200 p-6 hover:border-ruby/40 hover:shadow-md transition-all group">
+          <div class="flex items-start gap-4">
+            <span class="text-4xl" aria-hidden="true">{hub.emoji}</span>
+            <div class="flex-1">
+              <div class="flex items-baseline justify-between mb-2">
+                <h3 class="text-xl font-bold text-gray-900 group-hover:text-ruby-dark transition-colors">{hub.title}</h3>
+                <span class="text-sm text-gray-500">{hub.pill}</span>
               </div>
+              <p class="text-gray-700 leading-relaxed">{hub.summary}</p>
             </div>
           </div>
-          <p class="text-gray-700 mb-5">{series.summary}</p>
-          <ul class="grid gap-2 sm:grid-cols-2">
-            {series.lessons.map((lesson, i) => (
-              <li>
-                <a href={`/lessons/${lesson.slug}`} class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-                  <span class="text-xl" aria-hidden="true">{lesson.emoji}</span>
-                  <span class="text-sm text-gray-500 w-6 tabular-nums">{i + 1}.</span>
-                  <span class="text-gray-700 group-hover:text-ruby transition-colors">{lesson.label}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </article>
+        </a>
       ))}
     </div>
-  </section>
-
-  <section id="spot-the-tax" class="max-w-4xl mx-auto px-6 py-12 space-y-6">
-    <div>
-      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax</p>
-      <h2 class="text-3xl font-bold text-gray-900 mb-3">20 cards · code that ships, costs that compound</h2>
-      <p class="text-gray-700 max-w-2xl">
-        Each card shows a piece of Rails code that works today but will cost something specific in six months. Read the code, predict the cost, reveal the principle. Faster than a lesson, sharper than a tutorial.
-      </p>
-    </div>
-    <a href="/lessons/spot-the-tax" class="inline-flex items-center gap-2 px-5 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium">
-      Browse all 20 cards →
-    </a>
-  </section>
-
-  <section id="practice" class="max-w-4xl mx-auto px-6 py-12 space-y-6">
-    <div>
-      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice</p>
-      <h2 class="text-3xl font-bold text-gray-900 mb-3">Drill the theory until it sticks</h2>
-      <p class="text-gray-700 max-w-2xl">
-        Short problem→reveal cards built from the long-form lessons. Read a snippet, form an answer in your head, then reveal what's happening and why. Same shape as Spot the Tax, applied to the Reading the Source series. More categories coming.
-      </p>
-    </div>
-    <article class="bg-white rounded-lg border border-gray-200 p-6">
-      <p class="text-sm text-gray-500 mb-4 uppercase tracking-wider font-semibold">Reading the Source · 5 cards</p>
-      <ul class="grid gap-2 sm:grid-cols-2">
-        <li>
-          <a href="/lessons/practice-source-belongs-to-optional" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔗</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">1.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">What <code class="text-sm">optional: true</code> actually changes</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-source-when-sql-runs" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔎</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">2.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Which line actually runs the SQL?</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-source-require-vs-bracket" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📥</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">3.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors"><code class="text-sm">require</code> vs <code class="text-sm">[]</code> failure modes</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-source-before-action-halt" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">⛔</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">4.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Why is the unauthorized user still through?</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-source-raw-form-missing" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📝</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">5.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">What's missing from this hand-written form?</span>
-          </a>
-        </li>
-      </ul>
-    </article>
-
-    <article class="bg-white rounded-lg border border-gray-200 p-6">
-      <p class="text-sm text-gray-500 mb-4 uppercase tracking-wider font-semibold">Scaling · 5 cards</p>
-      <ul class="grid gap-2 sm:grid-cols-2">
-        <li>
-          <a href="/lessons/practice-scaling-index-choice" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📇</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">1.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Which single index helps this query most?</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-scaling-n-plus-one-count" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔢</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">2.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Count the queries this view runs</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-scaling-cache-stampede" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🐎</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">3.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Failure mode of this cache under high traffic</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-scaling-offset-pagination" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📑</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">4.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Why is page 50,000 so much slower?</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-scaling-hot-row-contention" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔥</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">5.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Why is the counter cache slowing down inserts?</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-scaling-concurrency-race" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🏁</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">6.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">What's wrong with this counter increment?</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-scaling-background-jobs" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">⏱️</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">7.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">The signup is slow. What moves first?</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-scaling-bulk-operations" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📦</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">8.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">How many writes does this loop fire?</span>
-          </a>
-        </li>
-      </ul>
-    </article>
-
-    <article class="bg-white rounded-lg border border-gray-200 p-6">
-      <p class="text-sm text-gray-500 mb-4 uppercase tracking-wider font-semibold">SOLID · 5 cards</p>
-      <ul class="grid gap-2 sm:grid-cols-2">
-        <li>
-          <a href="/lessons/practice-solid-srp-fat-controller" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">⚙️</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">1.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">SRP — Spot the responsibilities in this controller</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-solid-ocp-case-statement" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔌</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">2.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">OCP — Adding a third payment type</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-solid-lsp-rectangle-square" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🪞</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">3.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">LSP — Why this subclass breaks callers</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-solid-isp-fat-concern" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">✂️</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">4.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">ISP — Cost of including a big concern everywhere</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/practice-solid-dip-hardcoded-dep" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔁</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">5.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">DIP — Why is this class hard to test?</span>
-          </a>
-        </li>
-      </ul>
-    </article>
   </section>
 
   <section class="max-w-4xl mx-auto px-6 py-12 space-y-6">
@@ -305,174 +88,5 @@ const otherLessons = [
         </li>
       ))}
     </ul>
-  </section>
-
-  <section id="reading-the-source" class="max-w-4xl mx-auto px-6 py-12 space-y-6">
-    <div>
-      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source</p>
-      <h2 class="text-3xl font-bold text-gray-900 mb-3">Plain-language walkthroughs of how Rails actually works</h2>
-      <p class="text-gray-700 max-w-2xl">
-        Each lesson takes one core Rails feature and walks through what the framework is actually doing, in six short steps. Junior-friendly words, real Ruby code, and file paths into the Rails source so you can keep digging.
-      </p>
-    </div>
-    <article class="bg-white rounded-lg border border-gray-200 p-6">
-      <ul class="grid gap-2 sm:grid-cols-2">
-        <li>
-          <a href="/lessons/source-belongs-to" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔗</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">1.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">What <code class="text-sm">belongs_to :user</code> actually adds</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-routing" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🛤️</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">2.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">How <code class="text-sm">get "/posts"</code> becomes a controller call</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-activerecord-query" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔎</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">3.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">How <code class="text-sm">User.where(...)</code> becomes SQL</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-view-rendering" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🖼️</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">4.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">How a view gets rendered after your action</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-params" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📥</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">5.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">How <code class="text-sm">params</code> works (and what <code class="text-sm">permit</code> does)</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-before-action" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">⛓️</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">6.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">How <code class="text-sm">before_action</code> chains run</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-form-with" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📝</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">7.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">How <code class="text-sm">form_with</code> builds an HTML form</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-has-many" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📚</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">8.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">What <code class="text-sm">has_many</code> actually adds</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-enum" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔤</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">9.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">What <code class="text-sm">enum</code> generates</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-has-secure-password" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔐</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">10.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">What <code class="text-sm">has_secure_password</code> installs</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-attribute" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🏷️</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">11.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">What <code class="text-sm">attribute</code> gives you</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/source-delegated-type" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🧬</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">12.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">What <code class="text-sm">delegated_type</code> sets up</span>
-          </a>
-        </li>
-      </ul>
-    </article>
-  </section>
-
-  <section id="scaling" class="max-w-4xl mx-auto px-6 py-12 space-y-6">
-    <div>
-      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Scaling Rails Apps</p>
-      <h2 class="text-3xl font-bold text-gray-900 mb-3">8 lessons · the bottleneck moves, your tools do not</h2>
-      <p class="text-gray-700 max-w-2xl">
-        Most "we need to scale!" conversations are three different problems pretending to be one. This series builds the diagnostic muscle: where the bottleneck actually lives, the order to fix things in, and the engineering blogs from Shopify, GitHub, and Artsy that document how real teams found theirs.
-      </p>
-    </div>
-    <article class="bg-white rounded-lg border border-gray-200 p-6">
-      <p class="text-gray-700 mb-5">All 8 lessons published.</p>
-      <ul class="grid gap-2 sm:grid-cols-2">
-        <li>
-          <a href="/lessons/senior-scaling-diagnose" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🩺</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">1.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Diagnose Before You Scale</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/senior-scaling-indexes" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📇</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">2.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Indexes &amp; EXPLAIN</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/senior-scaling-concurrency" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🧵</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">3.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">The Concurrency Model</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/senior-scaling-hot-rows" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🔥</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">4.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Hot Rows &amp; Contention</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/senior-scaling-caching" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">🗄️</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">5.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Caching, Properly</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/senior-scaling-background-jobs" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">⏱️</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">6.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Background Jobs as a Scaling Tool</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/senior-scaling-pagination" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📑</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">7.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Pagination at Scale</span>
-          </a>
-        </li>
-        <li>
-          <a href="/lessons/senior-scaling-bulk-operations" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
-            <span class="text-xl" aria-hidden="true">📦</span>
-            <span class="text-sm text-gray-500 w-6 tabular-nums">8.</span>
-            <span class="text-gray-700 group-hover:text-ruby transition-colors">Bulk Operations &amp; Memory</span>
-          </a>
-        </li>
-      </ul>
-    </article>
   </section>
 </Layout>

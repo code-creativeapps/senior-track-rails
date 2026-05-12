@@ -1,0 +1,65 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const cards = [
+  { slug: 'source-belongs-to',           emoji: '🔗', title: 'What <code>belongs_to :user</code> actually adds', kind: 'Short Socratic' },
+  { slug: 'source-routing',              emoji: '🛤️', title: 'How <code>get "/posts"</code> becomes a controller call', kind: 'Walkthrough' },
+  { slug: 'source-activerecord-query',   emoji: '🔎', title: 'How <code>User.where(...)</code> becomes SQL', kind: 'Walkthrough' },
+  { slug: 'source-view-rendering',       emoji: '🖼️', title: 'How a view gets rendered after your action', kind: 'Walkthrough' },
+  { slug: 'source-params',               emoji: '📥', title: 'How <code>params</code> works (and what <code>permit</code> does)', kind: 'Walkthrough' },
+  { slug: 'source-before-action',        emoji: '⛓️', title: 'How <code>before_action</code> chains run', kind: 'Walkthrough' },
+  { slug: 'source-form-with',            emoji: '📝', title: 'How <code>form_with</code> builds an HTML form', kind: 'Walkthrough' },
+  { slug: 'source-has-many',             emoji: '📚', title: 'What <code>has_many</code> actually adds', kind: 'Short Socratic' },
+  { slug: 'source-enum',                 emoji: '🔤', title: 'What <code>enum</code> generates', kind: 'Short Socratic' },
+  { slug: 'source-has-secure-password',  emoji: '🔐', title: 'What <code>has_secure_password</code> installs', kind: 'Short Socratic' },
+  { slug: 'source-attribute',            emoji: '🏷️', title: 'What <code>attribute</code> gives you', kind: 'Short Socratic' },
+  { slug: 'source-delegated-type',       emoji: '🧬', title: 'What <code>delegated_type</code> sets up', kind: 'Short Socratic' },
+];
+---
+
+<Layout title="Reading the Source — Senior Track" description="Plain-language walkthroughs of how Rails actually works. Twelve lessons covering routing, queries, rendering, params, callbacks, forms, and the most-used declarations on a model.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-8">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Senior Track</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Reading the Source</h1>
+      <p class="text-xl text-gray-600 leading-relaxed">Twelve lessons on how Rails actually works. Each one takes one familiar feature and walks through what the framework is doing under the hood, in plain language, with file paths into the Rails source so you can keep digging.</p>
+    </div>
+
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        Two formats here. <strong>Short Socratic</strong> cards ask "what does this declaration actually generate?" — read the code, name what you'd expect, reveal the full list. <strong>Walkthroughs</strong> trace a request through Rails in six numbered steps with code at each one. You can take them in any order.
+      </p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      {cards.map((card, i) => (
+        <a href={`/lessons/${card.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl" aria-hidden="true">{card.emoji}</span>
+            <div class="flex-1">
+              <div class="flex items-baseline justify-between mb-1">
+                <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Card {i + 1}</p>
+                <p class="text-xs text-gray-400">{card.kind}</p>
+              </div>
+              <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug" set:html={card.title}></h3>
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        <strong>Want to drill these?</strong> The matching <a href="/practice/reading-the-source" class="text-ruby hover:text-ruby-dark font-medium">Practice cards</a> turn each lesson into a multiple-choice scenario you commit to before the explanation appears.
+      </p>
+    </div>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">Senior Track · Reading the Source · 12 lessons</span>
+    </div>
+  </article>
+</Layout>
