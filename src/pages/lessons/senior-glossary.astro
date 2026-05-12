@@ -3,14 +3,14 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="Glossary — Senior Track Vocabulary" description="Plain-language definitions of ten technical terms that come up in senior-track Rails lessons, with code examples for each.">
+<Layout title="Glossary — Senior Track Vocabulary" description="Plain-language definitions of the technical vocabulary that comes up across the senior-track Rails lessons. Twenty-two terms with code examples for each.">
   <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> Back to Course
       </a>
       <h1 class="text-4xl font-bold text-gray-900 mb-4">Glossary — Senior Track Vocabulary</h1>
-      <p class="text-xl text-gray-600">Ten technical terms that come up across the senior-track lessons. Each one includes a plain-language definition and a short code example.</p>
+      <p class="text-xl text-gray-600">The technical vocabulary that comes up across the senior-track lessons. Each entry has a plain-language definition and a short code example. Existing 10 terms are alphabetical; new additions follow alphabetically among themselves.</p>
     </div>
 
     <section class="space-y-4">
@@ -233,9 +233,281 @@ PayoutProcessorType.get("STRIPE").process_payments(payments)`} language="ruby" /
       </p>
     </section>
 
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Adapter (Pattern)</h2>
+      <p class="text-gray-700 leading-relaxed">
+        An adapter wraps an external library or service behind an internal interface that fits the way your app wants to think. Your code talks to the adapter; the adapter talks to the outside world. Useful when an external API is shaped wrong for your domain, when you might swap providers, or when you want to test against a fake without booting the real service.
+      </p>
+      <CodeBlock code={`# Without an adapter — every caller knows about Stripe specifically:
+Stripe::PaymentIntent.create(amount: 1000, currency: "usd")
+
+# With an adapter:
+class PaymentGateway
+  def charge(amount_cents:, currency:)
+    Stripe::PaymentIntent.create(amount: amount_cents, currency: currency)
+  end
+end
+
+# Switching to a different provider only touches the adapter.`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Cache Stampede</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A failure mode where a cached value expires and many concurrent requests all miss the cache simultaneously, all decide to rebuild, and all hit the database at the same instant. The cache exists to spare the database, but the stampede makes the database take the hit anyway, in an even worse synchronized pattern. Sometimes called "thundering herd."
+      </p>
+      <CodeBlock code={`# Without protection — every minute, hundreds of requests
+# all rebuild at the same moment:
+Rails.cache.fetch("feed", expires_in: 1.minute) { expensive_query }
+
+# With race_condition_ttl — one request rebuilds, others
+# serve the slightly-stale value during the gap:
+Rails.cache.fetch("feed",
+  expires_in: 1.minute,
+  race_condition_ttl: 10.seconds) { expensive_query }`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Call Site</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The location in code where a method, function, or class is invoked. Used when discussing how a piece of code is used in practice: "this method has three call sites" means three places in the codebase invoke it. Renaming a method requires updating every call site. A class with many call sites is expensive to change; one with few is cheap.
+      </p>
+      <CodeBlock code={`# Definition site:
+def calculate_total(order)
+  order.items.sum(&:price_cents)
+end
+
+# Call sites — there are two:
+def show
+  @total = calculate_total(@order)         # call site #1
+end
+
+def email_summary(order)
+  total_cents = calculate_total(order)     # call site #2
+  OrderMailer.with(total: total_cents).summary.deliver_later
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Searching for call sites is one of the most common operations in code review: "if I change this method's signature, where does it break?" The answer is at the call sites.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Concern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A Ruby module mixed into a class to share behavior across multiple classes. Rails provides <code class="bg-gray-100 px-2 py-1 rounded">ActiveSupport::Concern</code>, which adds conveniences for class-level macros and dependency declarations. Concerns are the Rails-idiomatic way to extract behavior that doesn't naturally fit as a separate class.
+      </p>
+      <CodeBlock code={`module Publishable
+  extend ActiveSupport::Concern
+
+  included do
+    scope :published, -> { where.not(published_at: nil) }
+  end
+
+  def publish!
+    update!(published_at: Time.current)
+  end
+end
+
+class Post < ApplicationRecord
+  include Publishable
+end
+
+class Article < ApplicationRecord
+  include Publishable
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Concerns work well when the shared behavior is genuinely shared. They become a smell when they accumulate unrelated capabilities or when the including class only uses some of the methods.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">CSRF (Cross-Site Request Forgery)</h2>
+      <p class="text-gray-700 leading-relaxed">
+        An attack where a malicious site tricks a logged-in user's browser into submitting a form to your app, using the user's existing session. Rails defends against this with the authenticity token system: every form gets a hidden <code class="bg-gray-100 px-2 py-1 rounded">authenticity_token</code> input, and Rails rejects POST/PATCH/DELETE requests that don't include a valid one. The defense assumes a browser-session threat model and doesn't apply to server-to-server requests like webhooks.
+      </p>
+      <CodeBlock code={`# Rails inserts the CSRF token automatically with form_with:
+<%= form_with model: @post do |f| %>
+  <!-- ... -->
+<% end %>
+
+# Renders:
+<form action="/posts/42" method="post">
+  <input type="hidden" name="authenticity_token" value="A7nF...">
+  <!-- ... -->
+</form>
+
+# Webhook endpoints skip CSRF because they're not browser
+# submissions; the webhook signature is the auth instead:
+class WebhooksController < ApplicationController
+  skip_before_action :verify_authenticity_token
+end`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Ledger Pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A schema pattern for tracking balances. Instead of a <code class="bg-gray-100 px-2 py-1 rounded">balance_cents</code> column that gets updated on every transaction, you keep an append-only table of entries. Each entry is one credit or debit. The current balance is the sum of the entries. Used in money-handling apps because it preserves history, makes concurrent writes safe (INSERTs don't race the way UPDATEs do), and lets you audit how any balance got to be what it is.
+      </p>
+      <CodeBlock code={`# Schema:
+create_table :ledger_entries do |t|
+  t.references :account, null: false
+  t.integer    :amount_cents, null: false   # positive credit, negative debit
+  t.string     :kind, null: false           # "payment", "refund", "fee"
+  t.references :source, polymorphic: true   # what caused this entry
+  t.datetime   :created_at, null: false
+end
+
+# Balance:
+account.ledger_entries.sum(:amount_cents)`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Optimistic Locking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A concurrency-control strategy where you assume conflicts are rare and detect them at write time rather than preventing them at read time. ActiveRecord supports it via a <code class="bg-gray-100 px-2 py-1 rounded">lock_version</code> column: each save increments the version, and a save with a stale version raises <code class="bg-gray-100 px-2 py-1 rounded">StaleObjectError</code>. The caller catches it, reloads, retries.
+      </p>
+      <CodeBlock code={`# Schema:
+add_column :orders, :lock_version, :integer, default: 0, null: false
+
+# Usage:
+order = Order.find(42)            # lock_version = 7
+# ... meanwhile, another process saved order, lock_version is now 8
+order.status = "shipped"
+order.save!  # raises ActiveRecord::StaleObjectError
+
+# Retry pattern:
+begin
+  order = Order.find(42)
+  order.update!(status: "shipped")
+rescue ActiveRecord::StaleObjectError
+  retry
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Contrast with pessimistic locking (<code class="bg-gray-100 px-2 py-1 rounded">.lock</code>), which serializes everyone touching the row. Optimistic is cheaper when conflicts are uncommon; pessimistic is safer when they're routine.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Race Condition</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A bug where the outcome depends on the relative timing of two or more operations that aren't synchronized. Classic shape in Rails: two requests both read the same value, both compute a new value from it, both write — and one write is silently lost. Race conditions usually pass tests in development (one process, one thread) and only appear under production concurrency.
+      </p>
+      <CodeBlock code={`# Race condition — two requests both read views_count = 10,
+# both write 11. Final value is 11, not 12:
+def increment_views(post)
+  post.update!(views_count: post.views_count + 1)
+end
+
+# Race-free — the database does the math atomically:
+def increment_views(post)
+  Post.where(id: post.id).update_all("views_count = views_count + 1")
+end`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Reflection</h2>
+      <p class="text-gray-700 leading-relaxed">
+        In ActiveRecord, a reflection is the metadata Rails keeps about an association. When you declare <code class="bg-gray-100 px-2 py-1 rounded">belongs_to :user</code> or <code class="bg-gray-100 px-2 py-1 rounded">has_many :posts</code>, Rails registers a reflection on the class. Other parts of Rails read it — eager loading, form builders, fixtures, the routes for nested resources. You can query it directly with <code class="bg-gray-100 px-2 py-1 rounded">Klass.reflect_on_association(:name)</code>.
+      </p>
+      <CodeBlock code={`class Post < ApplicationRecord
+  belongs_to :user
+end
+
+Post.reflect_on_association(:user)
+# => #<ActiveRecord::Reflection::BelongsToReflection ...>
+# .name        => :user
+# .klass       => User
+# .foreign_key => "user_id"
+
+Post.reflections
+# => { "user" => #<...> }`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Service Object</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A plain Ruby class that owns one business operation, exposed via a <code class="bg-gray-100 px-2 py-1 rounded">call</code> method. Used to keep controllers thin, to make operations testable in isolation, and to coordinate side effects that don't naturally fit on any single model. Common signal that it's the right tool: the same operation is invoked from two places, or the operation has multiple side effects to coordinate.
+      </p>
+      <CodeBlock code={`class SignUpUser
+  def initialize(params, ip:)
+    @params = params
+    @ip = ip
+  end
+
+  def call
+    user = User.new(@params)
+    return failure(user) unless user.save
+    StripeCustomerJob.perform_later(user.id)
+    WelcomeMailer.with(user: user).welcome_email.deliver_later
+    Analytics.track("signup", user, ip: @ip)
+    success(user)
+  end
+
+  # private helpers ...
+end
+
+# In the controller:
+result = SignUpUser.new(user_params, ip: request.remote_ip).call`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Worth noting: the 37signals school keeps logic on the model rather than extracting service objects. Service objects are a Rails idiom from the Mastodon / Forem / Gumroad school. Both are valid; pick the one your team has converged on.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">State Machine</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A model of behavior where an object exists in one of a finite set of states, and transitions between states are governed by explicit rules. Used in Rails for things like order statuses, payment lifecycles, subscription states, content workflows. The point is to make illegal transitions impossible: an order can't go from "canceled" back to "pending" because the state machine doesn't allow that edge.
+      </p>
+      <CodeBlock code={`class Order < ApplicationRecord
+  enum status: { pending: 0, paid: 1, shipped: 2, canceled: 3 }
+
+  # Legal transitions:
+  STATE_TRANSITIONS = {
+    pending:  [:paid, :canceled],
+    paid:     [:shipped, :canceled],
+    shipped:  [],
+    canceled: [],
+  }.freeze
+
+  def can_transition_to?(new_state)
+    STATE_TRANSITIONS[status.to_sym].include?(new_state.to_sym)
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Gems like <code class="bg-gray-100 px-2 py-1 rounded">aasm</code> and <code class="bg-gray-100 px-2 py-1 rounded">state_machines</code> formalize the pattern. Hand-rolled with an enum and a transition table works fine for simple cases.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Webhook</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A server-to-server HTTP POST that an external service sends to your app when something happens on their side. Stripe sends webhooks for payment events. GitHub sends webhooks for pushes. Slack sends webhooks for slash commands. Unlike a polling API ("ask the service every minute if anything changed"), webhooks are push-based — the service notifies you when there's news.
+      </p>
+      <CodeBlock code={`# routes.rb
+post "/webhooks/stripe", to: "webhooks#stripe"
+
+# controller
+class WebhooksController < ApplicationController
+  skip_before_action :verify_authenticity_token
+
+  def stripe
+    event = Stripe::Webhook.construct_event(
+      request.body.read,
+      request.env["HTTP_STRIPE_SIGNATURE"],
+      ENV.fetch("STRIPE_WEBHOOK_SECRET")
+    )
+    ProcessStripeEventJob.perform_later(event.id)
+    head :ok
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Three properties every webhook handler needs: verify the signature, make event processing idempotent (events can arrive more than once), and stay correct under reordering (events can arrive out of order). See <a href="/lessons/payments-webhooks" class="text-ruby hover:underline">Payments · Webhooks</a> for the full breakdown.
+      </p>
+    </section>
+
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 2</a>
-      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Course Home →</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Course Home</a>
+      <span class="text-gray-400 text-sm">Senior Track · Glossary · 22 terms</span>
     </div>
   </article>
 </Layout>

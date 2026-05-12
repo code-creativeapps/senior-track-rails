@@ -45,13 +45,6 @@ const hubs = [
     emoji: '🎤',
   },
 ];
-
-const otherLessons = [
-  { slug: 'senior-eager-loading',         title: 'Eager Loading — includes vs preload vs eager_load vs joins' },
-  { slug: 'senior-open-closed-payouts',   title: 'Open/Closed in Practice — Gumroad payout system (long-form)' },
-  { slug: 'senior-open-closed-payouts-2', title: 'Open/Closed in Practice — invented examples' },
-  { slug: 'senior-glossary',              title: 'Senior Track Glossary' },
-];
 ---
 
 <Layout title="Home" description="The Senior Track for Rails developers leveling up from mid to senior. SOLID, Scaling, Reading the Source, Payments, Interview Prep, plus 55 Practice drill cards. Anchored in real production Rails code.">
@@ -88,19 +81,15 @@ const otherLessons = [
     </div>
   </section>
 
-  <section class="max-w-4xl mx-auto px-6 py-12 space-y-6">
-    <div>
-      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Other Senior Track lessons</p>
-      <h2 class="text-3xl font-bold text-gray-900 mb-3">Long-form and reference</h2>
-    </div>
-    <ul class="space-y-3">
-      {otherLessons.map((lesson) => (
-        <li>
-          <a href={`/lessons/${lesson.slug}`} class="block p-4 bg-white rounded-lg border border-gray-200 hover:border-ruby transition-colors group">
-            <h3 class="font-semibold text-gray-900 group-hover:text-ruby transition-colors">{lesson.title}</h3>
-          </a>
-        </li>
-      ))}
-    </ul>
+  <section class="max-w-4xl mx-auto px-6 py-12">
+    <a href="/lessons/senior-glossary" class="block bg-white rounded-lg border border-gray-200 p-6 hover:border-ruby/40 hover:shadow-md transition-all group">
+      <div class="flex items-center gap-4">
+        <span class="text-3xl" aria-hidden="true">📖</span>
+        <div class="flex-1">
+          <h3 class="text-lg font-bold text-gray-900 group-hover:text-ruby-dark transition-colors">Senior Track Glossary</h3>
+          <p class="text-gray-700 mt-1">Plain-language definitions of the vocabulary that comes up across the lessons. One stop for the terms that keep showing up.</p>
+        </div>
+      </div>
+    </a>
   </section>
 </Layout>
