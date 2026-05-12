@@ -1,0 +1,142 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="A method that takes a User but only needs an email address" description="Practice card. A method that asks for a whole object when it only uses one field. Drills role interfaces.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · SOLID · ISP · Card 9</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Why does this method take a whole User?</h1>
+      <p class="text-xl text-gray-600">A function that asks for a User. It only ever reads one attribute. The argument is fatter than the dependency. What does that cost?</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A class that sends a one-off email. It takes a User.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class NotifyAdmin
+  def call(user, subject, body)
+    AdminMailer.with(
+      to: user.email,
+      subject: subject,
+      body: body
+    ).admin_notice.deliver_later
+  end
+end
+
+# Callers:
+NotifyAdmin.new.call(current_user, "New signup", "...")
+NotifyAdmin.new.call(Admin.find(1), "Backup ran", "...")
+NotifyAdmin.new.call(User.system_bot, "Cleanup", "...")`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">NotifyAdmin</code> only ever calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user.email</code>. What's the cost of asking for a whole User object — and what should the parameter actually be?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> A method's signature is a promise about what it needs. Asking for more than you need couples your caller to types they shouldn't have to provide. What's the smallest "interface" this method actually depends on?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the breakdown →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The cost
+            </h3>
+            <ul class="space-y-2 text-gray-700 leading-relaxed list-disc list-inside ml-4">
+              <li><strong>You can't call it without a User.</strong> A test that wants to verify behavior has to set up a User. Sending to a literal email string (a CI-only admin alias) requires inventing or stubbing a fake user with that email.</li>
+              <li><strong>Refactoring User affects this code.</strong> Rename the column, remove the model, split into Profile + Account — and now <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">NotifyAdmin</code> is in the blast radius even though it only reads one field.</li>
+              <li><strong>The signature lies.</strong> "Takes a User" tells the reader the method might use any User attribute. They have to read the body to learn it only touches <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">email</code>.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> Depend on the smallest interface
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>The interface this method needs is "something with an email." That can be expressed two ways:</p>
+              <ol class="list-decimal list-inside ml-4 space-y-2">
+                <li><strong>Take just the email string.</strong> Push the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user.email</code> extraction out to the caller. Now the method has no User dependency at all.</li>
+                <li><strong>Take any object that responds to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">email</code>.</strong> A "role interface" — define it implicitly by what methods you call. Now User, AdminProfile, and SystemBot can all be passed in, without any of them inheriting from a base class.</li>
+              </ol>
+              <CodeBlock code={`# Option 1: just the email
+class NotifyAdmin
+  def call(email, subject, body)
+    AdminMailer.with(to: email, subject: subject, body: body)
+               .admin_notice.deliver_later
+  end
+end
+
+# Callers:
+NotifyAdmin.new.call(current_user.email, "...", "...")
+NotifyAdmin.new.call("oncall@example.com", "...", "...")   # literal works now
+
+# Option 2: role interface (anything with #email)
+class NotifyAdmin
+  def call(recipient, subject, body)
+    AdminMailer.with(to: recipient.email, subject: subject, body: body)
+               .admin_notice.deliver_later
+  end
+end
+# Now User, SystemBot, AdminProfile, OpenStruct(email: "...") all work.`} language="ruby" />
+              <p>This is the role-interface idea: <strong>say what role the argument has to play, not what class it has to be</strong>. Ruby's duck typing makes it ergonomic. The principle is the same idea Java reaches for with smaller interfaces (Readable, Writeable, Closeable) — depend on the smallest contract that does the job.</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the full walkthrough on role interfaces, read <a href="/lessons/senior-isp-role-interfaces" class="text-ruby hover:text-ruby-dark font-medium">SOLID · ISP · Role Interfaces</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-solid-lsp-duck-shape" class="text-ruby hover:text-ruby-dark transition-colors">← Card 8</a>
+      <a href="/lessons/practice-solid-dip-test-clock" class="text-ruby hover:text-ruby-dark transition-colors">Card 10 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>

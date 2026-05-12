@@ -1,0 +1,142 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Why is the test flaky around midnight?" description="Practice card. Time.current called directly inside business logic. Drills clock injection / test seams.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · SOLID · DIP · Card 10</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Why is the test flaky around midnight?</h1>
+      <p class="text-xl text-gray-600">A method that reads <code class="bg-gray-100 px-2 py-1 rounded text-base">Time.current</code> directly. The CI test passes 99% of the time. The 1% is the bug.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A class that decides whether a subscription is past its grace period.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class GracePeriodCheck
+  GRACE_DAYS = 7
+
+  def call(subscription)
+    return false if subscription.canceled_at.nil?
+    Time.current > subscription.canceled_at + GRACE_DAYS.days
+  end
+end
+
+# The test:
+test "in grace period at the start" do
+  sub = subscriptions(:karim)
+  sub.update!(canceled_at: 3.days.ago)
+  assert_equal false, GracePeriodCheck.new.call(sub)
+end
+
+# Passes 99% of the time. Occasionally fails when CI runs near midnight.`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">Why is the test flaky, and what's the DIP-shaped fix that makes it stop?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> The test references "3 days ago" and the production code references "now." Both move forward in time, but the test\'s "now" is the test\'s instantiation, and the production code\'s "now" is when <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Time.current</code> evaluates. They might not be the same instant.
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the breakdown →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> What's wrong
+            </h3>
+            <p class="text-gray-700 leading-relaxed">The test sets <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">canceled_at = 3.days.ago</code> at one wall-clock instant. The production code evaluates <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Time.current</code> at a slightly later instant (microseconds, but real). The gap is normally invisible. Around the boundary where the test\'s "3 days ago" was just before midnight and the production code\'s "now" is just after, the date math flips and the assertion fails.</p>
+            <p class="text-gray-700 leading-relaxed mt-3">The deeper problem: <strong>the class hard-codes a dependency on the real clock</strong>. There\'s no way to test it deterministically without freezing the global clock (which works, but is a workaround, not a fix). Tools like <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">freeze_time</code> exist for exactly this reason; you needing them is a signal that your code is doing what DIP says not to.</p>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> Inject the clock
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>Treat "the current time" as a dependency. In production, the default is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Time.current</code>. In tests, you pass a frozen value.</p>
+              <CodeBlock code={`class GracePeriodCheck
+  GRACE_DAYS = 7
+
+  def initialize(now: Time.current)
+    @now = now
+  end
+
+  def call(subscription)
+    return false if subscription.canceled_at.nil?
+    @now > subscription.canceled_at + GRACE_DAYS.days
+  end
+end
+
+# Test:
+test "in grace period at day 3" do
+  now = Time.zone.parse("2026-01-15 12:00")
+  sub = subscriptions(:karim)
+  sub.update!(canceled_at: now - 3.days)
+
+  assert_equal false, GracePeriodCheck.new(now: now).call(sub)
+end
+
+# Deterministic. No \`freeze_time\`. No flakiness. The "current time"
+# is something the test controls, not something the test inherits.`} language="ruby" />
+              <p>This is "depend on abstractions, not concretions" expressed for time specifically. Same shape works for randomness (inject a random source), HTTP clients (inject a client), feature flags (inject a flag reader). When you can\'t hand a fake at the class boundary, the class is hard to test by definition.</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the test-seams angle in depth, read <a href="/lessons/senior-dip-test-seams" class="text-ruby hover:text-ruby-dark font-medium">SOLID · DIP · Test Seams</a> and <a href="/lessons/senior-dip-config-injection" class="text-ruby hover:text-ruby-dark font-medium">Config Injection</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-solid-isp-role-interfaces" class="text-ruby hover:text-ruby-dark transition-colors">← Card 9</a>
+      <a href="/practice/solid" class="text-ruby hover:text-ruby-dark transition-colors">Back to SOLID Practice →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>

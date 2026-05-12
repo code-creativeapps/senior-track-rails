@@ -1,0 +1,144 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Where does this query belong?" description="Practice card. A 30-line class method doing complex finder logic on a model. Drills the query-object extraction.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · SOLID · SRP · Card 6</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Where does this query belong?</h1>
+      <p class="text-xl text-gray-600">A class method on User that does complex finder logic. It grew over time. It's still on the model. Should it stay?</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A class method on User. Five filters, an order, a limit, two joins.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class User < ApplicationRecord
+  has_many :orders
+  has_many :payments
+
+  def self.churn_risks(since: 30.days.ago, min_spend_cents: 50_00, segment: :all)
+    base = active.joins(:orders, :payments)
+
+    base = base.where(orders: { created_at: since.. })
+    base = base.where("payments.amount_cents >= ?", min_spend_cents)
+    base = base.where(segment: segment) unless segment == :all
+    base = base.where("users.last_login_at < ?", 14.days.ago)
+    base = base.where.not(id: NotificationLog.recent_recipient_ids)
+
+    base.group("users.id")
+        .order("MAX(orders.created_at) ASC")
+        .limit(500)
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">This works. Tests pass. It belongs to the User model. What's the SRP-shaped problem, and where should this logic actually live?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Ask: is this code about a User, or about a specific business question that happens to start with User? The answer tells you where it belongs.
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the breakdown →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> What's wrong
+            </h3>
+            <p class="text-gray-700 leading-relaxed">The method is named after a business concept ("churn risks") that the User model doesn't otherwise know about. Putting it on User means: every developer reading User has to scroll past it, the User model now depends on NotificationLog and Payment query details, and the method can't be reused or tested without loading the full User model with its concerns and validations.</p>
+            <p class="text-gray-700 leading-relaxed mt-3">It's also doing too many things: scoping, joining, filtering, grouping, and ordering — all about answering one specific question. Each change to the business rule means editing this method, which means risking the rest of User indirectly.</p>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> Extract a query object
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>A query object is a class whose entire job is one business question. It can hold its parameters as instance state, its filters as private methods, and its result as the return of a single public <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">call</code> method.</p>
+              <CodeBlock code={`class ChurnRiskQuery
+  def initialize(since: 30.days.ago, min_spend_cents: 50_00, segment: :all)
+    @since = since
+    @min_spend_cents = min_spend_cents
+    @segment = segment
+  end
+
+  def call
+    relation = active_users
+    relation = scope_by_segment(relation)
+    relation = with_recent_orders(relation)
+    relation = with_minimum_spend(relation)
+    relation = inactive_users(relation)
+    relation = not_recently_notified(relation)
+    sort_and_limit(relation)
+  end
+
+  private
+
+  # one short method per filter
+  # ...
+end
+
+# Caller:
+risks = ChurnRiskQuery.new(min_spend_cents: 100_00).call`} language="ruby" />
+              <p>User no longer knows about churn. The query is testable in isolation. Changing the business rule means editing one focused class. The shape is also reusable — if marketing wants the same query with different defaults, you instantiate with different parameters.</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the full walkthrough of query objects anchored in real OSS code, read <a href="/lessons/senior-srp-query-objects" class="text-ruby hover:text-ruby-dark font-medium">SOLID · SRP · Query Objects</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-solid-dip-hardcoded-dep" class="text-ruby hover:text-ruby-dark transition-colors">← Card 5</a>
+      <a href="/lessons/practice-solid-ocp-status-spread" class="text-ruby hover:text-ruby-dark transition-colors">Card 7 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>
