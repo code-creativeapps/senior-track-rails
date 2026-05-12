@@ -1,0 +1,140 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="What goes wrong when you add a third payment type?" description="Practice card. A case-statement dispatch on type. Drills the OCP-violation tell.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · SOLID · OCP · Card 1</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">What goes wrong when you add a third payment type?</h1>
+      <p class="text-xl text-gray-600">The code below works for two payment methods. Adding a third should be additive. The way this is structured, it isn't.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A service that processes a payment. Two methods supported today.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class ProcessPayment
+  def call(order, method)
+    case method
+    when :stripe
+      Stripe::Charge.create(amount: order.total_cents, source: order.stripe_token)
+      order.update!(paid_at: Time.current, payment_method: "stripe")
+    when :paypal
+      PayPal::Payment.create(amount: order.total_cents, payer: order.paypal_payer_id)
+      order.update!(paid_at: Time.current, payment_method: "paypal")
+    else
+      raise "Unknown payment method: \#{method}"
+    end
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">You're asked to add Apple Pay. What's the OCP-flavored problem with how this code is shaped? And what's the shape of the fix?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Adding a new behavior should let you add code without changing existing code. What part of this design forces existing code to change every time the set of payment methods changes?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the breakdown →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> What's wrong
+            </h3>
+            <p class="text-gray-700 leading-relaxed">The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">case</code> statement is the OCP smell. Every new payment method means editing this method, adding another <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">when</code> branch, re-testing the whole thing, and risking a regression in the existing branches. The class is not closed against new types.</p>
+            <p class="text-gray-700 leading-relaxed mt-3">It also tangles two responsibilities together: <strong>which gateway to call</strong> and <strong>how to mark the order paid</strong>. They both repeat per branch.</p>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The OCP-friendly shape
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>Pull each gateway into its own class that responds to the same method. The dispatch becomes a lookup, not a case statement.</p>
+              <CodeBlock code={`class StripeProcessor
+  def charge(order)
+    Stripe::Charge.create(amount: order.total_cents, source: order.stripe_token)
+  end
+end
+
+class PayPalProcessor
+  def charge(order)
+    PayPal::Payment.create(amount: order.total_cents, payer: order.paypal_payer_id)
+  end
+end
+
+class ProcessPayment
+  PROCESSORS = {
+    stripe: StripeProcessor.new,
+    paypal: PayPalProcessor.new,
+  }
+
+  def call(order, method)
+    processor = PROCESSORS.fetch(method) { raise "Unknown payment method: \#{method}" }
+    processor.charge(order)
+    order.update!(paid_at: Time.current, payment_method: method.to_s)
+  end
+end`} language="ruby" />
+              <p>Now adding Apple Pay is: create <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ApplePayProcessor</code>, register it in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">PROCESSORS</code>. The orchestration code doesn\'t change. The existing processors don\'t change. Their tests don\'t change.</p>
+              <p>The <strong>registry</strong> pattern is the most common shape this takes in Rails. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">delegated_type</code> is another shape (when each type also has its own model). <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">adapter</code> is a third (when you want to wrap an external API behind a stable internal interface).</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the full walkthrough of the registry pattern in real OSS, read <a href="/lessons/senior-ocp-registry" class="text-ruby hover:text-ruby-dark font-medium">SOLID · OCP · Registry</a> (anchored in Gumroad's payment processor code), or <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:text-ruby-dark font-medium">Open/Closed in Practice — Gumroad payouts</a>.</p>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-solid-srp-fat-controller" class="text-ruby hover:text-ruby-dark transition-colors">← Card 1</a>
+      <a href="/lessons/practice-solid-lsp-rectangle-square" class="text-ruby hover:text-ruby-dark transition-colors">Card 3 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>

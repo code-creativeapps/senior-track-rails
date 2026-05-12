@@ -1,0 +1,133 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Why does this subclass break code that worked with the parent?" description="Practice card. A subclass that overrides setters in a way that breaks caller expectations. Drills LSP.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · SOLID · LSP · Card 1</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Why does this subclass break code that worked with the parent?</h1>
+      <p class="text-xl text-gray-600">A Rectangle. A Square that inherits from it. A test that passes for Rectangle and fails for Square, using only public methods. Why?</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A textbook inheritance setup. The Square enforces its own invariant: width == height.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class Rectangle
+  attr_accessor :width, :height
+
+  def area
+    width * height
+  end
+end
+
+class Square < Rectangle
+  def width=(value)
+    super(value)
+    @height = value
+  end
+
+  def height=(value)
+    @width = value
+    super(value)
+  end
+end
+
+# This test passes for Rectangle, fails for Square:
+def test_resize(shape)
+  shape.width = 3
+  shape.height = 5
+  assert_equal 15, shape.area
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">Why does the test fail for Square? And what does that tell you about the Square-extends-Rectangle relationship?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> The test only uses methods that both classes have. Yet it fails for the subclass. What contract did Square break by overriding the setters?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the breakdown →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> What's broken
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-3">When you call <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">square.width = 3</code>, Square also sets height to 3. Then <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">square.height = 5</code> sets both to 5. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">square.area</code> returns 25, not 15.</p>
+            <p class="text-gray-700 leading-relaxed">The Rectangle class has an implicit contract that callers depend on: <strong>setting width does not change height, and vice versa.</strong> Square overrode the setters in a way that breaks that contract. Any caller that was written assuming Rectangle behavior now misbehaves when handed a Square. The substitution failed.</p>
+            <p class="text-gray-700 leading-relaxed mt-3">"Liskov Substitution" is named after this: if S is a subtype of T, you should be able to substitute S anywhere T was expected without breaking the program. Square fails the substitution because its setters mutate state Rectangle\'s setters never touched.</p>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The real lesson
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>"A square is a rectangle" is true in geometry and false in software. In geometry, a square is just a rectangle with equal sides. In software, the type system encodes <em>behavior</em>, and the behavior of Square (its setters are coupled) is fundamentally different from the behavior of Rectangle (its setters are independent).</p>
+              <p>The fix isn\'t to find a cleverer way to override setters. The fix is to recognize that Square is not really-a-Rectangle. Two healthier shapes:</p>
+              <ul class="list-disc list-inside ml-4 space-y-1">
+                <li><strong>Independent classes.</strong> Both implement an <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">area</code> method via duck typing. No inheritance.</li>
+                <li><strong>A Shape interface (module).</strong> Rectangle and Square each include it, each provide their own setters. No "is-a" relationship between them.</li>
+              </ul>
+              <p>The Ruby-flavored version of this lesson is <strong>duck typing over inheritance</strong>. If two things behave alike in some methods, give them those methods. You don\'t need a class hierarchy to express it.</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the full walkthrough on duck typing as Ruby's LSP, read <a href="/lessons/senior-lsp-duck-typing" class="text-ruby hover:text-ruby-dark font-medium">SOLID · LSP · Duck Typing</a> and <a href="/lessons/senior-lsp-contract-breaking" class="text-ruby hover:text-ruby-dark font-medium">LSP · Contract Breaking</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-solid-ocp-case-statement" class="text-ruby hover:text-ruby-dark transition-colors">← Card 2</a>
+      <a href="/lessons/practice-solid-isp-fat-concern" class="text-ruby hover:text-ruby-dark transition-colors">Card 4 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>

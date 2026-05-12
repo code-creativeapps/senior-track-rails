@@ -1,0 +1,139 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Why is this class hard to test?" description="Practice card. A class that hard-codes a third-party client. Drills DIP through the testing lens.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · SOLID · DIP · Card 1</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Why is this class hard to test?</h1>
+      <p class="text-xl text-gray-600">A small, focused class that does one thing. It has 12 lines of code and an unreasonable test setup. Why?</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A class that sends a Slack notification when a user signs up.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class NotifySignupToSlack
+  def call(user)
+    client = Slack::Notifier.new(ENV.fetch("SLACK_WEBHOOK_URL"))
+    client.post(text: "New signup: \#{user.email}")
+  end
+end
+
+# The test:
+test "posts to Slack" do
+  ENV["SLACK_WEBHOOK_URL"] = "https://hooks.slack.com/services/..."
+  stub_request(:post, "https://hooks.slack.com/...").to_return(status: 200)
+  NotifySignupToSlack.new.call(users(:karim))
+  assert_requested :post, "https://hooks.slack.com/..."
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">Twelve lines of test for twelve lines of production code, and the test is more brittle than the code. What did the production class do that made the test this annoying?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> A class that's easy to test is usually a class that doesn't hard-code what it depends on. What did this class hard-code, and how would the test look if it hadn't?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the breakdown →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> What's hard-coded
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Two things, intertwined:</p>
+            <ul class="space-y-2 text-gray-700 leading-relaxed list-decimal list-inside ml-2 mt-3">
+              <li><strong>The Slack client itself.</strong> The class reaches out and instantiates <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Slack::Notifier</code> directly. The test can\'t hand it a fake.</li>
+              <li><strong>The environment lookup.</strong> The webhook URL gets read from <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ENV</code> inside the method. The test has to set the env var.</li>
+            </ul>
+            <p class="text-gray-700 leading-relaxed mt-3">Both push the responsibility for "where the dependency comes from" inside the class. The test has to wrestle with HTTP stubbing because there\'s no seam to inject a fake notifier.</p>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> Inject the dependency, drop the stub
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>Pass the notifier in. The class doesn\'t need to know where it came from.</p>
+              <CodeBlock code={`class NotifySignupToSlack
+  def initialize(notifier: Slack::Notifier.new(ENV.fetch("SLACK_WEBHOOK_URL")))
+    @notifier = notifier
+  end
+
+  def call(user)
+    @notifier.post(text: "New signup: \#{user.email}")
+  end
+end
+
+# The test, now:
+test "posts to Slack" do
+  fake_notifier = Minitest::Mock.new
+  fake_notifier.expect(:post, true, [{ text: "New signup: karim@example.com" }])
+
+  NotifySignupToSlack.new(notifier: fake_notifier).call(users(:karim))
+
+  fake_notifier.verify
+end`} language="ruby" />
+              <p>No env var. No HTTP stub. No real Slack client. The test verifies the only thing that matters for this class: that it calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post</code> with the right message. Whether the notifier is real Slack or a fake doesn\'t change the class\'s behavior, which is the point of DIP.</p>
+              <p>This is also how you switch Slack for Discord, for email, for a no-op in development — you pass a different notifier in.</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the full walkthrough, read <a href="/lessons/senior-dip-dependency-injection" class="text-ruby hover:text-ruby-dark font-medium">SOLID · DIP · Dependency Injection</a>, <a href="/lessons/senior-dip-config-injection" class="text-ruby hover:text-ruby-dark font-medium">Config Injection</a>, and <a href="/lessons/senior-dip-test-seams" class="text-ruby hover:text-ruby-dark font-medium">Test Seams</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-solid-isp-fat-concern" class="text-ruby hover:text-ruby-dark transition-colors">← Card 4</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Back to Course →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>

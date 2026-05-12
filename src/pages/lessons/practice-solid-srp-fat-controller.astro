@@ -1,0 +1,130 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Spot the responsibilities in this controller action" description="Practice card. A real-looking fat controller action that mixes four jobs. Drills SRP-violation recognition.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · SOLID · SRP · Card 1</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Spot the responsibilities in this controller action</h1>
+      <p class="text-xl text-gray-600">The code below works, ships, and is normal-looking Rails. It's also doing four different jobs that should probably live elsewhere. Name them.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A signup controller. What does this action actually do, end to end?</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`def create
+  @user = User.new(user_params)
+  @user.password = SecureRandom.hex(8) if user_params[:password].blank?
+
+  if @user.save
+    Stripe::Customer.create(email: @user.email, name: @user.name)
+    WelcomeMailer.with(user: @user).welcome_email.deliver_later
+    Rails.logger.info "signup: \#{@user.id} from IP \#{request.remote_ip}"
+    redirect_to dashboard_path, notice: "Welcome!"
+  else
+    render :new, status: :unprocessable_entity
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">List the distinct responsibilities mixed into this action. Then think about where each one should live.</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> A controller's actual job is to read the request, call something to do the work, and render the response. Anything in this action that isn't one of those three is misplaced.
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the breakdown →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The four responsibilities
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-decimal list-inside ml-2">
+              <li><strong>Default values.</strong> Generating a random password if none was given is a model concern, not a controller one. It belongs in a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_validation</code> on User, or in a User factory.</li>
+              <li><strong>External integration.</strong> Creating a Stripe customer is a side-effect tied to "a User was created." It belongs in a service object or, if you only need it triggered consistently, an <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">after_commit</code> callback that enqueues a job. The controller shouldn\'t talk to Stripe directly.</li>
+              <li><strong>Communication.</strong> Sending the welcome email is another "a User was created" side effect. Belongs in the same place as the Stripe call (a job, or an <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">after_commit</code>).</li>
+              <li><strong>Logging.</strong> A signup audit log is a domain event. It should be emitted by the domain code (the model or service), not by the controller. The IP comes from the request, so you\'d pass it as context.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The shape of the fix
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>The senior version of this action is short. It validates the input, calls a service or domain method, and renders the response. The controller is the front door, not the kitchen.</p>
+              <CodeBlock code={`# A skinny version:
+
+def create
+  result = SignUpUser.call(user_params, ip: request.remote_ip)
+  if result.success?
+    redirect_to dashboard_path, notice: "Welcome!"
+  else
+    @user = result.user
+    render :new, status: :unprocessable_entity
+  end
+end`} language="ruby" />
+              <p>Now: the password default lives in the model. The Stripe customer creation lives in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">SignUpUser</code> (or a job it enqueues). The welcome email lives in the same place. The signup log lives there too. Each piece moved to a place where it makes sense, and each can be tested in isolation.</p>
+              <p>You don\'t have to do this on day one. You do have to recognize the shape, because the only way fat controllers stay fat is by no one noticing them growing.</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the full walkthrough of service-object extraction and other SRP moves, read <a href="/lessons/senior-srp-service-objects" class="text-ruby hover:text-ruby-dark font-medium">SOLID · Service Objects</a> and the other six SRP lessons.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <a href="/lessons/practice-solid-ocp-case-statement" class="text-ruby hover:text-ruby-dark transition-colors">Card 2 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>
