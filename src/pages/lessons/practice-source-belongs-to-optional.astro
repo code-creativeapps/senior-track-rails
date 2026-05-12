@@ -1,17 +1,18 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title="What changes when you add optional: true to belongs_to?" description="Practice card. Two models, one option's difference. Drills the validation surface of belongs_to.">
+<Layout title="What does optional: true actually change?" description="Practice card. One option flag, four candidate effects. Drills the validation surface of belongs_to.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> Back to Course
       </a>
       <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Reading the Source · Card 1</p>
-      <h1 class="text-4xl font-bold text-ruby-dark mb-4">What changes when you add <code class="bg-gray-100 px-2 py-1 rounded text-3xl">optional: true</code>?</h1>
-      <p class="text-xl text-gray-600">One option flag separates these two models. The visible difference is "must have a user vs not". The invisible difference is more interesting.</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">What does <code class="bg-gray-100 px-2 py-1 rounded text-3xl">optional: true</code> actually change?</h1>
+      <p class="text-xl text-gray-600">One option flag separates these two models. The visible difference is "must have a user vs not." The mechanism behind it is more specific than that.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -34,64 +35,39 @@ end`} language="ruby" />
 
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
-          <p class="text-gray-700 leading-relaxed">A Post without a user fails to save. A Comment without a user saves just fine. <strong>What did <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">optional: true</code> actually turn off?</strong> And how would you confirm it from the Rails console without trying to save a record?</p>
+          <p class="text-gray-700 leading-relaxed">A Post with no user can't save. A Comment with no user saves fine. Which of these is the actual mechanism behind that difference?</p>
         </div>
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <div id="prompt-section" class="space-y-6">
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
-            <p class="text-base text-gray-700 leading-relaxed">
-              <strong>Take a moment.</strong> The difference isn't a separate validation in your model. It's something <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> itself installs. Name what it installs, and the global setting that decides whether it's installed by default.
-            </p>
-          </div>
-
-          <div class="pt-2">
-            <button
-              id="show-solution-btn"
-              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-            >
-              Reveal the answer →
-            </button>
-          </div>
-        </div>
-
-        <div id="solution-section" class="hidden space-y-6">
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> The answer
-            </h3>
-            <p class="text-gray-700 leading-relaxed mb-4"><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to :user</code> installs a presence validation. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">optional: true</code> skips installing it.</strong> The validation isn't in your model file. It comes from the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Associations::Builder::BelongsTo</code> helper, which runs at boot time. You can see exactly which validators each model has:</p>
-            <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
-              <CodeBlock code={`Post.validators_on(:user)
-# => [#<ActiveRecord::Validations::PresenceValidator ...>]
-
-Comment.validators_on(:user)
-# => []
-
-# Try saving:
-Post.new.save           # => false, errors[:user] = ["must exist"]
-Comment.new.save        # => true,  user_id is nil`} language="ruby" />
-            </div>
-          </div>
-
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>💡</span> The setting behind it
-            </h3>
-            <div class="space-y-3 text-gray-700 leading-relaxed">
-              <p>Whether <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> installs the validation by default is controlled by <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">config.active_record.belongs_to_required_by_default</code>. In Rails 5+, the new-app default is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">true</code>. In apps upgraded from Rails 4, it's often still <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">false</code>.</p>
-              <p>This is why two Rails apps behave differently when you write the same <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to :user</code>. The behavior isn't in the line; it's in the framework setting that line consults.</p>
-            </div>
-          </div>
-
-          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📚</span> Theory
-            </h3>
-            <p class="text-gray-700 leading-relaxed">For the full walkthrough of what <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> generates, read <a href="/lessons/source-belongs-to" class="text-ruby hover:text-ruby-dark font-medium">Card 1 of Reading the Source</a>.</p>
-          </div>
-        </div>
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'It tells the database to allow NULL in the foreign key column.',
+              explanation: 'Whether the column allows NULL is decided by the migration (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">null: false</code> or not). <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> never modifies your schema.',
+            },
+            {
+              label: 'B',
+              text: 'It skips installing the presence validation that <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> would normally add.',
+              explanation: 'Rails 5+ <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> installs a presence validation by default. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">optional: true</code> tells the builder to skip it. You can confirm with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Post.validators_on(:user)</code> vs <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Comment.validators_on(:user)</code>.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: 'It makes the association polymorphic so the comment can belong to anything.',
+              explanation: 'Polymorphism comes from <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">polymorphic: true</code>, which is a separate option. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">optional: true</code> doesn\'t change cardinality.',
+            },
+            {
+              label: 'D',
+              text: 'It removes the helper methods like <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">build_user</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">create_user</code>.',
+              explanation: 'The helper methods are generated regardless of <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">optional</code>. They come from the association itself, not from the validation.',
+            },
+          ]}
+          principle={`<p>Whether <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> installs a presence validation by default is controlled by the global setting <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">config.active_record.belongs_to_required_by_default</code>. In Rails 5+, that's <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">true</code> for new apps. In apps upgraded from Rails 4, it's often still <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">false</code>. Two Rails apps can run the same <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to :user</code> line and behave differently. The behavior isn't in the line; it's in the setting the line consults.</p>`}
+          theoryHref="/lessons/source-belongs-to"
+          theoryLabel="Reading the Source · Card 1 — What belongs_to :user actually adds"
+        />
       </div>
     </div>
 
@@ -100,19 +76,4 @@ Comment.new.save        # => true,  user_id is nil`} language="ruby" />
       <a href="/lessons/practice-source-when-sql-runs" class="text-ruby hover:text-ruby-dark transition-colors">Card 2 →</a>
     </div>
   </article>
-
-  <script>
-    const btn = document.getElementById('show-solution-btn');
-    const prompt = document.getElementById('prompt-section');
-    const solution = document.getElementById('solution-section');
-    if (btn && prompt && solution) {
-      btn.addEventListener('click', () => {
-        prompt.classList.add('hidden');
-        solution.classList.remove('hidden');
-        if (window.innerWidth < 1024) {
-          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      });
-    }
-  </script>
 </Layout>

@@ -1,9 +1,10 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
 ---
 
-<Layout title="Which line actually runs the SQL?" description="Practice card. Five lines of ActiveRecord chaining, only one of them talks to the database. Drills Relation laziness.">
+<Layout title="Which line actually runs the SQL?" description="Practice card. Five lines of ActiveRecord chaining, only one talks to the database. Drills Relation laziness.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -23,76 +24,50 @@ import CodeBlock from '../../components/CodeBlock.astro';
           <p class="text-gray-700 italic mb-3">Reading top to bottom, which line is the moment the database wakes up?</p>
           <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
             <CodeBlock code={`def call
-  users = User.where(active: true)        # line 1
-  users = users.where(role: "admin")       # line 2
-  users = users.order(:created_at).limit(10) # line 3
-  Rails.logger.info "Found admins"         # line 4
-  users.each { |u| send_email(u) }         # line 5
+  users = User.where(active: true)            # line 1
+  users = users.where(role: "admin")           # line 2
+  users = users.order(:created_at).limit(10)   # line 3
+  Rails.logger.info "Found admins"             # line 4
+  users.each { |u| send_email(u) }             # line 5
 end`} language="ruby" />
           </div>
         </div>
 
         <div>
           <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
-          <p class="text-gray-700 leading-relaxed">Which of the five lines is the first one to execute SQL against the database? And what kind of methods, in general, force a Relation to run?</p>
+          <p class="text-gray-700 leading-relaxed">Which of the five lines is the first to send SQL to the database?</p>
         </div>
       </div>
 
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
-        <div id="prompt-section" class="space-y-6">
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
-            <p class="text-base text-gray-700 leading-relaxed">
-              <strong>Take a moment.</strong> A Relation is a description of a query. It stays a description until someone asks it for actual data. Pick the line that asks.
-            </p>
-          </div>
-
-          <div class="pt-2">
-            <button
-              id="show-solution-btn"
-              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
-            >
-              Reveal the answer →
-            </button>
-          </div>
-        </div>
-
-        <div id="solution-section" class="hidden space-y-6">
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span class="text-green-600">✅</span> The answer
-            </h3>
-            <p class="text-gray-700 leading-relaxed mb-4"><strong>Line 5.</strong> Lines 1-3 all return new Relation objects without touching the database. Each <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.where</code> / <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.order</code> / <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.limit</code> adds to the spec. Line 4 doesn't even mention the relation. Line 5 calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.each</code>, which forces the Relation to load. That's when the SQL fires.</p>
-            <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
-              <CodeBlock code={`# At line 5, Rails finally runs:
-#
-#   SELECT "users".* FROM "users"
-#   WHERE "users"."active" = TRUE
-#     AND "users"."role" = 'admin'
-#   ORDER BY "users"."created_at" ASC
-#   LIMIT 10
-
-# The result is cached on the relation, so a second
-# .each call would NOT re-run the SQL.`} language="ruby" />
-            </div>
-          </div>
-
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>💡</span> Which methods force the SQL to run?
-            </h3>
-            <div class="space-y-3 text-gray-700 leading-relaxed">
-              <p>Any method that needs the actual rows: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.each</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_a</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.first</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.last</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.count</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.find_each</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.pluck</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.exists?</code>, or interpolating into a view (which calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_a</code>).</p>
-              <p>Chain methods (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.where</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.order</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.limit</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.includes</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.joins</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.select</code>) return new Relations and don't run SQL. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_sql</code> doesn't run SQL either; it returns the string Rails would send.</p>
-            </div>
-          </div>
-
-          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <span>📚</span> Theory
-            </h3>
-            <p class="text-gray-700 leading-relaxed">For the full walkthrough of how a query becomes SQL, read <a href="/lessons/source-activerecord-query" class="text-ruby hover:text-ruby-dark font-medium">Card 3 of Reading the Source</a>.</p>
-          </div>
-        </div>
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'Line 1 — <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User.where(active: true)</code>',
+              explanation: '<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">where</code> returns an <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ActiveRecord::Relation</code>. The Relation is a description of a query, not a query result. No SQL has run.',
+            },
+            {
+              label: 'B',
+              text: 'Line 2 — chained <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.where(role: "admin")</code>',
+              explanation: 'Chaining another <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">where</code> just produces a new Relation with both conditions merged into its spec. Still no SQL.',
+            },
+            {
+              label: 'C',
+              text: 'Line 3 — chained <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.order(:created_at).limit(10)</code>',
+              explanation: 'Same story. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">order</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">limit</code> add to the Relation\'s spec and return a new Relation. No database call yet.',
+            },
+            {
+              label: 'D',
+              text: 'Line 5 — <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">users.each { ... }</code>',
+              explanation: '<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.each</code> is the first method here that needs the actual rows. That\'s when Rails finally runs the SQL, loads the results into memory, and yields each User to the block.',
+              correct: true,
+            },
+          ]}
+          principle={`<p>A Relation is lazy. It collects spec (where, order, limit, includes, joins) without touching the database. It only runs SQL when something asks for the actual data: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.each</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_a</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.first</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.count</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.pluck</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.exists?</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.find_each</code>, or interpolation into a view (which calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_a</code>).</p><p>Methods that return a new Relation (where, order, limit, joins, includes, select, group, having) do not run SQL. Knowing the split lets you compose queries safely over many lines without performance worry, and lets you call <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_sql</code> to inspect what the SQL will look like before triggering it.</p>`}
+          theoryHref="/lessons/source-activerecord-query"
+          theoryLabel="Reading the Source · Card 3 — How User.where(...) becomes SQL"
+        />
       </div>
     </div>
 
@@ -101,19 +76,4 @@ end`} language="ruby" />
       <a href="/lessons/practice-source-require-vs-bracket" class="text-ruby hover:text-ruby-dark transition-colors">Card 3 →</a>
     </div>
   </article>
-
-  <script>
-    const btn = document.getElementById('show-solution-btn');
-    const prompt = document.getElementById('prompt-section');
-    const solution = document.getElementById('solution-section');
-    if (btn && prompt && solution) {
-      btn.addEventListener('click', () => {
-        prompt.classList.add('hidden');
-        solution.classList.remove('hidden');
-        if (window.innerWidth < 1024) {
-          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      });
-    }
-  </script>
 </Layout>

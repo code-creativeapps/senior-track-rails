@@ -1,0 +1,142 @@
+---
+interface Option {
+  label: string;
+  text: string;
+  explanation: string;
+  correct?: boolean;
+}
+
+interface Props {
+  prompt?: string;
+  options: Option[];
+  principle?: string;
+  theoryHref?: string;
+  theoryLabel?: string;
+}
+
+const {
+  prompt = "Pick the best answer. Wrong picks reveal why they're wrong, which is half the point.",
+  options,
+  principle,
+  theoryHref,
+  theoryLabel,
+} = Astro.props;
+---
+
+<div id="quiz-section" class="space-y-4">
+  <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+    <p class="text-base text-gray-700 leading-relaxed">
+      <strong>Take a moment.</strong> {prompt}
+    </p>
+  </div>
+
+  <div class="space-y-3">
+    {options.map((opt) => (
+      <button
+        type="button"
+        class="quiz-option w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-ruby transition-colors flex items-start gap-3 disabled:cursor-default"
+        data-correct={opt.correct ? "true" : "false"}
+      >
+        <span class="quiz-marker flex-shrink-0 w-7 h-7 rounded-full border-2 border-gray-300 flex items-center justify-center text-sm font-semibold text-gray-600">
+          {opt.label}
+        </span>
+        <span class="text-gray-700 leading-relaxed" set:html={opt.text}></span>
+      </button>
+    ))}
+  </div>
+</div>
+
+<div id="answer-section" class="hidden space-y-6">
+  <div>
+    <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+      <span class="text-green-600">✅</span> Answer breakdown
+    </h3>
+    <div class="space-y-3">
+      {options.map((opt) => (
+        <div class={`rounded-lg p-4 border-2 ${opt.correct ? 'border-green-300 bg-green-50/40' : 'border-gray-200 bg-gray-50/40'}`}>
+          <p class="font-semibold text-gray-900 mb-2 flex items-start gap-2">
+            <span class={opt.correct ? "text-green-600" : "text-gray-400"}>
+              {opt.correct ? "✓" : "✗"}
+            </span>
+            <span><strong>{opt.label}.</strong> <span set:html={opt.text}></span></span>
+          </p>
+          <p class="text-sm text-gray-700 ml-6 leading-relaxed" set:html={opt.explanation}></p>
+        </div>
+      ))}
+    </div>
+  </div>
+
+  {principle && (
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span>💡</span> The principle
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed" set:html={principle}></div>
+    </div>
+  )}
+
+  {theoryHref && (
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span>📚</span> Theory
+      </h3>
+      <p class="text-gray-700 leading-relaxed">
+        For the full walkthrough, read <a href={theoryHref} class="text-ruby hover:text-ruby-dark font-medium">{theoryLabel}</a>.
+      </p>
+    </div>
+  )}
+</div>
+
+<script>
+  const options = document.querySelectorAll<HTMLButtonElement>('.quiz-option');
+  const answerSection = document.getElementById('answer-section');
+
+  options.forEach(opt => {
+    opt.addEventListener('click', () => {
+      const chosenCorrect = opt.dataset.correct === 'true';
+
+      options.forEach(o => {
+        o.disabled = true;
+        o.classList.remove('hover:border-ruby');
+        const isCorrect = o.dataset.correct === 'true';
+        const marker = o.querySelector('.quiz-marker');
+
+        if (o === opt) {
+          if (isCorrect) {
+            o.classList.remove('border-gray-200');
+            o.classList.add('border-green-500', 'bg-green-50');
+            if (marker) {
+              marker.classList.remove('border-gray-300', 'text-gray-600');
+              marker.classList.add('border-green-500', 'bg-green-500', 'text-white');
+              marker.textContent = '✓';
+            }
+          } else {
+            o.classList.remove('border-gray-200');
+            o.classList.add('border-red-500', 'bg-red-50');
+            if (marker) {
+              marker.classList.remove('border-gray-300', 'text-gray-600');
+              marker.classList.add('border-red-500', 'bg-red-500', 'text-white');
+              marker.textContent = '✗';
+            }
+          }
+        } else if (isCorrect) {
+          o.classList.remove('border-gray-200');
+          o.classList.add('border-green-500', 'bg-green-50/40');
+          if (marker) {
+            marker.classList.remove('border-gray-300', 'text-gray-600');
+            marker.classList.add('border-green-500', 'text-green-600');
+          }
+        } else {
+          o.classList.add('opacity-60');
+        }
+      });
+
+      if (answerSection) {
+        answerSection.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          answerSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    });
+  });
+</script>
