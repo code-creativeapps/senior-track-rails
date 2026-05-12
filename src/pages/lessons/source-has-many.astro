@@ -1,0 +1,128 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="What does has_many :posts actually add to your model?" description="One line of declaration. A collection proxy with around 20 methods on it, plus a reflection on the class. Knowing the surface changes how you read every Rails model.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source · Card 8</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">What does <code class="bg-gray-100 px-2 py-1 rounded text-3xl">has_many :posts</code> actually add?</h1>
+      <p class="text-xl text-gray-600">One line. A collection proxy with about twenty methods on it, plus class-level metadata. Most developers can name three.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The familiar line
+          </h3>
+          <p class="text-gray-700 italic mb-3">Standard. You've written it. What does it generate?</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class User < ApplicationRecord
+  has_many :posts
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">List every method <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">has_many :posts</code> adds to a User instance. The mid-level answer names <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user.posts</code> and maybe one or two more. The senior answer is closer to twenty.</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> The reader (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user.posts</code>) is obvious. So is the writer. After that, think about: building, creating, counting, querying, checking emptiness, mutating.
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal what Rails generates →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> What Rails generates
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-4">On every User instance, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">has_many :posts</code> adds a collection proxy with these methods (and more):</p>
+            <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+              <CodeBlock code={`user.posts                       # the collection (a CollectionProxy)
+user.posts = [post1, post2]      # replace the whole collection
+user.posts << post               # append
+user.post_ids                    # array of foreign keys
+user.post_ids = [1, 2, 3]        # set by IDs (loads, syncs)
+user.posts.build(title: "...")   # in-memory, unsaved
+user.posts.create(title: "...")  # build + save
+user.posts.create!(title: "...") # raises if invalid
+user.posts.find(id)              # scoped to this user's posts
+user.posts.where(published: true)
+user.posts.exists?
+user.posts.size                  # uses cached count if loaded
+user.posts.count                 # always runs SELECT COUNT
+user.posts.empty?
+user.posts.first / .last
+user.posts.reload                # re-fetch
+user.posts.clear                 # remove all (per dependent: option)
+user.posts.delete(post)
+user.posts.destroy(post)`} language="ruby" />
+            </div>
+            <p class="text-gray-700 leading-relaxed mt-4 mb-3">On the User class itself, the same line also sets up:</p>
+            <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+              <li>A reflection at <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User.reflect_on_association(:posts)</code>, used by eager loading, fixtures, the form builder, and more.</li>
+              <li>If you pass <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">dependent: :destroy</code>, a callback that destroys each associated Post when the User is destroyed.</li>
+              <li>If you pass <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">dependent: :delete_all</code>, a callback that issues a single DELETE.</li>
+              <li>If you pass <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">through: :memberships</code>, Rails sets up the join walk so <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user.posts</code> joins through the intermediate table.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📂</span> Where this happens in Rails
+            </h3>
+            <p class="text-gray-700 leading-relaxed">The entry point is <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">has_many</code> in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/associations.rb</code>. The heavy lifting is in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Associations::Builder::HasMany</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Associations::CollectionProxy</code>, which provides most of the methods listed above. The CollectionProxy is what <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user.posts</code> actually returns — it acts like an array but also like a Relation, which is why you can chain <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.where</code> on it.</p>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🎯</span> Why this is worth knowing
+            </h3>
+            <p class="text-gray-700 leading-relaxed">When you see <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user.posts.build(...)</code> in someone else's code, you instantly trace it back to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">has_many</code> instead of looking for a method definition that doesn't exist. The CollectionProxy is also why <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user.posts.where(published: true)</code> reads as a chain on a Relation — it is one. Same shape as <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code>: a single declaration that quietly generates a family of methods, a reflection, and sometimes callbacks.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/source-form-with" class="text-ruby hover:text-ruby-dark transition-colors">← Card 7</a>
+      <a href="/lessons/source-enum" class="text-ruby hover:text-ruby-dark transition-colors">Card 9 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>

@@ -1,0 +1,135 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="What does attribute :birthday, :date give you that a column doesn't?" description="One line. A typed attribute on the model, with custom casting on read and write, with or without a database column.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source · Card 11</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">What does <code class="bg-gray-100 px-2 py-1 rounded text-3xl">attribute</code> add?</h1>
+      <p class="text-xl text-gray-600">A declaration most Rails developers haven't used. It's how you add typed attributes — virtual ones, or overrides for existing columns. Quietly powerful.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The familiar (or maybe unfamiliar) line
+          </h3>
+          <p class="text-gray-700 italic mb-3">Two uses. The first has no matching database column. The second overrides the type of one.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class User < ApplicationRecord
+  # 1. Virtual attribute. Not in the schema. Lives only on the instance.
+  attribute :discount_percent, :integer, default: 0
+
+  # 2. Override the type of an existing column.
+  # Suppose the column \`metadata\` is text in the DB; treat it as JSON in Ruby.
+  attribute :metadata, :json, default: {}
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">What does each of those two <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">attribute</code> calls actually buy you, and when would you reach for them?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Most Rails attributes come from columns automatically. This declaration adds typed attributes on top of that mechanism. Why would you do that?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal what it does →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The two use cases
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-3"><strong>Virtual attributes.</strong> Add an attribute that lives on the instance without needing a column. You get a reader, writer, default, type casting, and dirty tracking — same as a real column. Useful for form-only fields, computed temporary state, or service-object inputs.</p>
+            <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+              <CodeBlock code={`user = User.new
+user.discount_percent           # => 0 (the default)
+user.discount_percent = "15"    # cast to Integer
+user.discount_percent           # => 15
+user.discount_percent_changed?  # => true (dirty tracking works)`} language="ruby" />
+            </div>
+            <p class="text-gray-700 leading-relaxed mt-4 mb-3"><strong>Type overrides.</strong> Take an existing column (e.g. a text column storing JSON) and read it as the right Ruby type. Rails does the casting on the way in and out.</p>
+            <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+              <CodeBlock code={`user.metadata                 # => {} (Hash, not a JSON string)
+user.metadata = { theme: "dark", lang: "fr" }
+user.save!
+
+# In the database, metadata is stored as JSON text.
+# In Ruby, you got a Hash, and you assigned a Hash.
+
+# You can also register custom types (e.g. for a Money value object):
+class MoneyType < ActiveRecord::Type::Value
+  def cast(value);     Money.from_cents(value.to_i); end
+  def serialize(money); money.cents; end
+end
+ActiveRecord::Type.register(:money, MoneyType)
+
+class Order < ApplicationRecord
+  attribute :total, :money
+end
+
+order.total = Money.from_cents(2500)
+order.total.cents   # => 2500`} language="ruby" />
+            </div>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📂</span> Where this happens in Rails
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Defined in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/attributes.rb</code>. The method registers a type for the named attribute. Type classes live under <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/type/</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activemodel/lib/active_model/type/</code>. Each type defines <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">cast</code> (Ruby in), <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">serialize</code> (Ruby out to the database), and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">deserialize</code> (database in to Ruby).</p>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🎯</span> Why this is worth knowing
+            </h3>
+            <p class="text-gray-700 leading-relaxed">Most Rails developers reach for <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">attr_accessor</code> for virtual attributes, which works but loses dirty tracking, defaults, and casting. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">attribute</code> gives you all three for free. And when you need a value object (Money, Coordinates, Color) backed by a primitive column, registering a custom type is the senior-flavored move that keeps the rest of the app reading clean Ruby instead of strings or hashes.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/source-has-secure-password" class="text-ruby hover:text-ruby-dark transition-colors">← Card 10</a>
+      <a href="/lessons/source-delegated-type" class="text-ruby hover:text-ruby-dark transition-colors">Card 12 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>
