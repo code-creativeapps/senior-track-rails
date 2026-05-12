@@ -1,0 +1,276 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Scaling 8 of 8 — Bulk Operations & Memory" description="Where Ruby's memory model breaks down at scale, why find_each beats each on tables you care about, and how Shopify's jemalloc work points at the deeper truth that ActiveRecord is the wrong tool for bulk work.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Scaling Series · 8 of 8</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">📦</span>
+        <h1 class="text-4xl font-bold text-gray-900">Bulk Operations &amp; Memory</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where Ruby's memory model breaks down at scale, why <code class="text-lg">find_each</code> beats <code class="text-lg">each</code> on tables you care about, and how Shopify's jemalloc work points at the deeper truth that ActiveRecord is the wrong tool for bulk work.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        ActiveRecord was designed for the common case of CRUD requests: <strong>find one user, update a few attributes, save</strong>. Every record is materialized as a Ruby object. The cost of that materialization — allocating a hash, parsing column values, running type casts, initializing instance variables — is invisible at one record. At a million records, it dominates everything else the application is doing.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Two specific phenomena meet here. <strong>The first is Ruby's per-object memory cost</strong>: every ActiveRecord instance lives in the Ruby heap, uses an object slot, and contributes to garbage-collection pressure. Loading a million Order records means a million allocated objects — typically multiple gigabytes of memory, and a long GC pause when Ruby tries to clean them up.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The second is Ruby's allocator behavior under thread pressure.</strong> Default glibc malloc behaves badly when many threads allocate simultaneously, fragmenting memory and never returning it to the OS. Shopify's engineering team identified this as a major source of "memory keeps growing" complaints in Puma-with-threads deployments. <strong>Their fix, jemalloc, is now standard practice for high-traffic Rails apps</strong> — including the Rails 8 deploy templates that ship jemalloc enabled by default.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior rule for bulk work: <strong>ActiveRecord is for individual records, not batches</strong>. When you are processing thousands or millions of rows — exports, imports, recomputations, migrations — ActiveRecord's per-record costs become the bottleneck. The fix is either to batch-iterate carefully (<code class="bg-gray-100 px-2 py-1 rounded">find_each</code>), to skip materialization entirely (<code class="bg-gray-100 px-2 py-1 rounded">update_all</code>), or to drop down to raw SQL.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app where the team builds a "send all users a notification" feature. The first version is the obvious one:
+      </p>
+      <CodeBlock code={`class SendDailyDigestJob < ApplicationJob
+  def perform
+    User.where(daily_digest: true).each do |user|
+      DailyDigestMailer.send(user).deliver_later
+    end
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>This works for the first 10,000 users.</strong> At 500,000 subscribed users, the job hits R14 (out-of-memory) on the worker dyno within sixty seconds and dies.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Three things went wrong:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">User.where(...).each</code> loads every match into memory</strong> before iterating. The SQL is a single <code class="bg-gray-100 px-2 py-1 rounded">SELECT</code>; ActiveRecord materializes every returned row into a User object; then the <code class="bg-gray-100 px-2 py-1 rounded">.each</code> begins. <strong>For 500,000 users, that is ~500MB of Ruby objects before the first email is queued.</strong></li>
+        <li><strong>Garbage collection cannot recover the memory mid-iteration.</strong> The User objects are all reachable through the array <code class="bg-gray-100 px-2 py-1 rounded">.where</code> returned. GC cannot free any of them until the entire array goes out of scope.</li>
+        <li><strong>The 500,000 mailer jobs all enqueue at once.</strong> Even after the loop finishes, the queue tier now has half a million pending jobs. Sidekiq or Solid Queue handle this fine, but the spike in queue depth can cascade — workers, database connections, mail-sending rate limits all hit at once.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">find_each and in_batches</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The Rails fix has been in the framework since 2.1: <strong><code class="bg-gray-100 px-2 py-1 rounded">find_each</code></strong>. Instead of one giant SELECT, it issues paginated queries — a thousand records at a time by default — and yields each record. The Ruby heap holds only the current batch, not the whole result set.
+      </p>
+      <CodeBlock code={`class SendDailyDigestJob < ApplicationJob
+  def perform
+    User.where(daily_digest: true).find_each(batch_size: 500) do |user|
+      DailyDigestMailer.send(user).deliver_later
+    end
+  end
+end
+
+# Underlying behavior:
+#   batch 1: SELECT ... ORDER BY id LIMIT 500
+#   batch 2: SELECT ... ORDER BY id WHERE id > [last] LIMIT 500
+#   batch 3: SELECT ... ORDER BY id WHERE id > [last] LIMIT 500
+#   ... etc.
+#
+# Memory cost: ~500 user objects in scope at any time.
+# The batches before are GC-eligible as soon as the next batch starts.`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The default batch_size of 1000 is fine for most use cases.</strong> For very wide tables (rows with many large columns), drop it to 100-500. For very narrow tables, raise it to 5000. The metric to watch is the worker's memory growth between batches — if memory plateaus, the batch size is fine.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For operations on whole batches at a time, use <strong><code class="bg-gray-100 px-2 py-1 rounded">in_batches</code></strong>, which yields a relation instead of individual records. This is useful when you want to do bulk operations on each batch:
+      </p>
+      <CodeBlock code={`# Mark a million users as inactive in batches:
+User.where(last_seen_at: ...30.days.ago).in_batches(of: 5_000) do |batch|
+  batch.update_all(active: false, deactivated_at: Time.current)
+end
+
+# Each batch becomes one UPDATE statement on 5,000 rows.
+# No materialization, no callbacks, no validations.
+# About 100x faster than .find_each + .update! per record.`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">update_all and delete_all: the bypass valves</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Sometimes you do not need ActiveRecord at all. <strong>You have a bulk update or delete, and the callbacks and validations are not relevant</strong> (or actively in the way). <code class="bg-gray-100 px-2 py-1 rounded">update_all</code> and <code class="bg-gray-100 px-2 py-1 rounded">delete_all</code> drop straight to SQL:
+      </p>
+      <CodeBlock code={`# Update every matching row in one SQL statement.
+# No model instantiation, no callbacks, no validations.
+Order.where(status: "pending", created_at: ...30.days.ago)
+     .update_all(status: "expired", expired_at: Time.current)
+
+# Same for deletes. delete_all skips ActiveRecord destroy callbacks;
+# destroy_all runs them per record.
+StalePostView.where("viewed_at < ?", 1.year.ago).delete_all`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The tradeoff is real and worth being explicit about</strong>: skipping callbacks means skipping audit logs, search reindexing, denormalized counter updates, and anything else that lives in <code class="bg-gray-100 px-2 py-1 rounded">after_update</code>. If those side effects need to happen, you cannot use <code class="bg-gray-100 px-2 py-1 rounded">update_all</code>; you need <code class="bg-gray-100 px-2 py-1 rounded">find_each</code> with the per-record callbacks. <strong>The decision is "what side effects matter for this batch?"</strong> Not every bulk update has side effects worth running.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For audit-trail-shaped side effects, a common pattern is to emit a single audit event for the bulk operation, not one per record. The senior version of this is: <code class="bg-gray-100 px-2 py-1 rounded">BulkExpirationAudit.create!(record_ids: order_ids, expired_at: ...)</code> after the <code class="bg-gray-100 px-2 py-1 rounded">update_all</code>. <strong>One row per bulk operation is a fundamentally different correctness model than one row per affected record</strong>, but for most audit purposes it is the right model.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">insert_all and upsert_all</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 6 added <strong><code class="bg-gray-100 px-2 py-1 rounded">insert_all</code> and <code class="bg-gray-100 px-2 py-1 rounded">upsert_all</code></strong>, which perform bulk inserts in one SQL statement. <strong>For importing CSVs or data feeds, the speedup over <code class="bg-gray-100 px-2 py-1 rounded">.create!</code> in a loop is typically 100x or more</strong>:
+      </p>
+      <CodeBlock code={`# Slow: one INSERT per record, all wrapped in callbacks/validations.
+csv_rows.each do |row|
+  Product.create!(sku: row["sku"], name: row["name"], price: row["price"])
+end
+# 10,000 rows: ~2 minutes, with 10,000 callbacks fired
+
+# Fast: one INSERT statement, no callbacks, no validations.
+Product.insert_all(csv_rows.map { |r|
+  {
+    sku:        r["sku"],
+    name:       r["name"],
+    price:      r["price"],
+    created_at: Time.current,
+    updated_at: Time.current
+  }
+})
+# 10,000 rows: ~1 second, atomic, transactional
+
+# Upsert: insert or update on conflict.
+Product.upsert_all(
+  csv_rows.map { |r| ... },
+  unique_by: :sku  # uses the unique index on sku
+)`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Two operational gotchas:</strong> <code class="bg-gray-100 px-2 py-1 rounded">insert_all</code> does not populate <code class="bg-gray-100 px-2 py-1 rounded">created_at</code>/<code class="bg-gray-100 px-2 py-1 rounded">updated_at</code> for you (you have to pass them explicitly), and it does not run validations. <strong>For data you generated yourself or pulled from a trusted source, that is fine</strong>; for user-submitted data, run validations first or accept the risk.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Ruby memory: jemalloc and MALLOC_ARENA_MAX</h2>
+      <p class="text-gray-700 leading-relaxed">
+        After you have applied the ActiveRecord-level fixes — <code class="bg-gray-100 px-2 py-1 rounded">find_each</code>, <code class="bg-gray-100 px-2 py-1 rounded">update_all</code>, bulk inserts — there is a deeper layer of memory tuning that comes from how Ruby itself allocates memory.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Ruby on Linux uses glibc's <code class="bg-gray-100 px-2 py-1 rounded">malloc</code> by default. Under threaded workloads (Puma with threads, Sidekiq with concurrency), glibc creates one memory "arena" per thread to reduce contention. The arenas are not shared, so each one allocates from its own pool. <strong>For a Puma worker with 5 threads on a 4-core machine, glibc creates 8 arenas (typically <code class="bg-gray-100 px-2 py-1 rounded">8 × ncores</code> by default), each holding its own allocations</strong>. Memory is rarely returned to the OS, even after objects are garbage-collected. Process RSS climbs and climbs.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Two well-known fixes:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. <code class="bg-gray-100 px-2 py-1 rounded">MALLOC_ARENA_MAX=2</code>.</strong> Restrict glibc to two arenas total. Per-thread allocation contention goes up slightly, but memory growth slows dramatically. <strong>This is the cheapest fix — one environment variable, no code change.</strong> Heroku and Render apply this by default in many of their templates.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. jemalloc.</strong> Replace glibc malloc with jemalloc, a different allocator that handles thread workloads better. <strong>Shopify documented their migration to jemalloc and saw 10-30% reduction in memory usage and noticeably better latency consistency.</strong> Rails 8's deploy templates ship jemalloc enabled by default in the Dockerfile.
+      </p>
+      <CodeBlock code={`# Dockerfile (Rails 8 default)
+RUN apt-get install --no-install-recommends -y libjemalloc2
+ENV LD_PRELOAD=libjemalloc.so.2
+
+# Result: process RSS grows more slowly under load,
+# and returns memory to the OS more aggressively.
+# No application code changes required.`} language="dockerfile" />
+      <p class="text-gray-700 leading-relaxed">
+        These are background-level optimizations — they do not fix application bugs, but they make memory-hungry application code much more forgiving. <strong>For most apps, the order is: fix the bulk-operation code first (the application change), then enable jemalloc (the infrastructure change), then start watching for the deeper issues.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl function-bold text-gray-900">When ActiveRecord is the wrong tool</h2>
+      <p class="text-gray-700 leading-relaxed">
+        For some operations, even <code class="bg-gray-100 px-2 py-1 rounded">find_each</code> is too slow. The cost of materializing objects is unavoidable as long as you go through ActiveRecord. <strong>For maintenance scripts, complex aggregations, or large-scale data transformations, raw SQL via <code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::Base.connection.execute</code> is the right answer</strong>:
+      </p>
+      <CodeBlock code={`# Recompute denormalized counters across the whole table.
+# This would take ~30 minutes with .find_each + counter update.
+# Raw SQL: ~30 seconds.
+ActiveRecord::Base.connection.execute(<<~SQL)
+  UPDATE users
+  SET    posts_count = (
+    SELECT COUNT(*) FROM posts WHERE posts.user_id = users.id
+  ),
+         updated_at  = NOW()
+  WHERE  users.posts_count IS NULL
+SQL`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The cost is real: no ActiveRecord callbacks, no validations, no fancy Rails error handling.</strong> You are talking to the database directly. For maintenance operations on data you control, that is usually the right tradeoff.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior heuristic: <strong>if a bulk operation will run on more than ~100k records, prototype it in raw SQL first and see how fast it is</strong>. Often the raw-SQL version is fast enough that you do not need ActiveRecord's batching at all. <strong>The database is much faster at bulk operations than Ruby is</strong>; using ActiveRecord for them is leaving performance on the table.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What real teams have written</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Shopify's engineering blog</strong> has multiple deep posts on Ruby memory at scale. Their migration to jemalloc is documented in detail; their work on <code class="bg-gray-100 px-2 py-1 rounded">MALLOC_ARENA_MAX</code> tuning, their use of compaction in Ruby 3.x, and their internal <code class="bg-gray-100 px-2 py-1 rounded">SamplingProfiler</code> tooling for production memory profiling are all worth reading. <strong>The recurring theme is that memory is the limiting factor in their Rails fleet far more often than CPU is</strong>, and the optimizations that matter are usually allocation reductions in hot paths.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>GitHub Engineering's</strong> posts on running Ruby at scale focus heavily on memory and process lifecycle. They migrated to jemalloc years before it was a Rails default. Their tooling for "what is keeping this memory alive?" — heap dumps analyzed offline — is the kind of work very few teams need, but reading how they approach the question is instructive even for teams operating at much smaller scale.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Artsy Engineering's</strong> posts on Rails import/export work consistently document the journey from "the obvious <code class="bg-gray-100 px-2 py-1 rounded">.each + .create!</code> code" through "<code class="bg-gray-100 px-2 py-1 rounded">find_each</code> made it survive memory limits" to "raw SQL made it finish in minutes instead of hours." <strong>That progression is the canonical Rails-bulk-work learning curve.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When bulk-tuning is overkill</h2>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Operations on small collections.</strong> If you are iterating 100 records to send 100 emails, <code class="bg-gray-100 px-2 py-1 rounded">.each</code> is fine. The bulk-optimization patterns earn their cost only when there are thousands of records.</li>
+        <li><strong>When callbacks must run.</strong> Audit trails per record, search reindexing per record, cache invalidation per record. <code class="bg-gray-100 px-2 py-1 rounded">update_all</code> skips all of these. If they are real correctness requirements, you have to use <code class="bg-gray-100 px-2 py-1 rounded">find_each</code>, accept the slower pace, and probably batch the work across multiple jobs.</li>
+        <li><strong>When the operation is rare enough.</strong> A monthly maintenance script that takes 10 minutes to finish is fine. Optimizing it to take 30 seconds adds complexity that is not paying for itself.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>The senior heuristic for bulk work:</strong> if a job is processing more than ~10k records, default to <code class="bg-gray-100 px-2 py-1 rounded">find_each</code>. If it is processing more than ~100k, ask whether <code class="bg-gray-100 px-2 py-1 rounded">update_all</code> or <code class="bg-gray-100 px-2 py-1 rounded">insert_all</code> would do. If it is more than a million and the callbacks are not required, drop to raw SQL. <strong>The right tool depends on the scale and the side-effect requirements; ActiveRecord is rarely the right tool at the top of that scale.</strong>
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>ActiveRecord is an Object-Relational Mapper, with emphasis on "Object." Its job is to make individual records feel like Ruby objects, complete with callbacks, validations, and a rich method API. <strong>That model is enormously productive at the per-record level and enormously expensive at the per-batch level.</strong> The cost of one materialization is invisible; the cost of a million is the bottleneck.</p>
+        <p>The deeper move is recognizing that <strong>the database is much better at bulk operations than Ruby is</strong>. SQL is designed for set operations: "update every row where X." Ruby is designed for individual transformations: "for each row, do Y." Aligning the operation with the tool — set operations to SQL, individual transformations to Ruby — is the structural insight. The bridge tools (<code class="bg-gray-100 px-2 py-1 rounded">update_all</code>, <code class="bg-gray-100 px-2 py-1 rounded">insert_all</code>) are Rails' way of letting you stay in Ruby while using the database's bulk-native path.</p>
+        <p>The pragmatic value: <strong>most "this script takes hours" reports resolve into "this script materializes a million ActiveRecord objects and updates them one by one."</strong> Knowing the alternatives — find_each for memory, update_all for speed, raw SQL for the largest cases — is what makes the same scripts finish in minutes. The hardware did not get faster; the code got closer to what the database was designed to do.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Grep your codebase for <code class="bg-gray-100 px-2 py-1 rounded">\.each do</code> right after a <code class="bg-gray-100 px-2 py-1 rounded">.where</code>: <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "\\.where.*\\.each" app/</code>. <strong>For each match, ask whether the result set is bounded.</strong> If not, it is a future memory bomb.</li>
+        <li>Pick your largest table. <strong>Find one rake task or job that iterates over it.</strong> Add a memory profile: <code class="bg-gray-100 px-2 py-1 rounded">puts "RSS: #{`ps -o rss= -p #{Process.pid}`.to_i}"</code> before and after. Notice the delta.</li>
+        <li>Look for places in your code that do bulk updates: a loop over records updating each one. <strong>Try replacing with <code class="bg-gray-100 px-2 py-1 rounded">update_all</code></strong>. Benchmark before and after.</li>
+        <li>If your app does CSV imports, replace any <code class="bg-gray-100 px-2 py-1 rounded">create!</code>-per-row loops with <code class="bg-gray-100 px-2 py-1 rounded">insert_all</code> on batches of 1,000. <strong>Time the difference.</strong></li>
+        <li>Bonus: check whether your production Dockerfile installs jemalloc and sets <code class="bg-gray-100 px-2 py-1 rounded">LD_PRELOAD</code>. If not, the Rails 8 default Dockerfile is a one-line copy that will likely reduce memory growth in your fleet immediately.</li>
+        <li>Bonus 2: read Shopify's posts on Ruby allocation profiling. <strong>Their internal SamplingProfiler approach is overkill for most teams, but the framing of "which lines of code are allocating which objects" is the senior mental model for memory work.</strong></li>
+      </ol>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Closing the Scaling series</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Across eight lessons, this series has worked through the canonical scaling moves in a Rails app's life: <strong>diagnose with measurement before changing anything; add indexes when the database is doing too much work; tune the concurrency model so threads and processes match the workload; design around hot rows when concurrent writes contend; cache only after the underlying code is correct; move work to background jobs to free the request cycle; switch to cursor pagination before offsets collapse; use bulk operations when ActiveRecord becomes the bottleneck</strong>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Each lesson was a different bottleneck, found by measurement, fixed by a specific Rails-shaped tool. <strong>The order matters</strong>: most apps go through them in roughly this sequence as they grow. A team that jumps ahead — sharding before indexing, caching before measuring — usually finds themselves having to come back and do the earlier work later, after the architectural detour has cost time and complexity.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The deeper insight across all eight: <strong>"scaling Rails" is mostly not about new infrastructure or new architecture</strong>. It is about understanding the Rails primitives well enough to know when each one is reaching its limit, and reaching for the next primitive deliberately. <strong>The teams that scale Rails to enormous workloads — Shopify, GitHub, Basecamp, Artsy, Mastodon — all do this work in roughly this sequence</strong>, with roughly these tools, and write about it publicly because the patterns generalize.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior skill, finally, is recognizing the next bottleneck before it shows up in PagerDuty. <strong>Each lesson in this series is a thing to watch for in your APM</strong>: slow query at p99, thread pool nearing capacity, lock waits in pg_stat_activity, cache stampedes on the hour, queue depth climbing, pagination latency growing with page number, memory creeping up between deploys. Knowing which signal corresponds to which lesson — and which lesson's fix is the right one — is the actual senior craft. <strong>Everything else is plumbing.</strong>
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-scaling-pagination" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 7 — Pagination</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Course Home →</a>
+    </div>
+  </article>
+</Layout>

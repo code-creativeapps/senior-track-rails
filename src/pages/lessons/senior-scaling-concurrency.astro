@@ -1,0 +1,202 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Scaling 3 of 8 — The Concurrency Model" description="Where Puma's threading model comes from, why the GVL is real but rarely the bottleneck, and the connection pool math that decides how many concurrent users your Rails app can serve.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Scaling Series · 3 of 8</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🧵</span>
+        <h1 class="text-4xl font-bold text-gray-900">The Concurrency Model</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where Puma's threading model comes from, why the GVL is real but rarely the bottleneck, and the connection pool math that decides how many concurrent users your Rails app can serve.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Ruby has had threads since the 1990s, but its threading model is unusual. <strong>MRI (the standard Ruby implementation) has a Global VM Lock — the GVL — that ensures only one Ruby thread executes Ruby code at a time</strong>, even on a multi-core machine. The GVL exists to keep the C-extension ecosystem simple: extension authors do not have to make their code thread-safe, because Ruby's interpreter serializes Ruby execution behind the lock.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Most Ruby developers, including most senior ones, hear "GVL" and assume Ruby threads are useless for concurrency. <strong>This is wrong, and getting it right is the biggest gain in Rails throughput tuning.</strong> The GVL only serializes Ruby code execution. It releases the lock during I/O — when Ruby is waiting on a database query, an HTTP call, a Redis operation, or a disk read. <strong>For an I/O-bound application (which most Rails apps are), Ruby threads scale almost as well as separate processes</strong>, and they use much less memory.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        This insight is what made <strong>Puma</strong> the default Rails web server. Puma runs multiple processes (forks of the master), and within each process runs multiple threads. <strong>Processes scale CPU-bound work; threads scale I/O-bound work.</strong> A typical Rails request is mostly I/O (it waits for the database, then renders, then responds), so threads do the heavy lifting. Processes exist to use multiple CPU cores for the parts that are not waiting on I/O.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior move: <strong>understand which knob to turn before you turn it</strong>. Adding processes when threads were the right answer wastes memory. Adding threads when the database is the bottleneck floods the connection pool. Both are common mistakes by intermediate engineers, and both are visible in the right metrics.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails team running on Heroku. The app is slow under load. Sentry reports timeouts. Somebody opens <code class="bg-gray-100 px-2 py-1 rounded">config/puma.rb</code> and finds this:
+      </p>
+      <CodeBlock code={`# config/puma.rb
+workers ENV.fetch("WEB_CONCURRENCY", 2).to_i
+threads_count = ENV.fetch("RAILS_MAX_THREADS", 5).to_i
+threads threads_count, threads_count`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The default. <strong>2 processes × 5 threads = 10 concurrent requests served per dyno.</strong> Someone in Slack says "let's bump <code class="bg-gray-100 px-2 py-1 rounded">RAILS_MAX_THREADS</code> to 25 to handle more concurrency." Twenty minutes later, deployed. Five minutes after that, the app is worse:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>Requests are queueing in the database connection pool. <code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::ConnectionTimeoutError</code> appears in Sentry.</li>
+        <li>Memory usage on each dyno climbs. <code class="bg-gray-100 px-2 py-1 rounded">R14</code> (memory quota exceeded) starts appearing.</li>
+        <li>Throughput goes down, not up. Some requests are now taking twice as long.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The team raised <code class="bg-gray-100 px-2 py-1 rounded">RAILS_MAX_THREADS</code> without raising the database connection pool to match.</strong> The pool defaults to 5 (Rails) or to whatever <code class="bg-gray-100 px-2 py-1 rounded">RAILS_MAX_THREADS</code> was at boot. Now 25 threads are trying to share 5 connections; 20 of them wait on the pool semaphore, holding requests open and consuming dyno memory while doing nothing useful.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The deeper anti-pattern is <strong>tuning Puma config by copying values from someone else's blog post</strong>. The right values depend on three things specific to your app: how much memory each process uses, how I/O-bound a typical request is, and how many database connections the database can sustain. <strong>None of those are knowable in someone else's config.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The connection pool math</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Two rules connect Puma settings to the database. <strong>Get these right and most Rails throughput problems disappear</strong>:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Rule 1: the connection pool size must equal (or slightly exceed) <code class="bg-gray-100 px-2 py-1 rounded">RAILS_MAX_THREADS</code> per process.</strong>
+      </p>
+      <CodeBlock code={`# config/database.yml
+default: &default
+  adapter: postgresql
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+# config/puma.rb
+threads_count = ENV.fetch("RAILS_MAX_THREADS", 5).to_i
+threads threads_count, threads_count
+
+# Each process gets a pool of size RAILS_MAX_THREADS.
+# Each thread in the process can claim one connection.
+# No thread ever waits on the pool semaphore.`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Rule 2: total connections across all dynos and all worker processes must fit within the database's max connections.</strong>
+      </p>
+      <CodeBlock code={`# Math for a 6-dyno app:
+#   6 dynos × 2 workers × 5 threads = 60 simultaneous connections
+#
+# Postgres on Heroku Hobby tier: max 20 connections. Math fails.
+# Postgres on Heroku Standard-0:  max 120 connections. Math passes.
+#
+# Sidekiq with concurrency 10 across 2 worker dynos adds 20 more.
+# Total: 60 (web) + 20 (workers) = 80, with headroom on Standard-0.
+
+# When you exceed max_connections, new connections fail with
+# "FATAL: too many connections for role 'app'", which manifests
+# in Rails as ActiveRecord::ConnectionNotEstablished during boot.`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>This is the math every Rails team should know by heart.</strong> Most production incidents I have seen labeled "scaling problem" are connection-pool exhaustion in disguise. The fix is usually a config change, not new hardware.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For very large fleets where the per-process connection cost becomes prohibitive (you cannot fit 60 dynos × 25 connections inside Postgres's max), the next move is <strong>PgBouncer</strong> — a connection pooler that multiplexes thousands of application connections onto a smaller number of real Postgres connections. PgBouncer is a real architectural addition; do not reach for it until the simpler math breaks.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How to pick the right thread count</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Within one Puma process, more threads means more concurrent requests. <strong>The right number depends on how much time each request spends waiting on I/O versus executing Ruby</strong>.
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>If 80% of request time is I/O</strong> (the typical Rails app — most time is in the database and external calls), the GVL is released for that 80%. You can run 5–10 threads per process without contention.</li>
+        <li><strong>If 50% of request time is Ruby</strong> (heavy ERB rendering, JSON serialization, JSON parsing, in-memory transformation), thread contention starts mattering. 3–5 threads per process is the sweet spot.</li>
+        <li><strong>If you are CPU-bound</strong> (rare for Rails — usually computational endpoints like image processing), threads beyond the CPU count are wasted. Use processes instead.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Your APM can tell you the I/O-to-Ruby ratio. <strong>Open one of your average endpoints in the flame chart. The colored segments are the breakdown.</strong> If the database and HTTP segments dominate, raise threads. If the Ruby segment dominates, raise processes (or look at <strong>YJIT</strong> — Ruby 3.3+'s just-in-time compiler that can speed up Ruby code by 20-40% on real Rails workloads).
+      </p>
+      <CodeBlock code={`# config/application.rb (Ruby 3.3+)
+# Enable YJIT for production. Typical Rails throughput
+# improvement: 15-30%, sometimes more, at minimal memory cost.
+config.before_configuration do
+  if defined?(RubyVM::YJIT) && Rails.env.production?
+    RubyVM::YJIT.enable
+  end
+end`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Processes vs threads, in plain terms</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The senior shortcut for explaining this to a teammate:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Threads are cheap.</strong> They share memory with their parent process, so each new thread costs ~5MB plus the per-request allocations. A process with 10 threads uses about the same memory as a process with 5 threads plus a bit.</li>
+        <li><strong>Processes are expensive.</strong> Each Puma worker is a full fork of the master, with its own copy of the Rails app loaded in memory. Going from 2 to 4 workers roughly doubles the dyno's memory footprint.</li>
+        <li><strong>Processes use multiple CPU cores.</strong> Threads inside one process share one core's worth of Ruby execution due to the GVL. If you have a 4-core dyno, you want at least 4 workers to use them all.</li>
+        <li><strong>The good news for Rails:</strong> most Rails work is I/O-bound, so the GVL is released most of the time, and threads parallelize well even within one process.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The default Puma config on Heroku (2 workers × 5 threads = 10 concurrent requests on a 2x dyno) is a sensible starting point. <strong>Scale workers when you see Ruby segments dominating in the APM</strong> (or when you have CPU headroom and memory headroom). <strong>Scale threads when you see I/O segments dominating and you have free memory.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What real teams have written</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Heroku's documentation</strong> on Puma sizing is the canonical Rails reference for this topic, and the math above mirrors theirs. The post titled "Concurrency and Database Connections in Ruby with ActiveRecord" (still findable on Heroku's blog) is the single best primer.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Shopify's engineering team</strong> has written multiple posts about running Rails at very high throughput, and the GVL's behavior is a recurring topic. Their advocacy for jemalloc as an alternative Ruby allocator came from production memory pressure on heavily-threaded Puma processes — a real-world artifact of the threading model. They also publish about YJIT performance on their workloads, including measurable throughput gains in production.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>GitHub's engineering blog</strong> documented their migration from Unicorn (one process, one thread) to Puma (one process, many threads) at considerable scale. The post is instructive: <strong>most of the work was not the config change; it was finding and fixing the thread-unsafe code that had accumulated over years of running on a single-threaded server</strong>. The lesson: a Rails app that is "thread-safe enough" on Unicorn is not necessarily ready for Puma without an audit.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Common thread-safety landmines</h2>
+      <p class="text-gray-700 leading-relaxed">
+        If you are moving to multi-threaded Puma after running single-threaded, these are the places to audit:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Module-level mutable state.</strong> <code class="bg-gray-100 px-2 py-1 rounded">MyService.cache = {}</code> at the class level is a shared mutable hash; multiple threads writing to it race. Use <code class="bg-gray-100 px-2 py-1 rounded">Concurrent::Map</code> from the <code class="bg-gray-100 px-2 py-1 rounded">concurrent-ruby</code> gem, or per-thread storage via <code class="bg-gray-100 px-2 py-1 rounded">Thread.current</code>.</li>
+        <li><strong>Memoization on constants.</strong> <code class="bg-gray-100 px-2 py-1 rounded">@@expensive ||= compute</code> on a class is shared across threads; the <code class="bg-gray-100 px-2 py-1 rounded">||=</code> is not atomic. Use a Mutex or move the memoization to per-request scope.</li>
+        <li><strong>Gems with global state.</strong> Some older gems hold state in module variables; check release notes for "thread-safe in version X." Recent versions of major gems are thread-safe; legacy ones may not be.</li>
+        <li><strong>External SDK clients that are not re-entrant.</strong> Some older payment-processor SDKs use module-level configuration; setting them per-request from a thread is unsafe. Use thread-local instances.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>The one Rails-thread-safety rule that catches 80% of bugs:</strong> if you ever use <code class="bg-gray-100 px-2 py-1 rounded">@@variable</code> or write to a module-level mutable object, audit it. Rails itself is thread-safe; the bugs almost always live in application code that did not anticipate multiple threads in the same process.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>The GVL is a real constraint, but it operates on a smaller surface than developers usually assume. <strong>It only serializes Ruby code execution, and Ruby code is a small fraction of the time a typical Rails request spends running</strong>. The bigger fraction — waiting on the database, the HTTP response, the disk — happens with the GVL released, fully concurrent across threads.</p>
+        <p>The deeper move is recognizing that <strong>throughput in Rails comes from doing the math, not from copying configs</strong>. The right thread count depends on your app's I/O profile. The right pool size depends on your thread count. The right worker count depends on your CPU and memory. Three numbers, all tied together, all measurable from your APM and your database stats. The senior skill is not "knowing the right Puma config"; it is knowing the relationship between the numbers and adjusting them based on what you measure.</p>
+        <p>The pragmatic value: <strong>most Rails apps are underutilized in their concurrency settings, paying for dynos that sit idle 80% of the time waiting on I/O</strong>. Tuning threads correctly can reduce dyno count substantially. It is one of the few scaling moves that costs nothing and saves money immediately.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Open your app's <code class="bg-gray-100 px-2 py-1 rounded">config/puma.rb</code> and <code class="bg-gray-100 px-2 py-1 rounded">config/database.yml</code>. <strong>Check that the database <code class="bg-gray-100 px-2 py-1 rounded">pool:</code> setting equals or exceeds <code class="bg-gray-100 px-2 py-1 rounded">RAILS_MAX_THREADS</code>.</strong> If it does not, fix it.</li>
+        <li>Calculate: <code class="bg-gray-100 px-2 py-1 rounded">total_web_connections = dyno_count × workers × threads</code>. Add Sidekiq concurrency × worker dyno count. <strong>Compare to your database's max_connections.</strong> Note the headroom (or the lack of it).</li>
+        <li>In your APM, open the flame chart for your average endpoint. <strong>Note the breakdown by segment: SQL %, external HTTP %, view rendering %, Ruby %.</strong> The first two tell you how much I/O parallelism you have available.</li>
+        <li>If you are on Ruby 3.3+ and not running YJIT, <strong>enable it and measure throughput before and after</strong>. The change is usually visible in p50 latency within minutes.</li>
+        <li>Bonus: run <code class="bg-gray-100 px-2 py-1 rounded">SELECT count(*), state FROM pg_stat_activity GROUP BY state;</code> against your production database during peak traffic. <strong>If you see many idle-in-transaction connections, something in your app is holding the connection while doing non-database work.</strong> That is usually a slow Ruby block inside a transaction or an external HTTP call inside one.</li>
+        <li>Bonus 2: read Heroku's "Concurrency and Database Connections in Ruby with ActiveRecord" post if you have not. <strong>The math in this lesson is theirs; the post is one of the few canonical references on the topic.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-scaling-indexes" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 2 — Indexes</a>
+      <a href="/lessons/senior-scaling-hot-rows" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 4 — Hot Rows &amp; Contention →</a>
+    </div>
+  </article>
+</Layout>

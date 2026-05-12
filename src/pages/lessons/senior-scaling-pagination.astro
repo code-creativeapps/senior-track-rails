@@ -1,0 +1,230 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Scaling 7 of 8 — Pagination at Scale" description="Where offset pagination came from, why it collapses at large page numbers, and how cursor pagination — used by Mastodon, Stripe's API, and GitHub — keeps pagination fast at any scale.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Scaling Series · 7 of 8</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">📑</span>
+        <h1 class="text-4xl font-bold text-gray-900">Pagination at Scale</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where offset pagination came from, why it collapses at large page numbers, and how cursor pagination — used by Mastodon, Stripe's API, and GitHub — keeps pagination fast at any scale.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Pagination is one of those features that looks identical from the outside no matter how it is implemented. The user clicks "next page," more results appear, the URL updates. Underneath, two completely different mechanisms have dominated database history, with very different scaling properties.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Offset pagination</strong> — the kind that produces URLs like <code class="bg-gray-100 px-2 py-1 rounded">?page=42</code> — works by telling the database "skip the first N rows, then return the next M." It is the default in <code class="bg-gray-100 px-2 py-1 rounded">will_paginate</code> and <code class="bg-gray-100 px-2 py-1 rounded">kaminari</code>, the two Rails pagination libraries every developer has used. It is intuitive, it supports random access to any page, and it gives you total counts. <strong>It is also a performance trap once data grows.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Cursor pagination</strong> — sometimes called keyset pagination — works by telling the database "give me M rows where some sort key is greater than X." The cursor is the value of the sort key from the last row of the previous page. No "skip" operation, no counting; the database uses the index directly. <strong>It scales to any depth without slowing down</strong>, at the cost of giving up random access to arbitrary pages.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Every API at large scale has moved to cursor pagination. <strong>Stripe's API documentation explicitly discusses the cursor-pagination decision</strong>. GitHub's API uses cursors. Mastodon's timeline uses cursors. Twitter (now X) used them for years before pagination became a different problem entirely. <strong>The senior move is to recognize when an app is about to hit the offset-pagination ceiling and switch before the production incident, not after.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app with an admin dashboard. It paginates orders 50 per page, ordered by <code class="bg-gray-100 px-2 py-1 rounded">created_at DESC</code>. <code class="bg-gray-100 px-2 py-1 rounded">kaminari</code> is wired up, the URLs look like <code class="bg-gray-100 px-2 py-1 rounded">/admin/orders?page=N</code>:
+      </p>
+      <CodeBlock code={`class Admin::OrdersController < AdminController
+  def index
+    @orders = Order.order(created_at: :desc).page(params[:page]).per(50)
+  end
+end
+
+# Underlying SQL on page 1:
+#   SELECT * FROM orders ORDER BY created_at DESC LIMIT 50 OFFSET 0;
+
+# On page 100:
+#   SELECT * FROM orders ORDER BY created_at DESC LIMIT 50 OFFSET 4950;
+
+# On page 10,000 (after a year of growth):
+#   SELECT * FROM orders ORDER BY created_at DESC LIMIT 50 OFFSET 499,950;`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Here is what the database has to do for page 10,000</strong>: read 500,000 rows from the ordered index, throw away 499,950 of them, return the last 50. The "skip" operation is not magic. The database has to <em>physically count past</em> 499,950 entries to find row 499,951. <strong>At page 10,000, this can take hundreds of milliseconds; at page 100,000, multiple seconds.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The compounding problems:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>The "Total: 1,234,567 results" badge is its own query.</strong> <code class="bg-gray-100 px-2 py-1 rounded">COUNT(*)</code> on a large table can take seconds even with an index. Every page load runs it.</li>
+        <li><strong>Pages drift under writes.</strong> A user on page 10 clicks "next" to go to page 11. In the moment between clicks, three new orders were created. The first three rows of page 11 are now duplicates of the last three rows of page 10, because the rows shifted in the underlying sort.</li>
+        <li><strong>Concurrent requests pay the same cost.</strong> If a script paginates through all pages to export data, the script gets exponentially slower as it deepens. Worse, it holds database connections open for the duration of each query.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Most Rails apps will not hit this in their first year.</strong> When they do hit it, it shows up as "the admin panel is slow only on the deep pages," and the fix is not to add more dynos.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Cursor pagination, mechanically</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The trick: <strong>instead of "skip 49,950 rows," ask "give me 50 rows where <code class="bg-gray-100 px-2 py-1 rounded">created_at &lt;</code> the last row I saw."</strong> The database uses the index, walks 50 rows, returns them. No counting, no skipping. <strong>Same cost on page 1 as on page 10,000.</strong>
+      </p>
+      <CodeBlock code={`# A minimal cursor-pagination implementation:
+class Admin::OrdersController < AdminController
+  PAGE_SIZE = 50
+
+  def index
+    relation = Order.order(created_at: :desc, id: :desc)
+
+    if (cursor = params[:cursor])
+      created_at_str, id_str = cursor.split(",")
+      created_at = Time.zone.parse(created_at_str)
+      id         = id_str.to_i
+
+      relation = relation.where(
+        "(created_at, id) < (?, ?)",
+        created_at, id
+      )
+    end
+
+    @orders     = relation.limit(PAGE_SIZE).to_a
+    @next_cursor = if @orders.length == PAGE_SIZE
+      last = @orders.last
+      "#{last.created_at.iso8601(6)},#{last.id}"
+    end
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        A few things to notice:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. The cursor is a tuple of (created_at, id), not only created_at.</strong> If two orders have identical timestamps (rare but possible), <code class="bg-gray-100 px-2 py-1 rounded">created_at &lt; X</code> alone would skip both. Including the id as a tiebreaker makes the cursor strictly unique. <strong>The index has to cover (created_at, id) for this to be fast</strong>, which most Rails apps already have through the natural <code class="bg-gray-100 px-2 py-1 rounded">created_at</code> + primary-key index.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. The view passes the cursor in the URL.</strong> Instead of <code class="bg-gray-100 px-2 py-1 rounded">?page=11</code>, the "next page" link is <code class="bg-gray-100 px-2 py-1 rounded">?cursor=2026-05-11T14:23:00.123456Z,4827</code>. <strong>Each link is stable</strong>: if you bookmark page 11, you still see the same 50 records you saw before, even if new orders have been created since.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. There is no total count.</strong> Cursor pagination cannot tell you "you are on page 11 of 247." It can tell you "there is a next page" (because the result set was full) or "you are on the last page" (because it was not full). For most applications, this is fine — the UI shows "Next" and "Previous" buttons, not page numbers. <strong>The tradeoff is real and worth being upfront about.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When you really need offsets</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Some UIs genuinely need page numbers. Reports printed for users, admin tools with "go to page 47," search results that want to show "Showing 51-100 of 12,345." For these, two patterns soften the offset cost:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Cap the offset.</strong> Most users do not browse past page 100. After page 100, switch the UI to a search interface ("Filter by date" or "Search by ID"). <strong>Google does this</strong>: search results stop at around page 100, on the assumption that anyone who needs to look that deep should refine their query. <strong>It is a UX decision that happens to be a scaling decision.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Use a separately-cached count.</strong> The <code class="bg-gray-100 px-2 py-1 rounded">COUNT(*)</code> portion of "showing 51-100 of N" can be cached or estimated. For approximate counts, Postgres exposes <code class="bg-gray-100 px-2 py-1 rounded">pg_class.reltuples</code> as a stale-but-fast estimate. <strong>For the precision-matters case, run COUNT(*) in a background job</strong>, store the result on a small "stats" table, and update it periodically.
+      </p>
+      <CodeBlock code={`# Approximate count, very fast on huge tables:
+result = ActiveRecord::Base.connection.execute(
+  "SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'orders'"
+)
+estimate = result.first["estimate"]
+# Within ~1% of the real count for normally-vacuumed tables.
+# Returns instantly even on tables with billions of rows.`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Real-world reference patterns</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Mastodon's timeline</strong> is one of the canonical Rails references for cursor pagination at scale. Looking at the Mastodon controller code, the timeline pagination uses <code class="bg-gray-100 px-2 py-1 rounded">max_id</code> and <code class="bg-gray-100 px-2 py-1 rounded">since_id</code> parameters, mirroring the Twitter API conventions: <code class="bg-gray-100 px-2 py-1 rounded">max_id</code> for "give me older statuses than this one" and <code class="bg-gray-100 px-2 py-1 rounded">since_id</code> for "give me newer statuses than this one." <strong>The implementation is a few lines</strong> per controller, and it powers timelines with billions of total statuses across the federated network.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Stripe's API documentation</strong> is explicit about cursor pagination: every list endpoint accepts <code class="bg-gray-100 px-2 py-1 rounded">starting_after</code> and <code class="bg-gray-100 px-2 py-1 rounded">ending_before</code> parameters, which take resource IDs. The Stripe team has written publicly about <strong>why they chose cursors over offsets</strong>: API consumers needed pagination that stayed correct across writes (an analytics export script should not see duplicates), and they needed it to scale to merchants with millions of charges.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>GitHub's GraphQL API</strong> uses Relay-style cursor connections: every paginated field returns <code class="bg-gray-100 px-2 py-1 rounded">pageInfo &#123; hasNextPage, endCursor &#125;</code> and a list of <code class="bg-gray-100 px-2 py-1 rounded">edges &#123; cursor, node &#125;</code>. <strong>The shape is more elaborate than Stripe's</strong>, but the underlying mechanism is the same: opaque cursors based on the last sort-key value, with no integer page numbers anywhere in the protocol. <strong>Adopting this shape is what allows GitHub's GraphQL API to paginate over repositories with millions of issues without ever slowing down.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Artsy Engineering's posts</strong> on building artist/artwork browse pages document the pragmatic mix: cursor pagination for the public-facing endless-scroll feed, offset pagination capped at page 50 for the admin UI where users genuinely need to "jump to page 25." <strong>The split based on actual UX needs is what most senior Rails apps end up doing.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Rails-specific tooling</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The <code class="bg-gray-100 px-2 py-1 rounded">cursor_pagination</code> and <code class="bg-gray-100 px-2 py-1 rounded">order_query</code> gems</strong> wrap the cursor logic shown above so application code does not have to. <code class="bg-gray-100 px-2 py-1 rounded">order_query</code> in particular is well-documented and handles the cursor encoding/decoding cleanly. For new apps, reaching for one of these is faster than hand-rolling.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>For existing offset-paginated apps, the migration is usually a two-step rollout</strong>: add cursor pagination as a new endpoint or new query parameter, leave the offset version available during the transition, then deprecate the offsets once consumers (clients, scripts, integrations) have switched. <strong>Do not try to migrate in a single deploy</strong>; cursor and offset URLs are not compatible, and breaking bookmarks is a real UX cost.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">A side-by-side benchmark</h2>
+      <p class="text-gray-700 leading-relaxed">
+        For a table with 1,000,000 orders and an index on <code class="bg-gray-100 px-2 py-1 rounded">created_at DESC</code>, here is what EXPLAIN ANALYZE typically looks like for the two approaches:
+      </p>
+      <CodeBlock code={`-- Offset, page 1:
+SELECT * FROM orders ORDER BY created_at DESC LIMIT 50 OFFSET 0;
+-- Index Scan, ~0.1ms
+
+-- Offset, page 10,000:
+SELECT * FROM orders ORDER BY created_at DESC LIMIT 50 OFFSET 499,950;
+-- Index Scan, but reads 500,000 index entries before returning 50
+-- Typical execution time: ~400-800ms
+
+-- Cursor, equivalent to page 10,000:
+SELECT * FROM orders WHERE (created_at, id) < ('2025-08-12T14:23:00', 491234)
+  ORDER BY created_at DESC, id DESC LIMIT 50;
+-- Index Scan, reads 50 index entries, returns 50 rows
+-- Typical execution time: ~0.1ms (same as page 1)`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The numbers are not subtle</strong>: 4,000x to 8,000x faster for deep pagination, regardless of how much further you scroll. The cursor query is as fast on the millionth page as on the first.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When NOT to switch</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>For small tables (under ~10k rows) offset pagination is fine forever.</strong> The deep-page cost is negligible. Migrating to cursors adds UI complexity (no page numbers) for no performance gain.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>For admin UIs where users actually need page numbers and traffic is low</strong>, offset is fine even on larger tables, as long as you do not chain it with COUNT(*) or expose deep pagination publicly.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>For public APIs and user-facing list views with substantial traffic on large tables — switch to cursors before you need to.</strong> The migration is much easier when it is preemptive than when it is reactive after a performance incident.
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>The senior heuristic:</strong> if a paginated endpoint is exposed to API consumers who might script their way through every page, use cursors from day one. If a paginated endpoint is for a human's UI and they will not scroll past page 50, offset is fine. <strong>The decision is about consumption patterns, not table size alone.</strong>
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>Offset pagination conflates two questions: "where am I in this list?" and "which records am I currently looking at?" Offsets answer the first with an integer ("page 11"); cursors answer the second with a key ("everything after row X"). <strong>The integer answer is more intuitive for humans, but the database does not have an integer-based index over your data — it has a sort-key-based index. Offset pagination asks the database to do work it is not designed for.</strong></p>
+        <p>The deeper move is that <strong>random access to deep pages is a UX assumption, not a database feature</strong>. Real users rarely jump from page 1 to page 47; they scroll, they filter, they search. When you design the UI around what users actually do, cursor pagination matches the data-access pattern the database is built for, and the deep-page problem disappears entirely.</p>
+        <p>The pragmatic value: <strong>every API at scale eventually moves to cursors</strong>. Stripe, GitHub, Twitter, Mastodon, Instagram — all of them. The pattern is not exotic; it is what every large-scale Rails-and-friends shop has converged on. Recognizing the pattern when you have ~100k rows is much cheaper than discovering it at 10 million.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Find your three most-used paginated endpoints. <strong>Use APM or your logs to find the largest page number a real user has ever requested.</strong> If anyone has requested page &gt; 50, the deep-page cost is hitting real users.</li>
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">EXPLAIN ANALYZE</code> on a paginated query at <code class="bg-gray-100 px-2 py-1 rounded">OFFSET 10_000</code>. <strong>Note the execution time and the number of rows scanned.</strong> Compare to <code class="bg-gray-100 px-2 py-1 rounded">OFFSET 0</code>. The delta tells you what you are paying.</li>
+        <li>Pick one endpoint and prototype the cursor version locally. <strong>The cursor logic is ~10 lines</strong>; the UI change is the bigger work. Decide whether your users need page numbers or whether "Next/Previous" buttons would do.</li>
+        <li>Bonus: read Mastodon's <code class="bg-gray-100 px-2 py-1 rounded">app/controllers/api/v1/timelines/</code> directory in their codebase. <strong>Notice how short the pagination code is and how it uses <code class="bg-gray-100 px-2 py-1 rounded">max_id</code> / <code class="bg-gray-100 px-2 py-1 rounded">since_id</code> instead of <code class="bg-gray-100 px-2 py-1 rounded">page</code>.</strong> That implementation, repeated across timelines, is what handles the federated network's traffic.</li>
+        <li>Bonus 2: install the <code class="bg-gray-100 px-2 py-1 rounded">order_query</code> gem in a side branch. Wire one of your endpoints to use it. <strong>The DSL handles the cursor encoding and tie-breaker logic that is tedious to write by hand.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-scaling-background-jobs" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 6 — Background Jobs</a>
+      <a href="/lessons/senior-scaling-bulk-operations" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 8 — Bulk Operations &amp; Memory →</a>
+    </div>
+  </article>
+</Layout>

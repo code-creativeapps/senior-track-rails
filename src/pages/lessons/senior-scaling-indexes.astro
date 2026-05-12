@@ -1,0 +1,260 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Scaling 2 of 8 — Indexes & EXPLAIN" description="Where database indexes come from, why a single missing index is the most common Rails scaling problem, and how to read EXPLAIN well enough to fix it.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Scaling Series · 2 of 8</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">📇</span>
+        <h1 class="text-4xl font-bold text-gray-900">Indexes &amp; EXPLAIN</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where database indexes come from, why a single missing index is the most common Rails scaling problem, and how to read EXPLAIN well enough to fix it.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Database indexes are the oldest scaling technique in computing. <strong>The B-tree, the data structure behind most relational-database indexes, was invented at Boeing in 1971 by Rudolf Bayer and Edward McCreight.</strong> The point of a B-tree is to let you find any row in a billion-row table with about 30 disk reads, instead of reading the entire table. Indexes have been the highest-impact performance tool in databases ever since.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">EXPLAIN</code> arrived next.</strong> Every serious database has a command that shows the planner's decisions for a query: which indexes it considered, which one it chose, how many rows it expects to scan, what the cost estimate is. Postgres's version is documented from the early 1990s. Reading <code class="bg-gray-100 px-2 py-1 rounded">EXPLAIN</code> output is the single skill that turns a Rails developer into a database-aware Rails developer.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The reason this matters specifically for Rails: <strong>ActiveRecord hides the SQL until something breaks</strong>. A junior writes <code class="bg-gray-100 px-2 py-1 rounded">User.where(email: params[:email]).first</code>, ships it, and never thinks about the index. The query runs fast on 100 rows. At 500,000 rows, the same query starts taking 800ms because the database is reading the whole table. <strong>The Rails code did not change; the underlying database performance did, because the data shape did.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior move: <strong>when a query slows down, ask the database why before changing anything else</strong>. Indexes are physics: they let the database do less work. Every other scaling technique in this series is downstream of "the database is doing the right amount of work for the question you asked."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app that has been adding features for two years. The team built a "find user by email" lookup, used in sign-in. Sign-in was fast for the first year. At 800,000 users, sign-in starts taking 600ms at p95. Sentry alerts. The team's first instinct is "we need to cache the user lookup in Redis."
+      </p>
+      <CodeBlock code={`# app/controllers/sessions_controller.rb
+class SessionsController < ApplicationController
+  def create
+    user = User.find_by(email: params[:email])  # 600ms at p95
+    if user&.authenticate(params[:password])
+      session[:user_id] = user.id
+      redirect_to root_path
+    else
+      render :new
+    end
+  end
+end
+
+# db/schema.rb
+create_table "users" do |t|
+  t.string :email     # ...without an index
+  t.string :password_digest
+  t.timestamps
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The cache idea is wrong, and the diagnosis takes thirty seconds.</strong> Open psql, run:
+      </p>
+      <CodeBlock code={`EXPLAIN ANALYZE SELECT * FROM users WHERE email = 'alice@example.com' LIMIT 1;
+
+-- output:
+-- Seq Scan on users  (cost=0.00..18395.00 rows=1 width=92)
+--                    (actual time=312.4..612.8 rows=1 loops=1)
+--   Filter: ((email)::text = 'alice@example.com')
+--   Rows Removed by Filter: 799,999
+-- Planning Time: 0.184 ms
+-- Execution Time: 612.819 ms`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The bug is in two words: "Seq Scan."</strong> Postgres has no index on <code class="bg-gray-100 px-2 py-1 rounded">email</code>, so to find one user it reads every row in the table. 800,000 rows examined to find one. 612ms of wasted database time, on a request that runs thousands of times a day.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fix is a one-line migration:
+      </p>
+      <CodeBlock code={`class AddIndexOnUserEmail < ActiveRecord::Migration[8.0]
+  def change
+    add_index :users, :email, unique: true
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        After the migration, the same EXPLAIN looks like this:
+      </p>
+      <CodeBlock code={`-- Index Scan using index_users_on_email on users
+--   (cost=0.42..8.44 rows=1 width=92)
+--   (actual time=0.034..0.036 rows=1 loops=1)
+--   Index Cond: ((email)::text = 'alice@example.com')
+-- Planning Time: 0.205 ms
+-- Execution Time: 0.058 ms`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>612ms became 0.058ms.</strong> A 10,000x improvement, from a one-line change. <strong>No Redis. No cache invalidation logic. No new infrastructure.</strong> Only the database doing the right amount of work.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How to read EXPLAIN</h2>
+      <p class="text-gray-700 leading-relaxed">
+        EXPLAIN output looks intimidating until you know the four things to read. The senior shortcut: <strong>look for these four words first</strong>:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Seq Scan</code></strong> — the database is reading the whole table. For tables over a few thousand rows, this is the canonical "you need an index" signal.</li>
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Index Scan</code></strong> — the database is using an index. Good. The query is reading only the rows that match.</li>
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Index Only Scan</code></strong> — the database is answering the query entirely from the index, without touching the underlying table at all. <strong>This is the fastest shape</strong> and worth designing for when the same query is hot.</li>
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Bitmap Heap Scan</code></strong> — the database used an index to find the rows but had to fetch them from the table. Fine; usually fast.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Then check the numbers.</strong> Three matter:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Rows.</strong> Compare "estimated rows" to "actual rows" (with <code class="bg-gray-100 px-2 py-1 rounded">EXPLAIN ANALYZE</code>). If the planner thought it would scan 100 rows but actually scanned 800,000, the table statistics are stale. Run <code class="bg-gray-100 px-2 py-1 rounded">ANALYZE users;</code> and re-EXPLAIN.</li>
+        <li><strong>Execution Time.</strong> If it is more than a few milliseconds for a single-row lookup, something is wrong.</li>
+        <li><strong>Rows Removed by Filter.</strong> This number tells you how many rows the database read but threw away. If it is large, your <code class="bg-gray-100 px-2 py-1 rounded">WHERE</code> clause is not selective enough on the index, or there is no usable index for it.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        In Rails console, you can run EXPLAIN on any ActiveRecord relation. <strong>This is the everyday tool</strong> for "is this query going to scale?":
+      </p>
+      <CodeBlock code={`puts User.where(email: "alice@example.com").explain
+
+# or for the actual execution plan with real timings:
+puts User.where(email: "alice@example.com").explain(:analyze)
+
+# in a migration, you can also use the database task:
+#   bin/rails db:analyze`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Composite, partial, and covering indexes</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Single-column indexes solve most problems. <strong>Three other index shapes solve the remaining ones</strong>, and intermediate Rails developers often do not know they exist.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Composite indexes</strong> cover multiple columns. For a query that filters on two columns together, a composite index is much faster than two separate single-column indexes:
+      </p>
+      <CodeBlock code={`# Slow without a composite index, even with index_on_user_id and index_on_status separately:
+Order.where(user_id: u.id, status: "paid").order(created_at: :desc)
+
+# Fast with:
+add_index :orders, [:user_id, :status, :created_at]`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The order of columns in a composite index matters. <strong>The leftmost columns are the ones the index can satisfy</strong>: an index on <code class="bg-gray-100 px-2 py-1 rounded">(user_id, status, created_at)</code> can answer queries filtering on <code class="bg-gray-100 px-2 py-1 rounded">user_id</code> alone, or on <code class="bg-gray-100 px-2 py-1 rounded">user_id + status</code>, or on all three — but not a query filtering only on <code class="bg-gray-100 px-2 py-1 rounded">status</code>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Partial indexes</strong> cover only the rows that match a condition. They are smaller, faster to maintain, and ideal for queries that always filter on the same predicate:
+      </p>
+      <CodeBlock code={`# This index only contains rows where status = 'pending'.
+# Queries that filter on status='pending' use it; others don't see it.
+add_index :orders, :user_id, where: "status = 'pending'", name: "idx_pending_orders_on_user"
+
+# Useful when 99% of orders are 'paid' but you frequently query
+# for the 1% that are 'pending' — the index is tiny and very fast.`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Covering indexes</strong> (called "include columns" in Postgres) let an Index Only Scan return columns that are not part of the indexed key, by storing them in the index leaf:
+      </p>
+      <CodeBlock code={`add_index :orders, :user_id, include: [:status, :total_cents]
+
+# Now Order.where(user_id: u.id).select(:status, :total_cents)
+# can run entirely from the index, never touching the orders table.`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Covering indexes are an advanced move worth knowing about. They are not free — every column in the include list makes the index bigger and updates slower — but for read-heavy hot paths, they can collapse a query from milliseconds to microseconds.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How to find missing indexes in production</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Two queries every Rails engineer should know. The first finds missing indexes on foreign keys:
+      </p>
+      <CodeBlock code={`-- Find foreign-key columns without indexes.
+-- Almost every match here is a real bug.
+SELECT c.conrelid::regclass AS table_name,
+       a.attname            AS column_name,
+       c.conname            AS fk_constraint
+FROM pg_constraint c
+JOIN pg_attribute a
+  ON a.attrelid = c.conrelid
+ AND a.attnum   = ANY(c.conkey)
+WHERE c.contype = 'f'
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_index i
+    WHERE i.indrelid = c.conrelid
+      AND a.attnum   = ANY(i.indkey)
+  );`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Every row this returns is a foreign-key column with no index.</strong> Rails creates foreign-key constraints automatically through <code class="bg-gray-100 px-2 py-1 rounded">t.references</code> but does not always add the index. Every missing index here turns "find this user's orders" into a sequential scan on the orders table.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The second query, <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code> from the previous lesson, ordered by total time, tells you which queries are using the most database time across all requests. The top entries are almost always either missing an index, doing an N+1, or returning too many rows.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The combination of these two queries is the senior's "scaling backlog" generator.</strong> Run them quarterly. Every match is a real, named, fixable issue. Most of them are one-line migrations.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What real teams have written</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Shopify Engineering</strong> has published extensively about index strategy at scale. Their post on identifying problematic queries using <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code> mirrors the diagnostic flow above. Their internal tooling around adding indexes online (without blocking writes) is open-source as <code class="bg-gray-100 px-2 py-1 rounded">lhm</code> and later <code class="bg-gray-100 px-2 py-1 rounded">strong_migrations</code>, both worth reading for the operational discipline behind a migration that runs against billions of rows.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>GitHub Engineering's</strong> public writing on MySQL at scale repeatedly returns to the same point: when a query slows down, the answer is almost always either a missing index or a query plan that flipped because table statistics drifted. <strong>The architectural moves (Vitess, sharding) came much later, after every reasonable single-database move had been made.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Artsy Engineering's</strong> posts on Rails performance often open with EXPLAIN output and end with a one-line index addition. The pattern is so common that it is almost the genre: "we had a slow page, we ran EXPLAIN, the plan showed a Seq Scan, we added an index."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Discourse's Rails monolith</strong> has hundreds of indexes in <code class="bg-gray-100 px-2 py-1 rounded">db/schema.rb</code>, many of them composite. Reading the schema is instructive: <strong>almost every multi-column WHERE clause in the codebase has a matching composite index</strong>, designed with the leading-column rule in mind. That discipline is what allows Discourse to host single-instance forums with millions of posts on modest hardware.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When NOT to add an index</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Indexes are not free. Each one has costs:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Writes get slower.</strong> Every INSERT, UPDATE, or DELETE has to update the index. A table with 12 indexes pays 12 index updates per write.</li>
+        <li><strong>Disk space.</strong> A composite index on three columns can be larger than the table itself on a wide row.</li>
+        <li><strong>Maintenance.</strong> Adding an index on a 100M-row table on a busy database without <code class="bg-gray-100 px-2 py-1 rounded">CONCURRENTLY</code> locks writes for the duration of the build, which can be hours.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The rule of thumb: <strong>add an index when there is a real query that needs it, with measured cost, and a plausible read-to-write ratio that favors the index</strong>. Do not add indexes "in case." Production database administrators have horror stories about adding too many.
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Two Rails-specific operational rules:</strong> use <code class="bg-gray-100 px-2 py-1 rounded">algorithm: :concurrently</code> when adding indexes to tables larger than ~100k rows in production (it lets the build happen without blocking writes), and <strong>install the <code class="bg-gray-100 px-2 py-1 rounded">strong_migrations</code> gem</strong> if your team has not already. It catches dangerous migrations in CI before they hit production.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>An index is the database's way of pre-computing an answer to a question the application asks repeatedly. <strong>It trades disk space and slightly slower writes for dramatically faster reads on the indexed dimension.</strong> When the read-to-write ratio is high (as it is for most Rails apps), the trade pays for itself many times over.</p>
+        <p>The deeper move is recognizing that <strong>"the query is slow" almost always means "the database is doing more work than necessary"</strong>. EXPLAIN tells you exactly what work it is doing. The diagnosis is rarely subtle once you can read the output. The senior skill is not knowing intricate index theory; it is having the discipline to open psql and run EXPLAIN before doing anything else.</p>
+        <p>The pragmatic value of this lesson: <strong>most "we need to scale!" panics resolve into one or two missing indexes</strong>. Adding them takes a few minutes. Not adding them costs you years of trying to outpace a problem that was never about architecture in the first place.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run the "missing indexes on foreign keys" query above against your production database. <strong>For each row it returns, that is a missing index you can ship today.</strong></li>
+        <li>Pick your slowest <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code> entry. Open psql and run <code class="bg-gray-100 px-2 py-1 rounded">EXPLAIN ANALYZE</code> on it. Look for <strong>Seq Scan</strong> in the output.</li>
+        <li>If you see a Seq Scan on a table over ~10k rows, figure out which columns the WHERE clause needs an index on. Write the migration with <code class="bg-gray-100 px-2 py-1 rounded">algorithm: :concurrently</code>.</li>
+        <li>Look at your three slowest endpoints in your APM. For each, find the underlying SQL in the flame chart. <strong>Run EXPLAIN ANALYZE on each one.</strong> Note the execution time, and what kind of scan the plan is using.</li>
+        <li>Bonus: read the <code class="bg-gray-100 px-2 py-1 rounded">db/schema.rb</code> of an open-source Rails app you respect (Discourse, Forem, Mastodon). <strong>Count the indexes per table.</strong> Notice how many composite indexes there are on the highest-traffic tables. That density is what carries the app at scale.</li>
+        <li>Bonus 2: install <code class="bg-gray-100 px-2 py-1 rounded">strong_migrations</code> in your app. <strong>Run a destructive migration in development and watch it refuse to ship.</strong> The gem catches several years of operational mistakes that intermediate teams make.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-scaling-diagnose" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 1 — Diagnose</a>
+      <a href="/lessons/senior-scaling-concurrency" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 3 — Concurrency Model →</a>
+    </div>
+  </article>
+</Layout>
