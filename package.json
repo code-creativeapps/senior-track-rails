@@ -15,7 +15,8 @@
     "@ruby/3.3-wasm-wasi": "^2.9.3-2.9.4",
     "@ruby/wasm-wasi": "^2.9.3-2.9.4",
     "astro": "^4.16.19",
-    "astro-icon": "^1.1.5"
+    "astro-icon": "^1.1.5",
+    "monaco-editor": "^0.55.1"
   },
   "devDependencies": {
     "@astrojs/tailwind": "^5.0.0",

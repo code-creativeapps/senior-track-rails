@@ -1,14 +1,30 @@
 ---
-import Layout from '../../layouts/Layout.astro';
+import DrillLayout from '../../layouts/DrillLayout.astro';
 import { Icon } from 'astro-icon/components';
 
 const drill = {
+  topic: 'Ruby',
+  topicIcon: 'lucide:gem',
   title: 'Filter active users',
+  slug: 'filter-active-users',
   difficulty: 'Junior',
-  description: `Implement <code>active_users(users)</code>. Given an array of hashes where each hash has a <code>:name</code> and a <code>:active</code> key, return only the active ones, sorted alphabetically by name.`,
+  language: 'Ruby',
+  descriptionHtml: `
+    <p>Implement <code>active_users(users)</code>. Given an array of hashes where each hash has a <code>:name</code> and a <code>:active</code> key, return only the active ones, sorted alphabetically by name.</p>
+    <p>The function should return <code>[]</code> if the input is empty or no users are active.</p>
+  `,
+  example1: `Input:  [{ name: "Karim", active: true }, { name: "Sara", active: false }]
+Output: [{ name: "Karim", active: true }]`,
+  example2: `Input:  [{ name: "Zoe", active: true }, { name: "Alice", active: true }]
+Output: [{ name: "Alice", active: true }, { name: "Zoe", active: true }]`,
+  constraints: ['users is an Array of Hashes', '0 ≤ users.size ≤ 10⁴'],
   starterCode: `# Implement this method:
 def active_users(users)
   # your code here
+end
+`,
+  solution: `def active_users(users)
+  users.select { |u| u[:active] }.sort_by { |u| u[:name] }
 end
 `,
   tests: `require 'minitest'
@@ -45,7 +61,6 @@ class TestActiveUsers < Minitest::Test
   end
 end
 
-# Manual run (we're not on the CLI, so we set the seed ourselves).
 Minitest.seed = 0
 
 passed = 0
@@ -70,98 +85,267 @@ puts(failed.zero? ? "0 failures, 0 errors" : "FAIL")
 };
 ---
 
-<Layout title="Drill — Filter Active Users" description="Proof of concept: write Ruby in your browser, run tests against it, see pass/fail. Powered by ruby.wasm.">
-  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
-    <div>
-      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
-        <Icon name="lucide:arrow-left" class="w-4 h-4 inline-block" /> Back to Course
-      </a>
-      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Drill · Proof of Concept</p>
-      <h1 class="text-4xl font-bold text-ruby-dark mb-4">{drill.title}</h1>
-      <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-700 border border-green-300">{drill.difficulty}</span>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-      <!-- Description pane -->
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
-        <div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-3">Description</h3>
-          <p class="text-gray-700 leading-relaxed" set:html={drill.description}></p>
+<DrillLayout title={`${drill.title} — Drill`} description={`Practice Ruby drill: ${drill.title}. Write your solution in the browser, run tests instantly with ruby.wasm.`}>
+  <div class="h-full flex flex-col">
+    <!-- Top bar -->
+    <header class="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 bg-[#15171c] flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <a href="/" class="text-ruby font-bold text-lg hover:text-ruby-dark transition-colors">ST</a>
+        <button class="px-2 py-1 hover:bg-gray-800 rounded-md transition-colors" title="Drill list">
+          <Icon name="lucide:list" class="w-4 h-4 text-gray-400" />
+        </button>
+        <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-gray-800/60 text-sm">
+          <Icon name={drill.topicIcon} class="w-4 h-4 text-ruby" />
+          <span class="font-medium text-gray-200">{drill.topic}</span>
         </div>
-
-        <div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-3">Example</h3>
-          <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-sm overflow-x-auto"><code>{`active_users([
-  { name: "Karim", active: true  },
-  { name: "Sara",  active: false },
-  { name: "Bob",   active: true  },
-])
-# => [
-#      { name: "Bob",   active: true },
-#      { name: "Karim", active: true },
-#    ]`}</code></pre>
-        </div>
-
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-gray-700">
-          <p><strong>How this works:</strong> Your Ruby code runs in your own browser via ruby.wasm. No server, no submission. Click Run to test it, Submit to run the test suite.</p>
-        </div>
+        <button class="p-1.5 hover:bg-gray-800 rounded-md transition-colors" title="Previous drill">
+          <Icon name="lucide:chevron-left" class="w-4 h-4 text-gray-400" />
+        </button>
+        <button class="p-1.5 hover:bg-gray-800 rounded-md transition-colors" title="Next drill">
+          <Icon name="lucide:chevron-right" class="w-4 h-4 text-gray-400" />
+        </button>
+        <button class="p-1.5 hover:bg-gray-800 rounded-md transition-colors" title="Timer">
+          <Icon name="lucide:timer" class="w-4 h-4 text-gray-400" />
+        </button>
       </div>
+      <div class="flex items-center gap-2">
+        <a href="/" class="text-xs text-gray-400 hover:text-gray-200 transition-colors">Back to Course</a>
+        <span id="status" class="text-xs text-gray-500 ml-3">Loading Ruby…</span>
+      </div>
+    </header>
 
-      <!-- Editor pane -->
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
-          <span class="text-sm font-medium text-gray-700">Ruby</span>
-          <div id="status" class="text-xs text-gray-500">Loading Ruby…</div>
-        </div>
-
-        <textarea id="editor" spellcheck="false" class="w-full font-mono text-sm bg-gray-900 text-gray-100 p-4 border-0 focus:outline-none focus:ring-0 resize-none" style="min-height: 360px;" set:html={drill.starterCode}></textarea>
-
-        <div class="flex items-center gap-2 px-4 py-3 bg-gray-50 border-t border-gray-200">
-          <button id="run-btn" disabled class="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
-            <Icon name="lucide:play" class="w-4 h-4" />
-            Run
+    <!-- Body: two panes -->
+    <main class="flex-1 flex overflow-hidden">
+      <!-- Left pane: tabs + content -->
+      <section class="w-1/2 flex flex-col border-r border-gray-800 bg-[#15171c]">
+        <!-- Tabs -->
+        <div class="flex items-center border-b border-gray-800 px-2">
+          <button data-tab="description" class="drill-tab active flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 border-purple-500 text-gray-100">
+            <Icon name="lucide:file-text" class="w-3.5 h-3.5" />
+            Description
           </button>
-          <button id="submit-btn" disabled class="px-4 py-2 bg-ruby text-white rounded-md text-sm font-medium hover:bg-ruby-dark disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
-            <Icon name="lucide:check-check" class="w-4 h-4" />
-            Submit
+          <button data-tab="solution" class="drill-tab flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+            <Icon name="lucide:check-circle" class="w-3.5 h-3.5" />
+            Solution
+          </button>
+          <button data-tab="submissions" class="drill-tab flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+            <Icon name="lucide:history" class="w-3.5 h-3.5" />
+            Submissions
+          </button>
+          <button data-tab="ai" class="drill-tab flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500" disabled title="Pro feature">
+            <Icon name="lucide:sparkles" class="w-3.5 h-3.5" />
+            AI Analyzer
+            <Icon name="lucide:lock" class="w-3 h-3" />
           </button>
         </div>
 
-        <div class="border-t border-gray-200 bg-gray-900 text-gray-100 p-4 text-sm font-mono overflow-x-auto" style="min-height: 120px;">
-          <pre id="output" class="whitespace-pre-wrap m-0">Click Run to execute your code, or Submit to run the tests.</pre>
+        <!-- Tab content -->
+        <div class="flex-1 overflow-y-auto p-6">
+          <!-- Description tab -->
+          <div data-pane="description" class="drill-pane space-y-5">
+            <div>
+              <h1 class="text-2xl font-semibold mb-3 text-gray-100">{drill.title}</h1>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded border border-amber-700/50 bg-amber-900/30 text-amber-400">
+                  <Icon name="lucide:gem" class="w-3 h-3" />
+                  {drill.language}
+                </span>
+                <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded border border-green-700/50 bg-green-900/30 text-green-400">
+                  {drill.difficulty}
+                </span>
+              </div>
+            </div>
+
+            <div class="text-gray-300 space-y-3 leading-relaxed text-[15px]" set:html={drill.descriptionHtml}></div>
+
+            <div>
+              <h3 class="text-sm font-semibold text-gray-200 mb-2">Example 1:</h3>
+              <pre class="border-l-2 border-gray-600 pl-4 text-sm text-gray-300 font-mono whitespace-pre-wrap">{drill.example1}</pre>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-semibold text-gray-200 mb-2">Example 2:</h3>
+              <pre class="border-l-2 border-gray-600 pl-4 text-sm text-gray-300 font-mono whitespace-pre-wrap">{drill.example2}</pre>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-semibold text-gray-200 mb-2">Constraints:</h3>
+              <ul class="list-disc list-inside text-sm text-gray-300 space-y-1">
+                {drill.constraints.map((c) => (
+                  <li><code class="px-1.5 py-0.5 rounded bg-gray-800 text-gray-200">{c}</code></li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <!-- Solution tab -->
+          <div data-pane="solution" class="drill-pane hidden">
+            <div class="bg-amber-900/20 border border-amber-700/40 rounded-md p-4 mb-4 text-sm text-amber-200">
+              <p><strong>Solution.</strong> Try the problem first; this is here for after you've solved it (or you're truly stuck).</p>
+            </div>
+            <pre class="bg-[#0f1115] border border-gray-800 rounded-md p-4 text-sm font-mono text-gray-200 overflow-x-auto whitespace-pre">{drill.solution}</pre>
+          </div>
+
+          <!-- Submissions tab -->
+          <div data-pane="submissions" class="drill-pane hidden">
+            <div id="submissions-list" class="text-sm text-gray-400">
+              <p>No submissions yet. Click Submit to run the tests.</p>
+            </div>
+          </div>
+
+          <!-- AI Analyzer tab (locked) -->
+          <div data-pane="ai" class="drill-pane hidden">
+            <div class="text-center py-12">
+              <Icon name="lucide:sparkles" class="w-10 h-10 text-gray-600 mx-auto mb-3" />
+              <h3 class="text-lg font-semibold text-gray-300 mb-2">AI Analyzer</h3>
+              <p class="text-sm text-gray-500 max-w-xs mx-auto">Get a senior-level code review on every submission. Available on Pro.</p>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <div class="flex justify-between items-center pt-4">
-      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
-      <span class="text-gray-400 text-sm">Drill POC · ruby.wasm in the browser</span>
-    </div>
-  </article>
+      <!-- Right pane: editor + console -->
+      <section class="w-1/2 flex flex-col bg-[#1e1e1e]">
+        <!-- Editor header -->
+        <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-[#15171c]">
+          <span class="text-sm font-medium text-gray-300">{drill.language}</span>
+          <div class="flex items-center gap-1">
+            <button id="reset-btn" class="p-1.5 hover:bg-gray-800 rounded-md transition-colors text-gray-400" title="Reset to starter">
+              <Icon name="lucide:rotate-ccw" class="w-3.5 h-3.5" />
+            </button>
+            <button id="fullscreen-btn" class="p-1.5 hover:bg-gray-800 rounded-md transition-colors text-gray-400" title="Fullscreen editor">
+              <Icon name="lucide:maximize" class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
 
-  <script id="drill-data" type="application/json" set:html={JSON.stringify({ tests: drill.tests })}></script>
+        <!-- Monaco mounts here -->
+        <div id="editor" class="flex-1 min-h-0"></div>
+
+        <!-- Console / Test panel (collapsible) -->
+        <div class="border-t border-gray-800 bg-[#15171c] flex-shrink-0">
+          <div class="flex items-center justify-between px-3 py-2 border-b border-gray-800">
+            <button id="console-toggle" class="flex items-center gap-1 text-sm text-gray-300 hover:text-gray-100">
+              <Icon name="lucide:chevron-down" id="console-chevron" class="w-4 h-4 transition-transform" />
+              Console / Test
+            </button>
+            <div class="flex items-center gap-2">
+              <button id="run-btn" disabled class="px-3 py-1.5 border border-gray-700 bg-transparent rounded-md text-sm font-medium text-gray-200 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
+                <Icon name="lucide:play" class="w-3.5 h-3.5" />
+                Run
+              </button>
+              <button id="submit-btn" disabled class="px-3 py-1.5 border border-green-700 bg-transparent rounded-md text-sm font-medium text-green-400 hover:bg-green-900/30 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
+                <Icon name="lucide:upload" class="w-3.5 h-3.5" />
+                Submit
+              </button>
+            </div>
+          </div>
+          <div id="console-panel" class="overflow-auto" style="max-height: 200px;">
+            <pre id="output" class="m-0 p-3 text-xs font-mono text-gray-300 whitespace-pre-wrap">Ruby loads on first visit (≈34MB, cached after). When ready, write your solution and click Submit.</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Drill data -->
+  <script id="drill-data" type="application/json" set:html={JSON.stringify({
+    starterCode: drill.starterCode,
+    tests: drill.tests,
+    slug: drill.slug,
+  })}></script>
 
   <script>
     import { DefaultRubyVM } from "@ruby/wasm-wasi/dist/browser";
+    import * as monaco from 'monaco-editor';
+
+    // Stub workers — basic editor works fine without language services for our use.
+    self.MonacoEnvironment = {
+      getWorker: () => {
+        const code = 'self.onmessage = () => {};';
+        return new Worker(URL.createObjectURL(new Blob([code], { type: 'application/javascript' })));
+      },
+    };
 
     const data = JSON.parse(document.getElementById('drill-data')!.textContent!);
     const statusEl = document.getElementById('status')!;
     const outputEl = document.getElementById('output')!;
-    const editorEl = document.getElementById('editor') as HTMLTextAreaElement;
-    const runBtn   = document.getElementById('run-btn') as HTMLButtonElement;
+    const runBtn = document.getElementById('run-btn') as HTMLButtonElement;
     const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+    const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
 
-    // Load the WASM binary from /public.
-    statusEl.textContent = "Loading Ruby (≈34MB, cached after first load)…";
-    const wasmResp = await fetch("/ruby+stdlib.wasm");
+    // ---- Tab switching ----
+    const tabs = document.querySelectorAll<HTMLElement>('.drill-tab');
+    const panes = document.querySelectorAll<HTMLElement>('.drill-pane');
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.tab;
+        if (!target) return;
+        tabs.forEach(b => {
+          b.classList.remove('border-purple-500', 'text-gray-100');
+          b.classList.add('border-transparent', 'text-gray-400');
+        });
+        btn.classList.remove('border-transparent', 'text-gray-400');
+        btn.classList.add('border-purple-500', 'text-gray-100');
+        panes.forEach(p => {
+          if (p.dataset.pane === target) p.classList.remove('hidden');
+          else p.classList.add('hidden');
+        });
+      });
+    });
+
+    // ---- Console toggle ----
+    const consoleToggle = document.getElementById('console-toggle')!;
+    const consolePanel = document.getElementById('console-panel')!;
+    const consoleChevron = document.getElementById('console-chevron')!;
+    let consoleOpen = true;
+    consoleToggle.addEventListener('click', () => {
+      consoleOpen = !consoleOpen;
+      consolePanel.style.display = consoleOpen ? '' : 'none';
+      consoleChevron.style.transform = consoleOpen ? '' : 'rotate(-90deg)';
+    });
+
+    // ---- Monaco ----
+    // Persist code per drill in localStorage.
+    const lsKey = `drill:${data.slug}:code`;
+    const initialCode = localStorage.getItem(lsKey) ?? data.starterCode;
+
+    const editor = monaco.editor.create(document.getElementById('editor')!, {
+      value: initialCode,
+      language: 'ruby',
+      theme: 'vs-dark',
+      fontSize: 14,
+      minimap: { enabled: false },
+      automaticLayout: true,
+      scrollBeyondLastLine: false,
+      tabSize: 2,
+      wordBasedSuggestions: 'off',
+      quickSuggestions: false,
+      suggestOnTriggerCharacters: false,
+      occurrencesHighlight: 'off',
+    });
+
+    editor.onDidChangeModelContent(() => {
+      localStorage.setItem(lsKey, editor.getValue());
+    });
+
+    resetBtn.addEventListener('click', () => {
+      if (confirm('Reset to starter code? Your current code will be lost.')) {
+        editor.setValue(data.starterCode);
+      }
+    });
+
+    // ---- ruby.wasm ----
+    statusEl.textContent = 'Loading Ruby (~34MB, cached after first load)…';
+    const wasmResp = await fetch('/ruby+stdlib.wasm');
     if (!wasmResp.ok) {
-      statusEl.textContent = "Failed to fetch ruby+stdlib.wasm";
-      throw new Error("wasm fetch failed");
+      statusEl.textContent = 'Failed to fetch ruby+stdlib.wasm';
+      throw new Error('wasm fetch failed');
     }
     const wasmModule = await WebAssembly.compileStreaming(wasmResp);
     const { vm } = await DefaultRubyVM(wasmModule);
 
-    statusEl.innerHTML = '<span class="text-green-600 font-medium">Ruby ready ✓</span>';
+    statusEl.innerHTML = '<span class="text-green-400 font-medium">Ruby ready ✓</span>';
     runBtn.disabled = false;
     submitBtn.disabled = false;
 
@@ -174,7 +358,7 @@ puts(failed.zero? ? "0 failures, 0 errors" : "FAIL")
           begin
             ${code}
           rescue Exception => e
-            $stdout.puts(\"\\n\#{e.class}: \#{e.message}\")
+            $stdout.puts(\"\\n#{e.class}: #{e.message}\")
             $stdout.puts(e.backtrace.first(5).join(\"\\n\")) if e.backtrace
           ensure
             out = $stdout.string
@@ -189,9 +373,9 @@ puts(failed.zero? ? "0 failures, 0 errors" : "FAIL")
       }
     }
 
-    runBtn.addEventListener("click", () => {
-      outputEl.textContent = "Running…";
-      const code = editorEl.value;
+    runBtn.addEventListener('click', () => {
+      outputEl.textContent = 'Running…';
+      const code = editor.getValue();
       const wrapped = `${code}
 
 # Try it with the example:
@@ -201,16 +385,31 @@ result = active_users([
   { name: "Bob",   active: true  },
 ])
 puts result.inspect`;
-      const out = runRuby(wrapped);
-      outputEl.textContent = out || "(no output)";
+      outputEl.textContent = runRuby(wrapped) || '(no output)';
     });
 
-    submitBtn.addEventListener("click", () => {
-      outputEl.textContent = "Running tests…";
-      const code = editorEl.value;
+    submitBtn.addEventListener('click', () => {
+      outputEl.textContent = 'Running tests…';
+      const code = editor.getValue();
       const out = runRuby(`${code}\n\n${data.tests}`);
       const passed = /0 failures, 0 errors/i.test(out);
-      outputEl.textContent = out + (passed ? "\n\n✓ All tests passed." : "\n\n✗ Some tests failed.");
+      outputEl.textContent = out + (passed ? '\n\n✓ All tests passed.' : '\n\n✗ Some tests failed.');
+
+      // Record locally
+      const subsKey = `drill:${data.slug}:submissions`;
+      const prev = JSON.parse(localStorage.getItem(subsKey) ?? '[]');
+      prev.unshift({ at: new Date().toISOString(), passed, codeLength: code.length });
+      localStorage.setItem(subsKey, JSON.stringify(prev.slice(0, 20)));
+
+      const subsList = document.getElementById('submissions-list');
+      if (subsList) {
+        subsList.innerHTML = prev.map((s: any) => `
+          <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm">
+            <span class="${s.passed ? 'text-green-400' : 'text-red-400'}">${s.passed ? '✓ Accepted' : '✗ Failed'}</span>
+            <span class="text-gray-500 text-xs">${new Date(s.at).toLocaleString()}</span>
+          </div>
+        `).join('');
+      }
     });
   </script>
-</Layout>
+</DrillLayout>
