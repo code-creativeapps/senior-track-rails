@@ -1,0 +1,81 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="Which single index helps this query the most?" description="Practice card. One query, four candidate indexes. Drills composite index design.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Scaling · Card 1</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Which single index helps this query the most?</h1>
+      <p class="text-xl text-gray-600">A 5M-row table, a filter, a sort, a small limit. The right index choice can make this query 100x faster.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The query
+          </h3>
+          <p class="text-gray-700 italic mb-3">The dashboard query, against a 5M-row <code>posts</code> table. Only a small fraction have <code>status = "pending"</code>.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`Post.where(status: "pending")
+    .order(:created_at)
+    .limit(20)
+
+# Generates:
+# SELECT "posts".* FROM "posts"
+# WHERE "posts"."status" = 'pending'
+# ORDER BY "posts"."created_at" ASC
+# LIMIT 20`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">Which index choice gives you the best plan for this query? Assume Postgres, B-tree indexes.</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'A single index on <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">status</code>.',
+              explanation: 'The filter uses the index, so Postgres quickly finds the pending rows. But it still has to sort those rows by <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">created_at</code> in memory before applying the limit. If there are 50,000 pending rows, that\'s 50,000 rows read and sorted to return 20.',
+            },
+            {
+              label: 'B',
+              text: 'A single index on <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">created_at</code>.',
+              explanation: 'The sort uses the index, so Postgres walks rows in order. But it has to read rows from disk until it finds 20 with the right status. If pending rows are rare, it might read thousands of "wrong-status" rows before collecting 20 valid ones.',
+            },
+            {
+              label: 'C',
+              text: 'A composite index on <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">(status, created_at)</code>.',
+              explanation: 'The filter narrows the index to just the pending entries, and those entries are already sorted by <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">created_at</code> because of the second column. Postgres walks 20 entries, returns them, done. No sort step.',
+              correct: true,
+            },
+            {
+              label: 'D',
+              text: 'Two separate indexes, one on each column.',
+              explanation: 'Postgres can bitmap-scan two indexes, but for this kind of "filter + ordered limit" query, the composite index is strictly better. The two-index approach still needs a sort step. Useful when queries use the columns independently; not for this access pattern.',
+            },
+          ]}
+          principle={`<p>For "WHERE x ORDER BY y LIMIT n" queries, the right index is composite, with the equality-filter column first and the order column second. The filter narrows the index range; the second column gives you sort-for-free within that range.</p><p>The general rule: equality columns first, then range / sort columns. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">EXPLAIN</code> in Postgres makes this visible: with the composite index, you\'ll see a single Index Scan and no separate Sort node. With the single-column variants, you\'ll see either a Sort node or a Filter step that reads many rows.</p>`}
+          theoryHref="/lessons/senior-scaling-indexes"
+          theoryLabel="Scaling · Indexes & EXPLAIN"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <a href="/lessons/practice-scaling-n-plus-one-count" class="text-ruby hover:text-ruby-dark transition-colors">Card 2 →</a>
+    </div>
+  </article>
+</Layout>

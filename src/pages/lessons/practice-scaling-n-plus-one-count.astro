@@ -1,0 +1,84 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="Count the queries this view actually runs" description="Practice card. 50 posts in a list view, the user's name displayed for each. Count the queries. Drills N+1.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Scaling · Card 2</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Count the queries this view runs</h1>
+      <p class="text-xl text-gray-600">A simple index view. 50 posts. Each line shows the post title and the author name. How many SQL queries actually fire?</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A controller and the view it renders. <code>Post</code> belongs_to <code>:user</code>. No preloading is set up.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`# app/controllers/posts_controller.rb
+def index
+  @posts = Post.order(created_at: :desc).limit(50)
+end
+
+# app/views/posts/index.html.erb
+<% @posts.each do |post| %>
+  <p>
+    <%= post.title %>
+    by <%= post.user.name %>
+  </p>
+<% end %>`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">From the moment <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">@posts</code> is touched in the view until the view finishes rendering, how many SQL queries does Rails send to the database?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: '1 query.',
+              explanation: 'Only true if posts came in with users preloaded, e.g. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Post.includes(:user).order(...).limit(50)</code>. Without that, each <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.user</code> is a fresh trip to the database.',
+            },
+            {
+              label: 'B',
+              text: '50 queries.',
+              explanation: 'Close, but you forgot the initial query that loads the 50 posts. There\'s 1 query for that, plus 50 for the users.',
+            },
+            {
+              label: 'C',
+              text: '51 queries.',
+              explanation: 'Classic N+1: 1 query loads the 50 posts, then <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.user</code> fires another query for each of the 50 posts. Fix: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Post.includes(:user).order(...).limit(50)</code> brings it back down to 2 (one for posts, one for users).',
+              correct: true,
+            },
+            {
+              label: 'D',
+              text: '100 queries.',
+              explanation: 'That would be a 2N pattern, e.g. two separate per-post lookups (user and something else). Here there\'s only one per-post lookup.',
+            },
+          ]}
+          principle={`<p>N+1 is the most common scaling bug in Rails apps, and the most invisible. The code reads naturally ("for each post, show its user"). The database sees 50 sequential SELECTs.</p><p>Fix it with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">includes</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">preload</code>, or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">eager_load</code> depending on whether you need to filter on the joined data. Catch it in development with the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">bullet</code> gem or by watching the log. The cost is invisible at 50 rows in dev. It\'s the difference between 200ms and 5s in production.</p>`}
+          theoryHref="/lessons/senior-scaling-diagnose"
+          theoryLabel="Scaling · Diagnose Before You Scale"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-scaling-index-choice" class="text-ruby hover:text-ruby-dark transition-colors">← Card 1</a>
+      <a href="/lessons/practice-scaling-cache-stampede" class="text-ruby hover:text-ruby-dark transition-colors">Card 3 →</a>
+    </div>
+  </article>
+</Layout>

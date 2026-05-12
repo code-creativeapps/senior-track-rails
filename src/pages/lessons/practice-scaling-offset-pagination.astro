@@ -1,0 +1,82 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="Why is page 50,000 so much slower than page 1?" description="Practice card. OFFSET pagination at scale, the failure mode every team rediscovers. Drills keyset pagination.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Scaling · Card 4</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Why is page 50,000 so much slower than page 1?</h1>
+      <p class="text-xl text-gray-600">The same query, same index, same database. Page 1 returns in 5ms. Page 50,000 takes 4 seconds. The user is on the same table.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The query
+          </h3>
+          <p class="text-gray-700 italic mb-3">Standard <code>OFFSET</code> pagination from Kaminari, page size 20, on a 5M-row table with an index on <code>created_at</code>.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`# At page 50,000, Kaminari generates:
+Post.order(:created_at).limit(20).offset(1_000_000)
+
+# Which is:
+# SELECT "posts".* FROM "posts"
+# ORDER BY "posts"."created_at" ASC
+# LIMIT 20 OFFSET 1000000
+
+# Page 1: 5ms.
+# Page 50,000: 4s.`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">Why is page 50,000 so much slower? The index on <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">created_at</code> is in place.</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'The router takes longer to parse the URL when the page number is large.',
+              explanation: 'Route matching is O(URL length), not O(page number). The URL <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/posts?page=50000</code> is the same length as <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/posts?page=1</code> in matching terms.',
+            },
+            {
+              label: 'B',
+              text: 'Postgres walks the index for 1,000,020 rows, throws away the first million, and returns the last 20.',
+              explanation: 'This is exactly what <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">OFFSET</code> does. The index is used, but the cost scales with the offset value, not the limit. Page 1 reads 20 entries. Page 50,000 reads a million.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: 'OFFSET prevents Postgres from using indexes entirely.',
+              explanation: 'It doesn\'t. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">OFFSET</code> still uses the index. The walk is just longer. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">EXPLAIN</code> will still show an Index Scan with both pages.',
+            },
+            {
+              label: 'D',
+              text: 'Rails has a default page-size cap and falls back to a full table scan past it.',
+              explanation: 'Rails has no such limit, and even if a paginator gem had one, "fall back to a full table scan" isn\'t a thing that happens automatically.',
+            },
+          ]}
+          principle={`<p><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">OFFSET</code> is "skip N rows and then return some." There\'s no shortcut for "skip a million rows." Postgres has to walk them to know they\'re the ones to skip. The cost grows linearly with the page number.</p><p>The fix is <strong>keyset pagination</strong> (also called "cursor pagination" or "seek pagination"). Instead of "page 50,000," you remember the last value the user saw and query <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">WHERE created_at &gt; ? LIMIT 20</code>. The cost stays at 20 rows read regardless of how deep the user is.</p><p>Tradeoff: keyset pagination doesn\'t give you "jump to page 50,000" — only "next 20." For most user-facing infinite scrolls and APIs, that\'s a feature, not a limitation.</p>`}
+          theoryHref="/lessons/senior-scaling-pagination"
+          theoryLabel="Scaling · Pagination at Scale"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-scaling-cache-stampede" class="text-ruby hover:text-ruby-dark transition-colors">← Card 3</a>
+      <a href="/lessons/practice-scaling-hot-row-contention" class="text-ruby hover:text-ruby-dark transition-colors">Card 5 →</a>
+    </div>
+  </article>
+</Layout>

@@ -1,0 +1,85 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import MCQuiz from '../../components/MCQuiz.astro';
+---
+
+<Layout title="Why is the counter cache slowing down every comment INSERT?" description="Practice card. Twitter-style 'celebrity user' shape, slow writes, row-level locks. Drills hot-row contention.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Scaling · Card 5</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Why is the counter cache slowing down every comment?</h1>
+      <p class="text-xl text-gray-600">A counter cache. Reasonable schema. Then a celebrity user posts. Suddenly every comment INSERT takes 800ms. Same table. Same indexes. What changed?</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The setup
+          </h3>
+          <p class="text-gray-700 italic mb-3">A counter cache on a Twitter-style app. The celebrity user has 100,000 followers and just posted; thousands of comments arrive within seconds.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class Comment < ApplicationRecord
+  belongs_to :post, counter_cache: true
+end
+
+# Every Comment.create! generates:
+#
+#   BEGIN;
+#   INSERT INTO comments (post_id, body, ...) VALUES (...);
+#   UPDATE posts SET comments_count = comments_count + 1
+#     WHERE id = 42;
+#   COMMIT;
+
+# The post is post #42. Thousands of users comment in the same second.`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">Why does every comment INSERT slow down, given the comments table itself has plenty of capacity?</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <MCQuiz
+          options={[
+            {
+              label: 'A',
+              text: 'Postgres doesn\'t allow multiple writes to the comments table in parallel.',
+              explanation: 'It absolutely does. Postgres handles concurrent inserts into the same table fine. Inserts conflict only when they touch the same row (or via unique-index contention on a specific value).',
+            },
+            {
+              label: 'B',
+              text: 'Each comment INSERT also runs an UPDATE on the same post row. Concurrent transactions all take a row-level lock on that one row and have to wait for each other.',
+              explanation: 'The counter cache turns every comment write into two writes: an insert (on the comments table, fine) and an update on a single row of the posts table. Postgres locks that row for the duration of each transaction. Thousands of concurrent commenters serialize on post #42\'s row.',
+              correct: true,
+            },
+            {
+              label: 'C',
+              text: 'The counter cache is updated through a slow database trigger.',
+              explanation: 'Counter caches are Rails-level (callbacks on the model), not database triggers. The slowness isn\'t in how the update is fired, it\'s in the lock contention on the row being updated.',
+            },
+            {
+              label: 'D',
+              text: 'Rails uses a single global lock when updating counter cache columns.',
+              explanation: 'There\'s no such Rails-level lock. The contention is in Postgres, on a specific row, because thousands of transactions want to UPDATE the same row.',
+            },
+          ]}
+          principle={`<p>This is hot-row contention. The shape: a single row in your database is being written to by many concurrent transactions, and Postgres serializes them on the row\'s lock. The whole system feels slow, but it\'s actually one row creating a queue.</p><p>Three real fixes:</p><ul class="list-disc list-inside ml-4 space-y-1"><li><strong>Move the counter out of the hot path.</strong> Update <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">posts.comments_count</code> from a background job that batches writes. Each comment write returns quickly.</li><li><strong>Shard the counter.</strong> Store N counter rows per post (e.g., 10), each updated by a fraction of writers. Sum them at read time. Standard "counter sharding" pattern from very-high-write systems.</li><li><strong>Skip the cache when not needed.</strong> If you only show <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">comments_count</code> on the post page itself, you can compute it on read with a fast <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">COUNT(*)</code> + index. The "cache" was the bug.</li></ul><p>Find hot rows by watching for high wait times on a small number of rows. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">pg_stat_activity</code> and the slow query log are your friends.</p>`}
+          theoryHref="/lessons/senior-scaling-hot-rows"
+          theoryLabel="Scaling · Hot Rows & Contention"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-scaling-offset-pagination" class="text-ruby hover:text-ruby-dark transition-colors">← Card 4</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Back to Course →</a>
+    </div>
+  </article>
+</Layout>
