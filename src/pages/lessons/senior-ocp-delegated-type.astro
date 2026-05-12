@@ -1,0 +1,263 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="OCP 5 of 5 — delegated_type in Real Rails Code" description="Where delegated_type comes from, why STI hits a wall in real apps, and how Rails 6.1's delegated_type lets Basecamp's Hey handle Messages, Documents, and Comments through a single Entry without modifying the parent.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">OCP Series · 5 of 5</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🧬</span>
+        <h1 class="text-4xl font-bold text-gray-900">delegated_type</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the pattern comes from, why STI hits a wall in real apps, and how Rails 6.1's <code class="text-lg">delegated_type</code> lets Basecamp's Hey handle Messages, Documents, and Comments through a single <code class="text-lg">Entry</code> without modifying the parent.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Many Rails apps eventually run into the same shape: <strong>a collection of "items" where each item is one of several different kinds, but they all share some common metadata.</strong> A timeline has posts, photos, links, and reposts. An inbox has messages, threads, and notifications. A document has paragraphs, headings, and embedded images. The container needs to list them all in order; the kinds need their own behavior and their own columns.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Rails has had three different answers to this problem across its history. The earliest is <strong>Single Table Inheritance (STI)</strong>: put every kind in one table, with a <code class="bg-gray-100 px-2 py-1 rounded">type</code> column saying which subclass it is. STI works at small scale; <strong>it breaks down when the subclasses have substantially different columns</strong>, because the shared table grows wide and sparse, with many columns null for most rows.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The second answer is <strong>polymorphic associations</strong>: a parent record holds a <code class="bg-gray-100 px-2 py-1 rounded">subject_type</code> and <code class="bg-gray-100 px-2 py-1 rounded">subject_id</code> pointing into whichever table holds the subject. This works for relationships but leaves the "common metadata" problem unsolved. The polymorphic side often needs to know about every possible subject type, and adding a new type means editing the parent code.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>delegated_type was introduced in Rails 6.1 in 2020, designed by DHH for Basecamp's email product Hey.</strong> It is the third answer, and it is built specifically around the Open/Closed Principle. <strong>The shared metadata lives in a single "Entry" table. Each kind of entry lives in its own table. Adding a new entry type means adding two new files (a model and a migration) and never touching the Entry class.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern (STI at scale)</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Hey-like app starting with STI. Messages, Documents, and Comments all live in an <code class="bg-gray-100 px-2 py-1 rounded">entries</code> table:
+      </p>
+      <CodeBlock code={`# Migration
+create_table :entries do |t|
+  t.string  :type, null: false             # STI discriminator
+  t.belongs_to :user, null: false
+  t.belongs_to :account, null: false
+  t.datetime :created_at, null: false
+
+  # Message-only columns:
+  t.string :subject
+  t.text   :body
+  t.integer :priority
+
+  # Document-only columns:
+  t.string :title
+  t.text   :content
+  t.integer :version
+
+  # Comment-only columns:
+  t.text :remark
+  t.references :commentable, polymorphic: true
+end
+
+class Entry < ApplicationRecord; end
+class Message < Entry; end
+class Document < Entry; end
+class Comment < Entry; end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The entries table now has ten columns, but each row only uses three or four of them.</strong> A message has <code class="bg-gray-100 px-2 py-1 rounded">subject</code> and <code class="bg-gray-100 px-2 py-1 rounded">body</code>, but its <code class="bg-gray-100 px-2 py-1 rounded">title</code>, <code class="bg-gray-100 px-2 py-1 rounded">content</code>, <code class="bg-gray-100 px-2 py-1 rounded">version</code>, <code class="bg-gray-100 px-2 py-1 rounded">remark</code>, and <code class="bg-gray-100 px-2 py-1 rounded">commentable_type</code> columns are all null. The database is paying disk and indexing cost for fields that are not relevant to most rows.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Worse, adding a new entry type means editing the migration that defines the entries table, plus the Entry class itself if there is any shared logic. <strong>The "Entry" abstraction is not actually closed; every new kind opens the parent for modification.</strong> When the product team wants to add Tasks as a fourth entry type, they have to add three or four more columns to the entries table, all of which will be null for messages, documents, and comments.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        STI's other failure is type-specific behavior. <strong>Validations, callbacks, and methods that apply to only one subclass have to be conditionally guarded</strong> against the type column. The Message subclass has validations that should not fire for Documents, but they live in code paths that run for all Entries unless guarded.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How delegated_type solves it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        delegated_type splits the entries table into two halves. The Entry table holds only what is genuinely shared (the user, the account, the timestamps, the position in the timeline). Each kind has its own table with its own columns:
+      </p>
+      <CodeBlock code={`# Migrations
+create_table :entries do |t|
+  t.belongs_to :entryable, polymorphic: true, null: false
+  t.belongs_to :user, null: false
+  t.belongs_to :account, null: false
+  t.timestamps
+end
+
+create_table :messages do |t|
+  t.string :subject
+  t.text   :body
+  t.integer :priority
+  t.timestamps
+end
+
+create_table :documents do |t|
+  t.string :title
+  t.text   :content
+  t.integer :version
+  t.timestamps
+end
+
+create_table :comments do |t|
+  t.text :remark
+  t.references :commentable, polymorphic: true
+  t.timestamps
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Each kind owns its columns.</strong> No null fields for unused attributes. The Entry table is small and dense. Each kind's table is small and dense.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The Ruby side uses the <code class="bg-gray-100 px-2 py-1 rounded">delegated_type</code> macro from Rails 6.1:
+      </p>
+      <CodeBlock code={`class Entry < ApplicationRecord
+  belongs_to :user
+  belongs_to :account
+
+  delegated_type :entryable, types: %w[Message Document Comment]
+
+  # Common methods on every entry, regardless of kind:
+  def title
+    entryable_title || "(untitled)"
+  end
+end
+
+module Entryable
+  extend ActiveSupport::Concern
+
+  included do
+    has_one :entry, as: :entryable, touch: true
+  end
+end
+
+class Message < ApplicationRecord
+  include Entryable
+  validates :subject, presence: true
+  # ... message-specific code
+end
+
+class Document < ApplicationRecord
+  include Entryable
+  # ... document-specific code
+end
+
+class Comment < ApplicationRecord
+  include Entryable
+  # ... comment-specific code
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Read what is happening:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Entry knows it has a delegate but does not know what kind.</strong> The <code class="bg-gray-100 px-2 py-1 rounded">delegated_type :entryable</code> line tells Rails: "every Entry has a polymorphic association to an entryable object, and that object is one of Message, Document, or Comment." The macro builds query scopes (<code class="bg-gray-100 px-2 py-1 rounded">Entry.messages</code>, <code class="bg-gray-100 px-2 py-1 rounded">Entry.documents</code>) and predicate methods (<code class="bg-gray-100 px-2 py-1 rounded">entry.message?</code>, <code class="bg-gray-100 px-2 py-1 rounded">entry.document?</code>) automatically.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Each kind has its own table and its own model.</strong> Message validates its own subject. Document has its own version tracking. Comment has its own polymorphic association to the thing being commented on. <strong>Each kind's logic lives in its own file</strong>, with no conditional guards needed.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Adding a new kind is purely additive.</strong> When the product team wants Tasks as a fourth entry type:
+      </p>
+      <CodeBlock code={`# 1. New migration for the tasks table
+create_table :tasks do |t|
+  t.string :description, null: false
+  t.boolean :completed, default: false
+  t.datetime :due_at
+  t.timestamps
+end
+
+# 2. New model that includes Entryable
+class Task < ApplicationRecord
+  include Entryable
+  validates :description, presence: true
+end
+
+# 3. One-line addition to Entry
+delegated_type :entryable, types: %w[Message Document Comment Task]
+#                                                              ^^^^`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The Entry table does not change. The Message, Document, and Comment models do not change.</strong> The existing tests do not change. The blast radius of the new feature is the new file and the one-word addition to the types list. <strong>The system is open to extension and closed to modification, by construction.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four benefits, each one solving a specific STI failure mode.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Each kind owns its columns.</strong> Messages have message columns. Documents have document columns. <strong>No null padding, no sparse rows, no index entries that point nowhere.</strong> The database is doing useful work on every column it stores.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Type-specific behavior is unguarded.</strong> The Message model can have <code class="bg-gray-100 px-2 py-1 rounded">validates :subject, presence: true</code> without a <code class="bg-gray-100 px-2 py-1 rounded">if: -> &#123; type == "Message" &#125;</code> guard. <strong>The validation lives on the class that has the column, where it belongs.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The timeline queries one table.</strong> <code class="bg-gray-100 px-2 py-1 rounded">Entry.where(account: current_account).order(created_at: :desc)</code> returns every kind of entry in chronological order. Rendering each entry's specific content is the delegated_type macro's job — <code class="bg-gray-100 px-2 py-1 rounded">render entry.entryable</code> picks the right partial based on the kind. <strong>The list is unified; the rendering is polymorphic.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>New kinds do not destabilize existing kinds.</strong> Adding Tasks does not require editing the Message model, the Document model, or the Comment model. Their tests do not run again. <strong>The change is local to the new files.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When delegated_type fits, and when it does not</h2>
+      <p class="text-gray-700 leading-relaxed">
+        delegated_type is the right tool when three conditions all hold:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>The kinds share genuine common metadata.</strong> An Entry has a user, an account, a position in time. Without shared metadata, there is no Entry; you would only have separate models with no parent.</li>
+        <li><strong>The kinds have substantially different columns.</strong> If Messages and Documents both have <code class="bg-gray-100 px-2 py-1 rounded">title</code> and <code class="bg-gray-100 px-2 py-1 rounded">body</code> and differ only in their type, STI is fine. <strong>delegated_type earns its weight when the column lists diverge.</strong></li>
+        <li><strong>New kinds are expected over time.</strong> If you have exactly two kinds today and there will never be more, the polymorphic infrastructure is overhead. <strong>delegated_type pays off when "we will add more kinds" is a realistic plan.</strong></li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>STI is not always wrong.</strong> If your subclasses have nearly identical columns and only differ in a handful of methods, STI is simpler and works fine. The rule of thumb: <strong>when you find yourself adding columns that only apply to some subclasses, switch to delegated_type</strong>. Until then, STI is the lower-overhead choice.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>delegated_type is the Open/Closed Principle applied at the schema level. <strong>STI's failure is that the shared table grows every time a new subclass is added, which means the parent class is not actually closed.</strong> delegated_type isolates each kind in its own table, so the parent's schema is frozen once the relationship is established.</p>
+        <p>The deeper move is recognizing that <strong>"shared metadata" and "shared columns" are different things</strong>. Every entry has a user and an account; that is genuine sharing. Not every entry has a subject; that is one kind's column masquerading as shared. STI conflates the two by putting everything in one table. delegated_type separates them by design.</p>
+        <p>The pattern's pragmatic value is the same as every OCP pattern in this series: <strong>new variation arrives as a new file, not as an edit to existing files.</strong> The Entry table, the Message model, and the existing test suite all stay frozen when Tasks land. The change is purely additive, by construction.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Find the largest STI table in your app. Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "self.inheritance_column\\|type, :string" db/migrate/</code> to find tables with a <code class="bg-gray-100 px-2 py-1 rounded">type</code> column.</li>
+        <li>For the table you find, count the columns. <strong>For each column, check how many subclasses actually use it.</strong> A column used by one subclass out of five is a signal that delegated_type would fit better.</li>
+        <li>Sketch the delegated_type version. Which columns are genuinely shared (move to the parent table)? Which are kind-specific (move to a child table)?</li>
+        <li>Bonus: read Basecamp's Hey codebase if you can find it referenced anywhere in the Rails 6.1 release notes. <strong>The delegated_type macro was designed specifically for their Entry/Message/Document/Comment model.</strong> Seeing the canonical use case clarifies when the pattern is the right choice.</li>
+      </ol>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Closing the OCP series</h2>
+      <p class="text-gray-700 leading-relaxed">
+        You have now seen five shapes of the Open/Closed Principle in Rails: <strong>registry for value-driven dispatch, adapter for config-driven backends, middleware for cross-cutting pipelines, pub-sub for fan-out reactions, and delegated_type for additive subtypes</strong>. All five share the same instinct: <strong>add new behavior by adding a file, not by editing an existing one</strong>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Each pattern has a different boundary at which the substitution happens. <strong>The registry chooses at runtime per record. The adapter chooses at boot per environment. The middleware composes at request time per concern. The pub-sub fans out per event. delegated_type discriminates at row time per kind.</strong> The boundary matters because it determines what kinds of variation the pattern can absorb cheaply.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>None of these patterns are mandatory.</strong> A small Rails app does not need any of them. The cost of an extension point is real: indirection, more files, more concepts for a new engineer to learn. The right time to introduce one is when the variation it captures is actually showing up in your codebase, not when you think it might one day. <strong>Build the registry when the second processor arrives, not in anticipation of one.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Like the SRP series, the best calibration is to read the source of apps that have lived with these patterns at scale. Mastodon, Forem, Discourse, and Gumroad all use registries. Rails core uses adapters everywhere, middleware for the request stack, and ActiveSupport::Notifications across the whole framework. <strong>The more of this code you read, the more the patterns will feel like obvious moves instead of theoretical ones.</strong>
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-ocp-pub-sub" class="text-ruby hover:text-ruby-dark transition-colors">← OCP 4 — Pub-Sub</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Course Home →</a>
+    </div>
+  </article>
+</Layout>

@@ -1,0 +1,106 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const sections = [
+  {
+    title: 'Universal taxes',
+    description: 'No principles, no jargon. Five pieces of code that work for the first user and bite later.',
+    cards: [
+      { n: 1, title: 'Uniqueness lives in the database, not in valid?', principle: 'Database constraints', slug: 'tax-database-constraints' },
+      { n: 2, title: 'External I/O belongs outside the transaction', principle: 'Transaction scope', slug: 'tax-transaction-scope' },
+      { n: 3, title: ':destroy runs in Ruby, :delete_all runs in SQL', principle: 'Bulk operations in SQL', slug: 'tax-bulk-operations' },
+      { n: 4, title: "JSON-as-text blocks the queries you'll need later", principle: 'Indexable storage', slug: 'tax-indexable-storage' },
+      { n: 5, title: 'Authorization belongs in the query, not after', principle: 'Scoped queries', slug: 'tax-scoped-queries' },
+    ],
+  },
+  {
+    title: 'SOLID, one card per letter',
+    description: 'Each principle in SOLID, demonstrated through one tax that real teams have paid in production.',
+    cards: [
+      { n: 6, title: 'One class, one reason to change', principle: 'Single responsibility', slug: 'tax-single-responsibility' },
+      { n: 7, title: "Adding a variant shouldn't mean editing every file", principle: 'Open/closed', slug: 'tax-open-closed' },
+      { n: 8, title: "A subclass that breaks the parent's promises isn't really a subclass", principle: 'Liskov substitution', slug: 'tax-liskov-substitution' },
+      { n: 9, title: 'Depend on the smallest interface that does the job', principle: 'Interface segregation', slug: 'tax-interface-segregation' },
+      { n: 10, title: "Business logic shouldn't know which payment provider you use", principle: 'Dependency inversion', slug: 'tax-dependency-inversion' },
+    ],
+  },
+  {
+    title: 'Senior gotchas',
+    description: 'Concurrency, retries, scaling, error handling, schema escape hatches. The taxes that don\'t fit cleanly into a SOLID slot.',
+    cards: [
+      { n: 11, title: "Read-modify-write isn't atomic", principle: 'Atomic operations', slug: 'tax-atomic-updates' },
+      { n: 12, title: 'Rescue only what you can recover from', principle: 'Targeted error handling', slug: 'tax-exception-handling' },
+      { n: 13, title: 'Background jobs must be safe to run twice', principle: 'Idempotency', slug: 'tax-idempotent-jobs' },
+      { n: 14, title: 'User.all.each will eventually run out of memory', principle: 'Bounded memory iteration', slug: 'tax-batched-iteration' },
+      { n: 15, title: 'update_all is a SQL escape hatch', principle: 'Performance shortcuts skip the framework', slug: 'tax-callback-bypass' },
+    ],
+  },
+  {
+    title: 'DDD in Rails',
+    description: 'Domain-driven design ideas applied in a Rails codebase. Anemic models, primitive obsession, leaky boundaries, missing events, and broken aggregates.',
+    cards: [
+      { n: 16, title: "Models that don't know their own rules", principle: 'Models own their own rules', slug: 'tax-anemic-models' },
+      { n: 17, title: 'A phone number is more than a string', principle: 'Value objects', slug: 'tax-value-objects' },
+      { n: 18, title: 'One model class serving four teams', principle: 'Bounded contexts', slug: 'tax-bounded-contexts' },
+      { n: 19, title: 'When the controller knows about every downstream concern', principle: 'Domain events', slug: 'tax-domain-events' },
+      { n: 20, title: 'Mutating a child without going through the parent breaks invariants', principle: 'Aggregate roots', slug: 'tax-aggregate-roots' },
+    ],
+  },
+];
+---
+
+<Layout title="Spot the Tax — All Lessons" description="Twenty short Rails lessons. Each one shows code that works today and walks through what it'll cost you in six months. Pick a card to start.">
+  <article class="max-w-5xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Senior Track</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Spot the Tax</h1>
+      <p class="text-xl text-gray-600 leading-relaxed">Twenty short Rails lessons. Each one shows a snippet of code that works today and walks you through what it'll cost in six months — under load, after a deploy, when the table grows. Look at the code, try to spot the tax yourself, then reveal the answer.</p>
+    </div>
+
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        <strong>How to use this page.</strong> Pick any lesson and start there — the lessons don't depend on each other. Each one takes about 5 minutes: look at the code, take a moment to think about the fix, then reveal the solution and the underlying principle. The principles are the part worth remembering.
+      </p>
+    </div>
+
+    {sections.map((section, sectionIdx) => (
+      <section class="space-y-4">
+        <div>
+          <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-1">Section {sectionIdx + 1} of 4</p>
+          <h2 class="text-3xl font-bold text-gray-900">{section.title}</h2>
+          <p class="text-gray-600 mt-2">{section.description}</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {section.cards.map((card) => (
+            <a
+              href={`/lessons/${card.slug}`}
+              class="block bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md hover:border-ruby/30 transition-all group"
+            >
+              <p class="text-xs uppercase tracking-wider text-ruby font-bold mb-3">Card {card.n}</p>
+              <h3 class="text-lg font-bold text-gray-900 group-hover:text-ruby-dark mb-3 leading-snug" set:html={card.title}></h3>
+              <p class="text-sm text-gray-500 inline-flex items-center gap-1.5">
+                <span class="text-amber-500">💡</span>
+                {card.principle}
+              </p>
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
+
+    <div class="bg-ruby/5 border border-ruby/20 rounded-lg p-6">
+      <p class="text-gray-700 leading-relaxed">
+        These lessons aren't a curriculum, they're a collection. The same five "I do that every week" recognitions, twenty times. Working through the deck once teaches you the principles. Coming back to the deck a few months later, when the same patterns show up in a code review, is when the senior reflex actually starts to form.
+      </p>
+    </div>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">Senior Track · Spot the Tax · 20 lessons</span>
+    </div>
+  </article>
+</Layout>

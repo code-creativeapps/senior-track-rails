@@ -1,0 +1,192 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="SRP 2 of 7 — Form Objects in Real Rails Code" description="Where form objects come from, why ActiveModel exists, and how Gumroad uses Admin::SalesReport to keep validation logic out of its sales table.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SRP Series · 2 of 7</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">📋</span>
+        <h1 class="text-4xl font-bold text-gray-900">Form Objects</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the pattern comes from, why ActiveModel exists at all, and how Gumroad uses <code class="text-lg">Admin::SalesReport</code> to keep validation logic out of its sales table.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        For most of Rails' early life, validations and persistence lived in the same class. The User model knew what a user looked like in the database, and the same User model knew which inputs were valid before saving. That works as long as <strong>every form in the app maps one-to-one to a database table</strong>. The signup form makes a User. The post form makes a Post. ActiveRecord handles both.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The cracks appear the day someone needs a form whose inputs are not a row. <strong>An admin form that takes a date range and triggers a report.</strong> A multi-step signup wizard where step 1 collects a name, step 2 collects a password, and the actual User does not exist until step 3. A "send invitations to multiple emails at once" form where each email is validated independently and each invitation is its own record. None of these have a single table they correspond to, and yet they all need the same validation machinery that ActiveRecord gave us: validators, error messages, form-builder integration.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 3 acknowledged the problem in 2010 by extracting that validation machinery out of ActiveRecord and into a new gem called <strong>ActiveModel</strong>. Any class that includes <code class="bg-gray-100 px-2 py-1 rounded">ActiveModel::Model</code> gets the full Rails validation API without needing a database table behind it. Two years later, Bryan Helmkamp wrote the post that gave the pattern its name: <em>7 Patterns to Refactor Fat ActiveRecord Models</em>. <strong>The form object was the first pattern on the list.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The rule the pattern enforces is straightforward. <strong>Persistence and validation are different responsibilities.</strong> The User model owns "what a user is in the database" (columns, associations, callbacks that fire on save). A form object owns "what counts as a valid set of inputs for this specific form." Both can use the same ActiveModel validation API. They do not need to be the same class.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app where the admin section keeps growing. Someone built a "Generate sales report" page two years ago, and instead of creating a new class for it, they stapled the form behavior onto the Sale model. The result looks something like this:
+      </p>
+      <CodeBlock code={`class Sale < ApplicationRecord
+  # ... 200 lines of normal Sale logic ...
+
+  # Admin reports use these fields. They don't exist on the table.
+  attr_accessor :report_country_code, :report_start_date,
+                :report_end_date, :report_sales_type
+
+  validates :report_country_code, presence: true,
+            if: :generating_report?
+  validates :report_start_date, presence: { message: "use YYYY-MM-DD" },
+            if: :generating_report?
+  validates :report_end_date, presence: { message: "use YYYY-MM-DD" },
+            if: :generating_report?
+
+  def generating_report?
+    report_country_code.present? || report_start_date.present?
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The Sale model now has two reasons to change.</strong> The sales team owns its actual concept of a sale (the columns, the relationships, the way a sale becomes a refund). The admin tooling team owns this report form, which has nothing to do with what a sale is and everything to do with what an admin can input. Every change to the report form opens a model file used by dozens of unrelated callers.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        There is a second, subtler problem. <strong>The validations are guarded by an <code class="bg-gray-100 px-2 py-1 rounded">if: :generating_report?</code> condition that depends on virtual attributes.</strong> When the validation fires for a normal sale save, the report fields are nil, and the guard returns false, so the validation is skipped. The day someone changes the guard logic (or accidentally sets <code class="bg-gray-100 px-2 py-1 rounded">report_country_code</code> in a different context), the model starts running report validations on regular sales. Conditional validations look harmless until they fail in surprising contexts, and this kind of failure shows up in production, not in tests.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Gumroad solves it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Gumroad has the same situation in its admin section: a "Generate sales report" form whose inputs (country, date range, report type) need validation, and a button that fires off a background job to generate the actual report. <strong>Their solution is a plain Ruby class that includes <code class="bg-gray-100 px-2 py-1 rounded">ActiveModel::Model</code> but is not backed by a table.</strong> The class lives at <code class="bg-gray-100 px-2 py-1 rounded">app/models/admin/sales_report.rb</code>:
+      </p>
+      <CodeBlock code={`# gumroad/app/models/admin/sales_report.rb · @8f6f1c60
+# License: MIT
+
+class Admin::SalesReport
+  include ActiveModel::Model
+
+  YYYY_MM_DD_FORMAT = /\\A\\d{4}-\\d{2}-\\d{2}\\z/
+  INVALID_DATE_FORMAT_MESSAGE = "Invalid date format. Please use YYYY-MM-DD format"
+
+  ACCESSORS = %i[country_code start_date end_date sales_type].freeze
+  attr_accessor(*ACCESSORS)
+  ACCESSORS.each do |accessor|
+    define_method("#{accessor}?") do
+      public_send(accessor).present?
+    end
+  end
+
+  validates :country_code, presence: { message: "Please select a country" }
+  validates :start_date,   presence: { message: INVALID_DATE_FORMAT_MESSAGE }
+  validates :end_date,     presence: { message: INVALID_DATE_FORMAT_MESSAGE }
+  validates :start_date,   comparison: {
+    less_than: :end_date, message: "must be before end date",
+    if: %i[start_date? end_date?]
+  }
+  validates :start_date,   comparison: {
+    less_than_or_equal_to: -> { Date.current },
+    message: "cannot be in the future", if: :start_date?
+  }
+  validates_inclusion_of :sales_type,
+    in: GenerateSalesReportJob::SALES_TYPES
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Read the class carefully. <strong>It does not inherit from <code class="bg-gray-100 px-2 py-1 rounded">ApplicationRecord</code>.</strong> There is no <code class="bg-gray-100 px-2 py-1 rounded">sales_reports</code> table. There is no <code class="bg-gray-100 px-2 py-1 rounded">save</code> method on this class, because saving makes no sense. Calling <code class="bg-gray-100 px-2 py-1 rounded">valid?</code> on it runs the validations and populates the <code class="bg-gray-100 px-2 py-1 rounded">errors</code> object. That is the entire job of the class.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Notice the small ergonomic trick at the top. <strong>The four field names live in a single <code class="bg-gray-100 px-2 py-1 rounded">ACCESSORS</code> constant</strong>, then a meta-programming loop defines both the <code class="bg-gray-100 px-2 py-1 rounded">attr_accessor</code> and a <code class="bg-gray-100 px-2 py-1 rounded">field?</code> predicate for each one. The predicate methods are used inside the conditional validations (<code class="bg-gray-100 px-2 py-1 rounded">if: %i[start_date? end_date?]</code>), so when the form is partially filled in, only the validations that have enough data to run actually fire. <strong>The pattern keeps the validations declarative without making them lie.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The controller treats this form-object exactly like an ActiveRecord model, because <code class="bg-gray-100 px-2 py-1 rounded">ActiveModel::Model</code> gives it the same surface:
+      </p>
+      <CodeBlock code={`class Admin::SalesReportsController < Admin::ApplicationController
+  def create
+    @report = Admin::SalesReport.new(report_params)
+    if @report.valid?
+      GenerateSalesReportJob.perform_async(@report.attributes)
+      redirect_to admin_sales_reports_path, notice: "Generating report…"
+    else
+      render :new, status: :unprocessable_entity
+    end
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The controller does not know or care that this is not a database-backed model.</strong> It calls <code class="bg-gray-100 px-2 py-1 rounded">new</code>, it calls <code class="bg-gray-100 px-2 py-1 rounded">valid?</code>, it reads <code class="bg-gray-100 px-2 py-1 rounded">errors</code>. The form helpers in the view use <code class="bg-gray-100 px-2 py-1 rounded">form_with(model: @report)</code> and it works without any extra configuration, because ActiveModel provides everything Rails form helpers expect.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four benefits come out of the extraction, each one solving a specific failure mode of the fat-Sale version.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The Sale model stays about sales.</strong> The columns, the associations, the actual business logic of what a sale is. It changes when the concept of a sale changes, not when the admin team decides the date format should be different.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The validations are unconditional.</strong> There is no more <code class="bg-gray-100 px-2 py-1 rounded">if: :generating_report?</code> guard. The form object exists for one purpose; when it exists, the validations apply. When it does not exist, they do not. Less conditional logic means fewer edge cases where a guard returns the wrong answer in the wrong context.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The form integrates with Rails form helpers out of the box.</strong> Because ActiveModel gives the class the same public surface as ActiveRecord (<code class="bg-gray-100 px-2 py-1 rounded">errors</code>, <code class="bg-gray-100 px-2 py-1 rounded">valid?</code>, <code class="bg-gray-100 px-2 py-1 rounded">attributes</code>, <code class="bg-gray-100 px-2 py-1 rounded">model_name</code>), every Rails view helper that expects a model also works on the form object. <code class="bg-gray-100 px-2 py-1 rounded">form_with(model: @report)</code>, <code class="bg-gray-100 px-2 py-1 rounded">f.label</code>, <code class="bg-gray-100 px-2 py-1 rounded">f.text_field</code>, the error-summary partial — all of it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Multi-step wizards become trivial.</strong> Each step of a signup wizard is its own form object with its own validations: <code class="bg-gray-100 px-2 py-1 rounded">SignupStep1Form</code>, <code class="bg-gray-100 px-2 py-1 rounded">SignupStep2Form</code>, <code class="bg-gray-100 px-2 py-1 rounded">SignupStep3Form</code>. Each one validates the inputs for its own step. The actual User record gets created at the end, by a service object that takes the validated data from all three steps. <strong>Validation and persistence stay separate even when the flow that ties them together is complex.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When you should reach for one</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Pull the trigger when any of these conditions is true:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>The form's fields do not map one-to-one to a single table.</strong> Multi-model forms, search forms, report forms, wizard steps.</li>
+        <li><strong>The form has validations that should not apply during normal model use.</strong> If you are reaching for <code class="bg-gray-100 px-2 py-1 rounded">if: ...</code> guards on validations, the conditions probably belong in their own class.</li>
+        <li><strong>The form submits an action rather than a record.</strong> "Generate this report," "export this data," "send these invites" — none of those produce a single row to save.</li>
+        <li><strong>The form coordinates multiple models on submit.</strong> If saving the form means creating a User, a Profile, and an Organization, the form object holds the validated inputs and a service object does the orchestrated saves.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>One discipline to maintain:</strong> the form object should not also save records. <strong>If the form is valid, call a service to do the actual work.</strong> Keep "validate input" separate from "do the action." Two responsibilities, two classes. The form object plus the service object together replace what used to be a fat model method.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>The Single Responsibility Principle is doing the work here, the same way it does in service objects. <strong>The User model has a stakeholder: the team that owns user data and its lifecycle.</strong> A signup wizard has a different stakeholder: the team that owns the onboarding flow. Forcing them to share a class means every flow change is also a model change, and every model change risks breaking a flow that uses it.</p>
+        <p>What is special about form objects is that <strong>they show how the same idea (validations, error messages, attribute access) can be useful for two genuinely different responsibilities</strong>. ActiveRecord's mistake, if it was a mistake, was bundling validation with persistence. ActiveModel fixed that by separating the validation machinery from the storage machinery. Once they are separable, you can use the validation half by itself anywhere it makes sense.</p>
+        <p>The rule of thumb: <strong>if a class has fields, validations, and a save method that writes to a table, it is a model</strong>. If a class has fields and validations but no save (or its "save" is to fire a job), <strong>it is a form object</strong>. They look similar from the outside, and that is the point. The difference is which responsibility the class is taking on.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Open the largest model in your app. Grep for <code class="bg-gray-100 px-2 py-1 rounded">attr_accessor</code> declarations. <strong>Each one is a virtual attribute, not a column.</strong> Note them down.</li>
+        <li>Grep the same file for <code class="bg-gray-100 px-2 py-1 rounded">validates ... if:</code>. <strong>Conditional validations on a model are almost always form-shaped baggage.</strong> Note those too.</li>
+        <li>For each match, ask the question: "Is this validation always true about this model, or only when one specific form is being submitted?" If the answer is the second one, the validation belongs in a form object.</li>
+        <li>Sketch the form-object name. Common patterns: <code class="bg-gray-100 px-2 py-1 rounded">&#123;Verb&#125;Form</code> for an action-shaped form (<code class="bg-gray-100 px-2 py-1 rounded">GenerateReportForm</code>, <code class="bg-gray-100 px-2 py-1 rounded">InviteTeammatesForm</code>) or <code class="bg-gray-100 px-2 py-1 rounded">&#123;Context&#125;::&#123;Subject&#125;</code> for a scoped one (<code class="bg-gray-100 px-2 py-1 rounded">Admin::SalesReport</code>, <code class="bg-gray-100 px-2 py-1 rounded">Onboarding::Step1</code>).</li>
+        <li>Bonus: open <code class="bg-gray-100 px-2 py-1 rounded">app/views/</code> and look for forms with field names that do not exist on any model column. <code class="bg-gray-100 px-2 py-1 rounded">f.text_field :confirm_password</code>, <code class="bg-gray-100 px-2 py-1 rounded">f.select :report_type</code>, <code class="bg-gray-100 px-2 py-1 rounded">f.date_field :start_date</code> on a model that does not store dates. <strong>Each of those is a form object hiding inside a model that does not own those fields.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-srp-service-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 1 — Service Objects</a>
+      <a href="/lessons/senior-srp-query-objects" class="text-ruby hover:text-ruby-dark transition-colors">SRP 3 — Query Objects →</a>
+    </div>
+  </article>
+</Layout>

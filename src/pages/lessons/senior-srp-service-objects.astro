@@ -1,0 +1,205 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="SRP 1 of 7 — Service Objects in Real Rails Code" description="Where service objects come from, what 'one reason to change' actually means in a Rails app, and how Mastodon uses PostStatusService to keep its controllers thin.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SRP Series · 1 of 7</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">⚙️</span>
+        <h1 class="text-4xl font-bold text-gray-900">Service Objects</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the pattern comes from, what "one reason to change" actually means inside a Rails app, and how Mastodon uses <code class="text-lg">PostStatusService</code> to keep its controllers thin.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The Single Responsibility Principle is the S in SOLID. Robert C. Martin named it in his 2003 book <em>Agile Software Development, Principles, Patterns and Practices</em>, but the underlying idea is older than that. In the 1970s, computer scientists like David Parnas and Larry Constantine wrote about <strong>cohesion</strong> (how tightly the contents of a module belong together) and <strong>coupling</strong> (how many other modules a module depends on). The rule of thumb they arrived at was: build modules that are high in cohesion and low in coupling. A module whose pieces all serve one purpose is easier to read, easier to test, and easier to change without breaking the rest of the system.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Martin's contribution was to give the rule a memorable single-sentence form: <strong>a class should have only one reason to change</strong>. A "reason to change" here does not mean a code commit. <strong>It means a stakeholder, a feature area, a part of the business.</strong> If the marketing team changes its mind about the welcome-email copy, that should touch one file. If the payments team changes the charging rules, that should touch a different file. When the same class gets edited for both, <strong>the class is mixing two reasons to change, and every edit risks breaking the other one's behavior</strong>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In a Rails app, the place this rule fails first is the controller. Rails gives you a default home for any logic that does not naturally belong to a single model: the controller action. Over time, the controller action grows. It saves a record, parses some input, fires a job, sends a notification, updates a counter, queues an email. Each of those pieces has a different team behind it, a different reason it might change, a different failure mode. <strong>The class still has one name and one file path, but it now answers to six different stakeholders.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The service object is the simplest tool senior Rails developers reach for to clean this up. The rest of this lesson is about exactly what it looks like and when to use it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a small social app, a few months in. A user posts a status. The product team has been adding features: mentions notify the people mentioned, posts fan out to followers, a counter on the user's profile shows their post count, mentions also trigger a delayed email digest at the end of the day. The controller that handles posting looks something like this:
+      </p>
+      <CodeBlock code={`class StatusesController < ApplicationController
+  def create
+    @status = current_user.statuses.build(status_params)
+
+    if @status.save
+      # detect mentions in text
+      mentioned_logins = @status.text.scan(/@([a-z0-9_]+)/i).flatten
+      mentioned_logins.each do |login|
+        target = User.find_by(login: login)
+        Notification.create!(user: target, status: @status, kind: :mention) if target
+      end
+
+      # schedule fan-out to followers
+      FanOutWorker.perform_async(@status.id)
+
+      # bump counter cache
+      current_user.increment!(:statuses_count)
+
+      # schedule grouped email
+      MentionMailerWorker.perform_in(5.minutes, @status.id)
+
+      redirect_to @status
+    else
+      render :new
+    end
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Read through it. <strong>The controller is doing six things</strong>: persisting a status, parsing mentions out of free-form text, creating notification records, scheduling fan-out, bumping a counter, scheduling a mailer. Six things means six possible reasons this file gets edited in the future, and each of those reasons belongs to a different person in the company. When the email team wants to change the delay from five minutes to ten, <strong>they end up reading a controller action that also handles counter caches and string parsing.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        There is a second problem that becomes obvious the day someone wants to post a status from somewhere other than this HTTP endpoint. An importer wants to backfill historical statuses from another platform. A daily job auto-posts a "what you did yesterday" recap on the user's behalf. A Rake task seeds demo data. None of those callers want to instantiate a controller and pretend to be an HTTP request, but <strong>the only place the "posting a status" logic lives is inside that controller action</strong>. The choice becomes: either duplicate the logic, or call the controller from a non-HTTP context, both of which are bad.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Mastodon solves it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Mastodon has the same problem on a much larger scale (millions of statuses posted across the federated network), and they reach for a service object. The whole "post a status" operation lives in a single class at <code class="bg-gray-100 px-2 py-1 rounded">app/services/post_status_service.rb</code>. Here is the start of that file:
+      </p>
+      <CodeBlock code={`# mastodon/app/services/post_status_service.rb · @bdad4f78
+# License: AGPL-3.0
+
+class PostStatusService < BaseService
+  include Redisable
+  include Lockable
+  include LanguagesHelper
+
+  # How much to delay sending an e-mail about a new post,
+  # to allow grouping multiple posts
+  EMAIL_DISTRIBUTION_DELAY = 5.minutes.freeze
+
+  # Post a text status update, fetch and notify remote users mentioned
+  # @param [Account] account Account from which to post
+  # @param [Hash] options
+  # ...
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        A few things to notice. The class inherits from <code class="bg-gray-100 px-2 py-1 rounded">BaseService</code>, a tiny parent class Mastodon uses to give every service the same shape. <strong>The constant <code class="bg-gray-100 px-2 py-1 rounded">EMAIL_DISTRIBUTION_DELAY</code> sits where it is actually used</strong>, not buried in the controller or a random initializer. The mixins (<code class="bg-gray-100 px-2 py-1 rounded">Redisable</code>, <code class="bg-gray-100 px-2 py-1 rounded">Lockable</code>) give this one class the helpers it needs without polluting unrelated classes.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The real entry point is a method called <code class="bg-gray-100 px-2 py-1 rounded">#call(account, options)</code>. <strong>Every Mastodon service has the same surface</strong>: one verb in the class name, one <code class="bg-gray-100 px-2 py-1 rounded">#call</code>, the actor as the first argument, options as the second, and the resulting record as the return value. Once you have read three of these files, <strong>you can guess the shape of any of them without opening it</strong>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The controller, with the service in place, gets thin:
+      </p>
+      <CodeBlock code={`class StatusesController < ApplicationController
+  def create
+    @status = PostStatusService.new.call(current_user.account, status_params)
+    redirect_to @status
+  rescue ActiveRecord::RecordInvalid
+    render :new
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Three lines of orchestration.</strong> The controller's job is now exactly what its name implies: translate an HTTP request into a service call and translate the result back into an HTTP response. The 60 lines of mention parsing, fan-out scheduling, counter bumping, and email queueing moved into the service. <strong>The controller is back to having one reason to change</strong>: the way HTTP requests and responses are shaped.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three concrete benefits come out of the move, and each one maps to a specific senior pain that the original controller had.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The service is callable from anywhere.</strong> The importer that backfills statuses from another platform calls <code class="bg-gray-100 px-2 py-1 rounded">PostStatusService.new.call(some_account, text: ...)</code>. The daily auto-post job does the same. The Rake task does the same. There is no temptation to fake an HTTP request, and no risk of one caller silently skipping the fan-out because they did not know about it. <strong>Every entry point gets the same business logic, because there is only one.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Tests get fast and focused.</strong> A service-object test looks like <code class="bg-gray-100 px-2 py-1 rounded">PostStatusService.new.call(alice, text: "hi")</code> followed by assertions on the returned record, the notifications that were created, and the jobs that were enqueued. No request spec, no controller cycle, no view rendering. <strong>The same coverage runs in roughly a tenth of the time.</strong> The team learns to add coverage for new behavior at the service level, because that is where the cost of doing so is lowest.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Each reason to change has a home.</strong> When the email team wants to retune the grouping delay, the file they open is <code class="bg-gray-100 px-2 py-1 rounded">PostStatusService</code> and the lines they read are only about email grouping. The mention parser is in a different region of the same file (or, more often, in a small collaborator class). The counter cache update is in another. <strong>Each piece can be changed with confidence that the others stay intact, because the responsibilities are physically separated inside the class.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The convention that makes it scale</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Mastodon has hundreds of service objects under <code class="bg-gray-100 px-2 py-1 rounded">app/services/</code>. The reason that scales is a small but unbroken convention: every service in the directory has the same shape, so a developer can predict the surface of one they have never seen. The convention is roughly:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>The class name is a verb followed by <code class="bg-gray-100 px-2 py-1 rounded">Service</code>: <code class="bg-gray-100 px-2 py-1 rounded">PostStatusService</code>, <code class="bg-gray-100 px-2 py-1 rounded">FollowService</code>, <code class="bg-gray-100 px-2 py-1 rounded">DeleteAccountService</code>, <code class="bg-gray-100 px-2 py-1 rounded">UpdateStatusService</code>. The class describes an action, not a thing.</li>
+        <li>The public entry point is one method, <code class="bg-gray-100 px-2 py-1 rounded">#call</code>. The actor (the user or account performing the action) is the first argument. Options come second.</li>
+        <li>The return value is the resulting record, or a small result struct if there are multiple useful values. It is not a boolean. Callers should know what was created, not only that something was.</li>
+        <li>Errors that should bubble (validation failures, authorization problems) are raised as exceptions, not returned as <code class="bg-gray-100 px-2 py-1 rounded">false</code>. The controller catches the ones it cares about; everything else propagates.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The specific convention matters less than the consistency.</strong> Pick one shape for your app and hold the line. New teammates can open any service file and read it in seconds because they already know where <code class="bg-gray-100 px-2 py-1 rounded">#call</code> is going to be and what it is going to return.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When you should not extract</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A real failure mode of seniors who like patterns is extracting service objects too early. If the controller action is genuinely four lines long (find a record, update it, save it, redirect), extracting <code class="bg-gray-100 px-2 py-1 rounded">UpdateRecordService</code> adds a layer of indirection that someone reading the code has to traverse, without making anything else better. <strong>The pattern is not "the file is too long, move it"; the pattern is "this action mixes reasons to change, separate them."</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Signals that an action is earning a service object:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>It coordinates more than one model. Posting a status touches the Status record, the Notification records, the User counter, the FanOutWorker job, the MentionMailerWorker job. Five collaborators, four of them background.</li>
+        <li>The same action is invoked from more than one entry point. Controller, plus a background job that does it on a schedule, plus a Rake task, plus a console session. Each new caller is a reason the action needs to live somewhere reusable.</li>
+        <li>The action is hard to test without booting a full controller cycle. If the test would otherwise need to fake a request, sign in a user, render a view, and read flash messages, you are paying that cost for the wrong reason.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>One nuance:</strong> service objects are not the rule "if the model is fat, move stuff out of it." If the logic is genuinely about a single User and only a single User, an instance method on User is often the better home. The service is for actions that pull together multiple collaborators, where no single model is the obvious owner.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>The Single Responsibility Principle is a coupling rule dressed up as a class-design rule. When a class has two reasons to change, two stakeholders are coupled through that file, even if their concerns have nothing to do with each other. A change to one can break the other. The service object breaks that accidental coupling by giving each reason to change its own physical home.</p>
+        <p>The deeper move, the one Parnas was pointing at in the 1970s, is that <strong>software is easier to change when the change boundaries match the world's change boundaries</strong>. When the marketing team's decisions and the payments team's decisions live in different files, both teams can move at their own speed. When their decisions live in the same controller action, every change becomes a coordination problem.</p>
+        <p>Service objects are a Rails-flavored way of putting that principle into practice. Pick the verb the business uses ("post a status," "issue a refund," "invite a teammate"), make it a class, give it one <code class="bg-gray-100 px-2 py-1 rounded">#call</code> method, and let every caller in the system route through that one entry point.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <p class="text-gray-700 leading-relaxed">
+        Find a real extraction candidate in code you have access to.
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">find app/controllers -name "*_controller.rb" | xargs wc -l | sort -rn | head -5</code> to find your longest controllers.</li>
+        <li>Open the longest one. Find the longest action.</li>
+        <li>Count the things that action does that are not "translate HTTP into a model call, translate the result back into a response." Mention parsing, querying other models, enqueuing jobs, sending mail, updating counters all count.</li>
+        <li>If the count is three or more, that action is a service-object candidate. Sketch the service name (a verb followed by <code class="bg-gray-100 px-2 py-1 rounded">Service</code>) and what its <code class="bg-gray-100 px-2 py-1 rounded">#call</code> signature would be.</li>
+        <li>Bonus: search for <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "current_user\." app/sidekiq app/jobs lib/tasks</code>. If a Sidekiq job or a Rake task is reaching into the same logic the controller uses, that is direct evidence the service should already exist.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed text-sm">
+        The point of the exercise is not to refactor. It is to train your eye to see "this is more than one reason to change" without thinking about it. Once you can spot it, the extraction part takes about an afternoon.
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Course Home</a>
+      <a href="/lessons/senior-srp-form-objects" class="text-ruby hover:text-ruby-dark transition-colors">SRP 2 — Form Objects →</a>
+    </div>
+  </article>
+</Layout>

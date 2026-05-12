@@ -1,0 +1,235 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="ISP 2 of 2 — Role-Based Interfaces in Real Rails Code" description="Where role interfaces come from, why ActiveModel::Model is itself a composition of small roles, and how to design protocols that callers can satisfy without inheriting a whole class.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">ISP Series · 2 of 2</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">✂️</span>
+        <h1 class="text-4xl font-bold text-gray-900">Role-Based Interfaces</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where role interfaces come from, why <code class="text-lg">ActiveModel::Model</code> is itself a composition of small roles, and how to design protocols that callers can satisfy without inheriting a whole class.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The first ISP lesson covered horizontal splits: <strong>a fat concern containing four capabilities gets broken into four small concerns, and each class includes only what it uses</strong>. This lesson is about a related idea, often called <strong>role-based interfaces</strong>: instead of asking "does this object descend from class X?" callers ask "does this object play role Y?"
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The term comes from <strong>Object-Oriented Role Analysis and Modeling</strong>, a method from the 1990s by Trygve Reenskaug (the same person who invented MVC). The core observation: <strong>a class often plays several roles at different times</strong>. A User might be an Author when posting, a Reviewer when commenting, a Subscriber when reading. Asking "is this a User?" forecloses the question that matters: "can this thing act as an Author here?"
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In static languages, role-based design uses tiny interfaces. Java's <code class="bg-gray-100 px-2 py-1 rounded">Comparable</code>, <code class="bg-gray-100 px-2 py-1 rounded">Iterable</code>, <code class="bg-gray-100 px-2 py-1 rounded">Serializable</code> are roles, not classes. A class can implement any subset of them. <strong>The role defines exactly what the caller needs and nothing more.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Ruby's analogous shape is the small module. <code class="bg-gray-100 px-2 py-1 rounded">Comparable</code>, <code class="bg-gray-100 px-2 py-1 rounded">Enumerable</code>, <code class="bg-gray-100 px-2 py-1 rounded">Kernel</code>, and dozens of ActiveModel modules are all roles. <strong>A class declares which roles it plays by including the matching modules.</strong> Callers depend on the role, not on the class.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The ISP-shaped move in Rails is: <strong>when designing a class that other code will collaborate with, think in roles. Each role is a small, named protocol. Callers depend on the role they need, not on the class as a whole.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app where the team built a "user activity log" feature. The first version assumed activity could only come from User records, because that was the only case at launch:
+      </p>
+      <CodeBlock code={`class ActivityLog
+  def self.record(actor, action, subject)
+    raise ArgumentError unless actor.is_a?(User)
+
+    create!(
+      user_id:      actor.id,
+      user_email:   actor.email,
+      user_name:    actor.name,
+      action:       action,
+      subject_type: subject.class.name,
+      subject_id:   subject.id
+    )
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>This class is coupled to the User class.</strong> Three things follow:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>The day the team adds <strong>service accounts</strong> (a separate <code class="bg-gray-100 px-2 py-1 rounded">ServiceAccount</code> model that can also perform actions), the activity log refuses to record anything they do.</li>
+        <li>The day the team adds <strong>API tokens</strong> that act on behalf of users but should be attributable to the token, not the user, there is nowhere to put that information.</li>
+        <li>Tests have to instantiate a real User to record an activity. <strong>The actor argument is class-typed, so any test substitute has to be a User</strong>, even if the test only cares about how activities are recorded.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The class is doing two things: <strong>checking the actor's type, and reading the fields it needs from the actor</strong>. The type check is doing none of the useful work; the field reads are the actual job.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The role-based refactor</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Replace the class check with a role check. <strong>The activity log does not need a User; it needs something that can answer <code class="bg-gray-100 px-2 py-1 rounded">id</code>, <code class="bg-gray-100 px-2 py-1 rounded">email</code>, and <code class="bg-gray-100 px-2 py-1 rounded">name</code>.</strong> That is the role of an "Actor." Make the role explicit:
+      </p>
+      <CodeBlock code={`# Roles are documented as a module. The module does not have
+# to be included anywhere; it merely names the protocol.
+module Actor
+  # Required methods:
+  #   id    -> Integer | String, unique within actor type
+  #   email -> String, where to send notifications
+  #   name  -> String, human-readable label
+end
+
+class ActivityLog
+  def self.record(actor, action, subject)
+    create!(
+      actor_id:     actor.id,
+      actor_email:  actor.email,
+      actor_name:   actor.name,
+      action:       action,
+      subject_type: subject.class.name,
+      subject_id:   subject.id
+    )
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The change is small, and the consequences are large.</strong> Anything that quacks like an Actor — a User, a ServiceAccount, an ApiToken, a test double — can now be passed in. The class does not check what the actor is; it asks the actor what callers need to know. <strong>The role is the contract.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Each actor type still has its own class, with its own internals. <code class="bg-gray-100 px-2 py-1 rounded">User</code> has billing, sessions, preferences. <code class="bg-gray-100 px-2 py-1 rounded">ServiceAccount</code> has API rate limits, auth tokens. They are unrelated except that <strong>both can play the Actor role</strong> by exposing the three methods the role requires.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Rails composes roles itself</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The clearest example of role composition in Rails is <code class="bg-gray-100 px-2 py-1 rounded">ActiveModel::Model</code>. When you read its source, it is not a single fat module — it is a top-level convenience that includes a small set of focused roles:
+      </p>
+      <CodeBlock code={`# rails/activemodel/lib/active_model/model.rb · @main
+# License: MIT
+#
+# Simplified to show the role composition. The real source has
+# a few more includes for backwards compatibility.
+
+module ActiveModel
+  module API
+    extend ActiveSupport::Concern
+
+    include AttributeAssignment
+    include Validations
+    include Conversion
+  end
+
+  module Model
+    extend ActiveSupport::Concern
+
+    include API
+    include Access
+    include Naming
+    include Translation
+    include AttributeMethods
+    include Serialization
+    # ... a handful more
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Each included module is a role:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><code class="bg-gray-100 px-2 py-1 rounded">AttributeAssignment</code> — "I can have attributes set from a hash."</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">Validations</code> — "I can be validated and have errors."</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">Naming</code> — "I have a <code class="bg-gray-100 px-2 py-1 rounded">model_name</code> that views can use."</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">Conversion</code> — "I can be converted to keys, params, and partial paths."</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">Serialization</code> — "I can be serialized to a hash."</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>A class that wants the full "behaves like a model" experience includes <code class="bg-gray-100 px-2 py-1 rounded">ActiveModel::Model</code>.</strong> A class that needs only validations and naming can include those two roles directly. A class that needs only validations (a form object that does not need to render in a view) can include only <code class="bg-gray-100 px-2 py-1 rounded">ActiveModel::Validations</code>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>This is ISP enacted as a library design.</strong> The framework exposes small, focused roles. Application code picks which ones it needs. The fat convenience module (<code class="bg-gray-100 px-2 py-1 rounded">ActiveModel::Model</code>) is there for the common case, but every role underneath it is independently usable.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How to design a role in practice</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three steps:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Name the role from the caller's perspective.</strong> The activity log's caller sees the argument as "an actor," not as "a user." Name the role for what the caller needs, not for the concrete class that happens to satisfy it today. <strong>An Actor role is portable; a User role is not.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. List the methods the role requires.</strong> Keep it small. Three or four methods is typical. If the role grows past five or six, ask whether it is actually two roles glued together. <strong>A role that does many things is hard to satisfy; a role that does few things is hard to misuse.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Document the role somewhere.</strong> The Ruby convention is a module with no implementation, only a docstring listing the required methods. Some teams use a comment block instead. Either way, <strong>the role is named in the codebase, not only in someone.s head.</strong> Tests for the role can check that every claimed implementer answers the protocol.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Optional fourth step: <strong>provide a shared test helper that exercises the role</strong>. RSpec calls this a "shared example." Minitest calls it a module of test methods. Any class claiming to play the role runs the shared tests against itself, which catches drift the day someone adds a new implementer that forgets a method.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four wins come out of the role-based design.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The caller depends on what it needs.</strong> Not on the User class with its 40 methods, but on the Actor role with its 3. The change radius shrinks: <strong>changes to User's billing or session logic cannot break the activity log, because the log never touched those parts</strong>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>New implementers can be added without modifying the caller.</strong> ServiceAccount, ApiToken, even a test double — anything that exposes the right three methods works. <strong>The caller is closed to modification, open to new actor types</strong>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Test substitutes get trivial.</strong> A test that wants to record activity does not need a full User factory. It can use <code class="bg-gray-100 px-2 py-1 rounded">Struct.new(:id, :email, :name).new(1, "a@b", "Alice")</code> — three lines, no database. <strong>The role is the test seam.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The system documents itself.</strong> A reader looking at the activity log sees that it depends on an Actor protocol, not on User. <strong>The boundary is visible in the code</strong>, not hidden in implicit class checks.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When NOT to invent a role</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Role-based design pays for itself when more than one class implements the role, or when one is genuinely coming. <strong>Inventing a role with one implementer is overhead.</strong> The User class can be the actor for a long time without it costing anything. Only when a second actor type is on the roadmap (or already a workaround in the codebase) is the role worth naming.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        A second guard: <strong>do not invent role abstractions for tests alone</strong>. If the only reason to extract a role is to make a test easier, the right fix is usually a small builder helper, not a redesign. Roles earn their keep when they let the production code accept more than one real implementation.
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Smell to watch for:</strong> a method that takes an argument and immediately type-checks it. <code class="bg-gray-100 px-2 py-1 rounded">raise unless x.is_a?(User)</code>, <code class="bg-gray-100 px-2 py-1 rounded">return if x.is_a?(Admin)</code>. <strong>Every type check is a place where a role could replace a class.</strong> The check usually exists because the method's contract was never written down; the role is what makes the contract explicit.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>The Interface Segregation Principle, restated for Ruby: <strong>callers should depend on roles, not on classes</strong>. A role is a small protocol the caller actually uses. A class is everything that happens to be true about an object. The two are not the same, and conflating them produces unnecessary coupling.</p>
+        <p>The deeper move is to <strong>shift the design conversation from "what is this thing?" to "what does this thing need to do for me?"</strong> The first question forecloses substitution; the second invites it. Every role is a place where future implementations can plug in.</p>
+        <p>Rails' framework code follows this rule almost to the letter. <code class="bg-gray-100 px-2 py-1 rounded">ActiveModel</code> is dozens of small roles composed into convenience bundles. <code class="bg-gray-100 px-2 py-1 rounded">ActiveJob</code> defines a tiny adapter role; any backend that implements it can substitute. <code class="bg-gray-100 px-2 py-1 rounded">ActiveStorage</code> defines a service role; any backend that implements it can substitute. <strong>The framework's flexibility — what makes it possible to swap pieces in and out — is role-based design carried out at scale</strong>. Your application code can borrow the same shape.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rEn "is_a?\\(User\\)|is_a?\\(Account\\)|kind_of?\\(" app/</code> in your app. <strong>Each match is a place where a role would replace a class.</strong></li>
+        <li>For each match, identify the methods the surrounding code actually calls on that argument. Three or four methods is typical. <strong>That short list is the role the caller actually needs.</strong></li>
+        <li>Name the role. (Hint: it usually ends in "-able" or "-or" — <code class="bg-gray-100 px-2 py-1 rounded">Actor</code>, <code class="bg-gray-100 px-2 py-1 rounded">Postable</code>, <code class="bg-gray-100 px-2 py-1 rounded">Notifiable</code>.) Write a module that documents the required methods.</li>
+        <li>Replace the type check with role-based code. Now run your tests. <strong>If they all pass, the role was always implicit; you only made it explicit.</strong></li>
+        <li>Bonus: open <code class="bg-gray-100 px-2 py-1 rounded">activemodel/lib/active_model.rb</code> in your bundle directory and read the file. <strong>Every <code class="bg-gray-100 px-2 py-1 rounded">autoload</code> line is a role Rails ships</strong>. Pick one you have never used and read its source. It will be small and self-contained.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-isp-focused-concerns" class="text-ruby hover:text-ruby-dark transition-colors">← ISP 1 — Focused Concerns</a>
+      <a href="/lessons/senior-dip-dependency-injection" class="text-ruby hover:text-ruby-dark transition-colors">DIP 1 — Dependency Injection →</a>
+    </div>
+  </article>
+</Layout>

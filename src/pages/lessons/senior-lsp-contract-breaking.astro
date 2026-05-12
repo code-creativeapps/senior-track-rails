@@ -1,0 +1,215 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="LSP 2 of 2 — When Inheritance Breaks the Contract" description="Where Liskov violations show up in Rails, why STI and concerns silently widen contracts they cannot keep, and how to spot a substitutability failure before it ships.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">LSP Series · 2 of 2</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🪞</span>
+        <h1 class="text-4xl font-bold text-gray-900">When Inheritance Breaks the Contract</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where Liskov violations show up in Rails, why STI and concerns silently widen contracts they cannot keep, and how to spot a substitutability failure before it ships.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The first lesson framed Liskov as a duck-typing rule: <strong>any object that responds to the same methods, with the same return shape, can substitute for the type the caller was thinking about</strong>. That framing covers the cases where Liskov works correctly in Rails. This lesson is about the cases where it breaks.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Liskov's original 1987 statement was more specific than the duck-typing summary. <strong>The subtype must honor every guarantee the supertype made.</strong> That includes the method signatures, the return shapes, the exceptions raised, the side effects, and the invariants the supertype documents (or implies). A subtype is allowed to do more, but it cannot weaken what the supertype promised.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Robert Martin coined the canonical example: a <strong>Square</strong> class that inherits from <strong>Rectangle</strong>. Geometrically, a square is a rectangle. As a subtype, it is not, because <code class="bg-gray-100 px-2 py-1 rounded">Rectangle#width=</code> and <code class="bg-gray-100 px-2 py-1 rounded">Rectangle#height=</code> can be called independently; on a Square, setting one without setting the other breaks the invariant that all sides are equal. Code that worked correctly with a Rectangle (set width, set height, compute area) returns wrong answers when you pass it a Square. <strong>The subtype broke a guarantee the supertype made, and the caller silently produced a bug.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In Rails, the same violation shape appears in three concrete places: <strong>STI subclasses that raise on inherited operations, concerns that change a method's contract, and overridden ActiveRecord methods that silently differ from the parent</strong>. Each one is a Liskov violation. Each one ships in plenty of Rails apps.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern (three flavors)</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Flavor one: STI subclass that raises on what the parent allows.</strong>
+      </p>
+      <CodeBlock code={`class Order < ApplicationRecord
+  # Base class. Supports refunds.
+  def refund!(amount: total_cents)
+    transaction do
+      update!(status: "refunded")
+      refunds.create!(amount_cents: amount)
+    end
+  end
+end
+
+class GiftCardOrder < Order
+  # Subtype. Gift cards cannot be refunded by policy.
+  def refund!(*)
+    raise NotRefundableError, "Gift card orders are final"
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>This is a Liskov violation.</strong> A caller that has an Order and calls <code class="bg-gray-100 px-2 py-1 rounded">order.refund!</code> expects the refund to happen. If the order happens to be a GiftCardOrder, the call raises. <strong>The caller did nothing wrong; the subtype broke the parent's contract.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Flavor two: concern that overrides a method with a different contract.</strong>
+      </p>
+      <CodeBlock code={`module SoftDeletable
+  extend ActiveSupport::Concern
+
+  included do
+    scope :default_scope, -> { where(deleted_at: nil) }
+  end
+
+  def destroy
+    update_column(:deleted_at, Time.current)
+  end
+end
+
+class Customer < ApplicationRecord
+  include SoftDeletable
+end
+
+# Caller code expecting normal ActiveRecord:
+customer.destroy
+customer.destroyed?  # => false  <-- not deleted in the usual sense
+Customer.find(customer.id)  # => raises ActiveRecord::RecordNotFound
+                            #     (because of default_scope hiding deleted rows)
+                            # ...except the row is still there!`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The concern silently changed the meaning of <code class="bg-gray-100 px-2 py-1 rounded">destroy</code>.</strong> Callers that learned Rails semantics expect a destroyed record to be gone from the table. With this concern, the record is still there, hidden by a default scope. <code class="bg-gray-100 px-2 py-1 rounded">destroyed?</code> returns false because the parent ActiveRecord method was never called. Background jobs holding a destroyed record see a row that "exists" but cannot be re-queried.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Flavor three: overridden method that subtly changes return type.</strong>
+      </p>
+      <CodeBlock code={`class Article < ApplicationRecord
+  def author
+    user
+  end
+end
+
+class GuestArticle < Article
+  def author
+    "Guest"  # was a User object; now a String
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>A caller that expects <code class="bg-gray-100 px-2 py-1 rounded">article.author.email</code> works for an Article and crashes with NoMethodError for a GuestArticle.</strong> The author method returns a different shape in the subtype. The Liskov violation might be intentional in the model design, but it is unambiguously a contract change, and every caller has to learn about it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How to detect these in real code</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three specific code smells flag Liskov-breaking shapes:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Subclass methods that raise where the parent does not.</strong> Grep for <code class="bg-gray-100 px-2 py-1 rounded">raise NotImplementedError</code> and <code class="bg-gray-100 px-2 py-1 rounded">raise.*Error</code> inside methods that override parent methods. <strong>Every one is a subtype refusing to honor a parent guarantee.</strong> Sometimes the right answer is to redesign the hierarchy (separate Order types into a class that supports refunds and one that does not, neither inheriting from a third). Sometimes the right answer is to weaken the parent's contract so the method can return a Result struct that includes "refused" as a valid outcome.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Methods overridden in concerns or subclasses that do not call <code class="bg-gray-100 px-2 py-1 rounded">super</code>.</strong> Grep for <code class="bg-gray-100 px-2 py-1 rounded">def destroy</code>, <code class="bg-gray-100 px-2 py-1 rounded">def save</code>, <code class="bg-gray-100 px-2 py-1 rounded">def update</code> inside concerns and subclasses. <strong>If the override does not call <code class="bg-gray-100 px-2 py-1 rounded">super</code>, it is replacing the parent's behavior, not extending it.</strong> That is exactly the move Liskov forbids unless the new behavior honors the same contract.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Methods that return different types in the same class hierarchy.</strong> If <code class="bg-gray-100 px-2 py-1 rounded">Article#author</code> returns a User and <code class="bg-gray-100 px-2 py-1 rounded">GuestArticle#author</code> returns a String, the hierarchy lies to callers. Make the method always return the same shape, even if that shape is "a User-like object," potentially via a small adapter class.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How real OSS apps avoid this</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The cleanest fix in Rails is the one the OCP series already covered: <strong>delegated_type</strong>. Instead of inheriting subtle differences via STI, each kind gets its own table and its own model, with no parent-child contract to break. The Entry parent in a delegated_type design does not pretend to support refunding; the refund-supporting kinds expose <code class="bg-gray-100 px-2 py-1 rounded">refund!</code> and the others omit it entirely. <strong>A caller that wants to refund knows it has to be looking at a refund-supporting kind</strong>, and the type system (such as it is in Ruby) makes the constraint visible.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For the soft-delete concern, real Rails apps that need that feature use one of two shapes:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>A different method name.</strong> <code class="bg-gray-100 px-2 py-1 rounded">customer.archive!</code> instead of <code class="bg-gray-100 px-2 py-1 rounded">customer.destroy</code>. The two operations have different semantics; giving them different names makes the difference obvious to callers.</li>
+        <li><strong>A separate "state as a record" pattern.</strong> Instead of a <code class="bg-gray-100 px-2 py-1 rounded">deleted_at</code> column, create a <code class="bg-gray-100 px-2 py-1 rounded">CustomerDeletion</code> record when archiving. The Customer model is unchanged; the archive state is a separate row that callers can query explicitly. (37signals' Fizzy uses this pattern.)</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Both shapes keep the original method's contract intact. Neither overloads <code class="bg-gray-100 px-2 py-1 rounded">destroy</code> with semantics it did not have. <strong>The Liskov-safe move is to not break the contract; if you need different behavior, name it differently.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The hardest case: contract creep</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The trickiest Liskov violations in real apps are not the obvious "subclass raises NotImplementedError" cases. They are <strong>contract creep</strong>: a subclass that adds a precondition the parent never had, or a postcondition the parent never promised. The new constraint is silent, so callers do not learn about it until something breaks in production.
+      </p>
+      <CodeBlock code={`class Notification < ApplicationRecord
+  def deliver
+    # the parent: deliver is idempotent
+    transaction do
+      Mailer.notification(user, content).deliver_later
+      update!(delivered_at: Time.current)
+    end
+  end
+end
+
+class SmsNotification < Notification
+  def deliver
+    # the subtype: also charges the user's account
+    raise InsufficientCredits unless user.sms_credits >= 1
+    user.deduct_sms_credit!
+    super
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The supertype's contract for <code class="bg-gray-100 px-2 py-1 rounded">deliver</code> was idempotent.</strong> Calling it twice was fine — the email got delivered, the timestamp got updated. <strong>The subtype broke that</strong>: calling it twice deducts two credits, even if the deduct succeeds and the deliver fails. A caller that has a transient error and retries silently double-charges the user.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fix is not to refuse to deduct credits; it is to <strong>keep the supertype's idempotence guarantee by checking whether the deduction has already happened</strong>. The subtype is allowed to do more (charge for the SMS), but it has to honor what the parent promised (calling twice does not change the outcome).
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When breaking Liskov is the right call</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Strict Liskov adherence is sometimes more theoretical than useful. <strong>Real Rails apps often have inheritance hierarchies where one subtype is genuinely "almost like the parent except for X."</strong> The pragmatic move is to be honest about the deviation:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Name the difference in the method.</strong> If a GiftCardOrder cannot be refunded, do not call its method <code class="bg-gray-100 px-2 py-1 rounded">refund!</code>. Call it something else, or have the parent's <code class="bg-gray-100 px-2 py-1 rounded">refund!</code> return a Result that includes "not allowed for this kind" as a valid outcome.</li>
+        <li><strong>Document the contract publicly.</strong> If callers depend on idempotence, write that down. If the subtype cannot keep it, note exactly which subclasses break it.</li>
+        <li><strong>Test the substitution.</strong> A test that calls the parent method on every subclass and checks the contract holds is the best protection against accidental Liskov drift.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>The senior heuristic is to treat Liskov as a coupling check, not a religion.</strong> When a subclass breaks the parent's contract, every caller of the parent now has to know about the subclass. That coupling is bad and worth avoiding. <strong>If you cannot avoid it, at least make it explicit: callers should not learn about subclass-specific behavior in production.</strong>
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>Liskov is the principle that says <strong>inheritance is a promise, not a free transformation</strong>. When a class inherits from another, it inherits the parent's contract along with its methods. The subclass is bound by what the parent told callers it would do. Breaking that contract in a subclass turns inheritance into a trap, where callers think they are working with the parent's well-known behavior but are actually working with something subtly different.</p>
+        <p>The deeper move is that <strong>"is-a" relationships in code are about behavior, not taxonomy</strong>. A Square is geometrically a Rectangle. A GiftCardOrder is conceptually an Order. But if the behavior diverges, the inheritance lies, and the substitution that LSP demands becomes a bug surface.</p>
+        <p>In Rails, the safer designs avoid the problem by avoiding the inheritance. <strong>delegated_type, composition, and concerns with named contracts all let you express "this is another kind of thing" without the implicit promise that it can stand in for some parent.</strong> When you reach for STI or a subclass, ask the Liskov question first: can my subtype honor every guarantee the parent made? If the answer is no, the relationship is not subtype — it is something else.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Find every STI hierarchy in your app: <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "self.inheritance_column\\|&lt; Order\\|&lt; User" app/models</code> (substitute your actual base classes).</li>
+        <li>For each parent class, list every public method. For each subclass, ask: <strong>does this subclass honor every method's contract — same arguments, same return shape, same side effects, same exceptions?</strong></li>
+        <li>If you find a subclass method that raises where the parent does not, or returns a different shape, that is a Liskov violation. Decide whether the right fix is to rename the method, redesign the hierarchy, or weaken the parent's contract.</li>
+        <li>Grep for concerns that override common ActiveRecord methods: <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "def destroy\\|def save\\|def update" app/models/concerns/</code>. <strong>For each one, check whether it calls <code class="bg-gray-100 px-2 py-1 rounded">super</code>.</strong> Overrides that do not call super are silently replacing parent behavior — usually a Liskov violation.</li>
+        <li>Bonus: write a "Liskov spec" for one of your STI hierarchies. The spec instantiates every subclass and calls every public method of the parent, asserting that the contracts hold. <strong>The first time the spec catches a drift, the pattern will pay for itself.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-lsp-duck-typing" class="text-ruby hover:text-ruby-dark transition-colors">← LSP 1 — Duck Typing</a>
+      <a href="/lessons/senior-isp-focused-concerns" class="text-ruby hover:text-ruby-dark transition-colors">ISP 1 — Focused Concerns →</a>
+    </div>
+  </article>
+</Layout>

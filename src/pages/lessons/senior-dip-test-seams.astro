@@ -1,0 +1,251 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="DIP 3 of 3 — Test Seams in Real Rails Code" description="Where test seams come from, why a class that's hard to test is usually a class with a hidden dependency, and how Rails' test adapters show the inversion pattern at scale.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">DIP Series · 3 of 3</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🔁</span>
+        <h1 class="text-4xl font-bold text-gray-900">Test Seams</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where test seams come from, why a class that is hard to test is usually a class with a hidden dependency, and how Rails' test adapters show the inversion pattern at scale.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The term "seam" comes from <strong>Michael Feathers' 2004 book <em>Working Effectively with Legacy Code</em></strong>. Feathers defined a seam as <strong>"a place where you can alter behavior in your program without editing in that place"</strong>. The everyday version: a seam is a spot where a test can swap in a different implementation, without modifying the code being tested.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Seams matter because <strong>untested code rots faster than tested code</strong>. A class that cannot be tested in isolation accumulates bugs that only show up in production, and refactoring it gets riskier with every change. The classes that survive years of evolution in big Rails apps are the ones that were testable from day one. <strong>Testability is not a side effect of good design; it is one of the principal forces shaping good design.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The Dependency Inversion Principle is the engineering rule that <em>creates</em> seams. When a class accepts its collaborators as constructor arguments (DIP 1) and reads its configuration from a central namespace (DIP 2), <strong>every collaborator and every configuration value is a seam</strong>. Tests can pass in fakes; production passes in the real thing. The class itself is unchanged across both.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        This lesson is about the seams Rails ships with — <strong>queue adapters, mail delivery methods, storage services, the test ActionCable adapter</strong> — and what makes them work. Once you see the pattern, the same shape is yours to use in application code.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A class with no seam looks like this:
+      </p>
+      <CodeBlock code={`class GenerateMonthlyReport
+  def perform(month)
+    orders = Order.where(created_at: month.all_month)
+    pdf    = ReportRenderer.render(orders)
+
+    S3Client.new.put_object(
+      bucket: ENV.fetch("REPORT_BUCKET"),
+      key:    "reports/#{month.strftime("%Y-%m")}.pdf",
+      body:   pdf
+    )
+
+    AdminMailer.report_ready(month).deliver_now
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Imagine writing a test for this class. To exercise <code class="bg-gray-100 px-2 py-1 rounded">perform</code>, you need to:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>Create real Order records in the database (or set up factories).</li>
+        <li>Render a real PDF, which requires the renderer library to be installed and working.</li>
+        <li>Stub or mock <code class="bg-gray-100 px-2 py-1 rounded">S3Client</code> so it does not make a real API call.</li>
+        <li>Set <code class="bg-gray-100 px-2 py-1 rounded">REPORT_BUCKET</code> in the test environment, or the <code class="bg-gray-100 px-2 py-1 rounded">ENV.fetch</code> raises.</li>
+        <li>Switch ActionMailer's delivery method to <code class="bg-gray-100 px-2 py-1 rounded">:test</code> so the mailer goes to <code class="bg-gray-100 px-2 py-1 rounded">ActionMailer::Base.deliveries</code> instead of SMTP.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The test is doing more setup than testing.</strong> Worse, every other test of this class repeats the same setup. The eventual code path is "this class talks to S3, sends an email, hits the database, and reads ENV." Anyone trying to understand it has to know all four facts, before they ever look at the actual logic.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The deeper problem is that <strong>the class has no seams</strong>. Every collaborator is named directly, looked up directly, or read directly. The only way to swap any of them is to monkey-patch — to "edit in that place," which is exactly what Feathers's definition rules out.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The fix: every collaborator is a seam</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Apply DIP 1 and DIP 2 together. Each external collaborator gets injected; each configuration value comes from a named source.
+      </p>
+      <CodeBlock code={`class GenerateMonthlyReport
+  def initialize(
+    storage:  AppConfig::Storage.report_bucket_client,
+    mailer:   AdminMailer,
+    renderer: ReportRenderer
+  )
+    @storage  = storage
+    @mailer   = mailer
+    @renderer = renderer
+  end
+
+  def perform(month)
+    orders = Order.where(created_at: month.all_month)
+    pdf    = @renderer.render(orders)
+
+    @storage.upload(key_for(month), pdf)
+    @mailer.report_ready(month).deliver_later
+  end
+
+  private
+
+  def key_for(month)
+    "reports/#{month.strftime("%Y-%m")}.pdf"
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Now the test reads like this:
+      </p>
+      <CodeBlock code={`# illustrative test
+
+class FakeStorage
+  attr_reader :uploads
+  def initialize; @uploads = []; end
+  def upload(key, body); @uploads << [key, body]; end
+end
+
+class FakeRenderer
+  def self.render(orders); "PDF bytes for #{orders.size} orders"; end
+end
+
+test "uploads the PDF and sends the email" do
+  storage = FakeStorage.new
+  mailer  = mock
+  mailer.expects(:report_ready).returns(mailer)
+  mailer.expects(:deliver_later)
+
+  service = GenerateMonthlyReport.new(
+    storage:  storage,
+    mailer:   mailer,
+    renderer: FakeRenderer
+  )
+  service.perform(Date.new(2026, 4, 1))
+
+  assert_equal [["reports/2026-04.pdf", "PDF bytes for 0 orders"]], storage.uploads
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Three short fakes, one assertion that captures the real behavior.</strong> The test does not need a real S3 client, a real PDF renderer, or a real mailer. The seams give the test full control over what gets called and with what arguments. The production class is unchanged.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Rails ships seams at framework scale</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The Rails framework is built around test seams. <strong>Every adapter pattern in Rails is also a seam pattern.</strong> The "test adapter" for each adapter family is the canonical example:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>ActiveJob's <code class="bg-gray-100 px-2 py-1 rounded">:test</code> adapter.</strong> In production, <code class="bg-gray-100 px-2 py-1 rounded">SomeJob.perform_later</code> enqueues to Sidekiq or Solid Queue. In tests, <code class="bg-gray-100 px-2 py-1 rounded">config.active_job.queue_adapter = :test</code> swaps in an adapter that records jobs in an in-memory array instead of running them. Tests assert on <code class="bg-gray-100 px-2 py-1 rounded">SomeJob.assert_enqueued_with(...)</code>; production code is identical. <strong>The seam is the adapter; the swap is one config line.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>ActionMailer's <code class="bg-gray-100 px-2 py-1 rounded">:test</code> delivery method.</strong> In production, <code class="bg-gray-100 px-2 py-1 rounded">UserMailer.welcome(user).deliver_now</code> sends real SMTP. In tests, <code class="bg-gray-100 px-2 py-1 rounded">config.action_mailer.delivery_method = :test</code> swaps in a delivery method that appends to <code class="bg-gray-100 px-2 py-1 rounded">ActionMailer::Base.deliveries</code> instead. Tests assert on the array; production code is identical.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>ActiveStorage's <code class="bg-gray-100 px-2 py-1 rounded">:test</code> service.</strong> In production, <code class="bg-gray-100 px-2 py-1 rounded">user.avatar.attach(io)</code> uploads to S3 (or Disk, or GCS). In tests, <code class="bg-gray-100 px-2 py-1 rounded">config.active_storage.service = :test</code> swaps in an in-memory service that holds the bytes for inspection. Tests assert on <code class="bg-gray-100 px-2 py-1 rounded">user.avatar.attached?</code>; production code is identical.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Three frameworks, three different domains, one pattern. <strong>The high-level code (the job, the mailer, the model) depends on an abstract role (the adapter). The low-level details (Sidekiq, SMTP, S3) implement the role. The test environment substitutes a different implementation by changing one config line.</strong> That is Dependency Inversion at framework scale, with the test environment as the substitution case.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Three patterns of test seam, ranked</h2>
+      <p class="text-gray-700 leading-relaxed">
+        From cleanest to messiest:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Constructor injection</strong> (DIP 1). The class takes its collaborators as keyword arguments. Production code provides defaults; tests pass in fakes. <strong>This is the cleanest because the seam is visible in the class's signature.</strong> Anyone reading the constructor sees that the class can be reconfigured.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Config-based swap</strong> (DIP 2). The class reads its collaborator from a central config namespace. Tests override the config value (often automatically, via environment-specific files). <strong>Cleaner than monkey-patching, less explicit than injection.</strong> Best when the swap is environment-wide rather than test-by-test.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Monkey-patch / stub</strong> (last resort). The test reaches into the class being tested and overrides a method or replaces a constant. <strong>This works, but the test now knows about the class's internals.</strong> A refactor that renames the method or moves the call site breaks every test that stubbed the old shape. Use only when the class cannot be changed (e.g., third-party gems with no documented test mode).
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>A class that needs heavy stubbing is a class that wants injection.</strong> Every stub in a test file is a place where the production class hardcoded a dependency it could have accepted as an argument. The next time you find yourself writing <code class="bg-gray-100 px-2 py-1 rounded">Klass.any_instance.expects(:method)</code> or <code class="bg-gray-100 px-2 py-1 rounded">stub_const("Klass::URL", "...")</code>, that is the production class telling you to add a seam.
+        </p>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four payoffs come from designing classes with seams from the start.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Tests are fast.</strong> Real S3 calls take 100ms. A fake storage that records uploads in an array takes 0.01ms. <strong>A test suite that uses fakes everywhere runs in seconds where the un-seamed version takes minutes.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Tests are deterministic.</strong> Real services are flaky. A fake never is. <strong>The test suite that flakes in CI three times a week is usually testing against real collaborators that should have been seams.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Tests describe behavior, not implementation.</strong> A test that asserts on <code class="bg-gray-100 px-2 py-1 rounded">storage.uploads</code> describes what the class does. A test that asserts on <code class="bg-gray-100 px-2 py-1 rounded">S3Client.any_instance.expects(:put_object).with(...)</code> describes how it does it. <strong>The first kind of test survives refactors; the second kind breaks every time you reorganize.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Production gains optionality.</strong> A class with seams can swap its real S3 for GCS by changing the config. A class without seams requires a code change. <strong>The same flexibility that makes tests cheap makes production migrations low-risk.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When to NOT inject for testability</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Two cases where adding a seam is over-engineering:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>The collaborator is already a test seam.</strong> ActiveRecord is one — you do not need to inject <code class="bg-gray-100 px-2 py-1 rounded">Order</code> because the test database is the seam. ActionMailer is one — you do not need to inject the mailer class because <code class="bg-gray-100 px-2 py-1 rounded">delivery_method = :test</code> already handles it. <strong>Inject what crosses an external boundary, not what is already framework-controlled.</strong></li>
+        <li><strong>The collaborator is so simple that injecting adds more code than it saves.</strong> A pure function that formats a string does not need to be injected. A constant that is only a string does not need a layer of indirection. <strong>Reserve seams for things with real behavior that you might want to vary.</strong></li>
+      </ul>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>Dependency Inversion ends, in practice, at the test environment. <strong>The test suite is the second consumer of every class you write</strong>, alongside production. When the class is designed so both consumers can use it without modification, the design is good. When only production can use it and tests have to monkey-patch, the design has a missing seam.</p>
+        <p>The deeper move is to recognize that <strong>testability is a window into design quality</strong>. A class that is painful to test is almost always a class that hardcoded a collaborator it should have accepted. Listening to that pain is one of the most reliable signals a senior developer gets that the design needs an adjustment.</p>
+        <p>Rails encodes this insight at framework scale. <strong>Every major piece of Rails has a test adapter</strong>: ActiveJob, ActionMailer, ActiveStorage, ActionCable. Each one is the framework's acknowledgement that production code should be the same code that runs in tests, with the dependency swapped underneath. Your application code can borrow the same shape, at a smaller scale, with the same payoff.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Open a test file you wrote recently. Count the <code class="bg-gray-100 px-2 py-1 rounded">.expects</code>, <code class="bg-gray-100 px-2 py-1 rounded">.stubs</code>, or <code class="bg-gray-100 px-2 py-1 rounded">allow(...).to</code> calls at the top.</li>
+        <li>For each one, ask: <strong>is this stubbing a collaborator that the production class hardcoded?</strong> If yes, the production class is missing a seam.</li>
+        <li>Pick the worst offender. Refactor the production class to accept the collaborator as a constructor argument with a sensible default. <strong>Replace the stub with a small fake class.</strong></li>
+        <li>Re-run the test. <strong>Notice that the test is shorter, faster, and reads more like real behavior than like an internals-aware mock script.</strong></li>
+        <li>Bonus: read <code class="bg-gray-100 px-2 py-1 rounded">activejob/lib/active_job/queue_adapters/test_adapter.rb</code> in your bundle. It is 80 lines. <strong>That is the entire seam between "real Sidekiq" and "in-memory test queue."</strong> Notice how small the contract is.</li>
+      </ol>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Closing the SOLID journey</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Across nineteen lessons and five principles, the Senior Track has now walked through SOLID in real Rails code. <strong>SRP</strong> showed seven extractions for fat models and fat controllers. <strong>OCP</strong> showed five shapes for adding behavior without modifying existing code. <strong>LSP</strong> showed how Ruby's duck typing makes substitutability the default and how inheritance breaks the contract when used carelessly. <strong>ISP</strong> showed how to split fat concerns and design role-based interfaces. <strong>DIP</strong> showed how injecting collaborators and centralizing configuration turn classes into testable, swappable units.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Five principles is a small number, and SOLID is a small acronym. <strong>What makes seniors seniors is not knowing the acronym but having internalized the moves until they no longer feel like patterns at all.</strong> Reading a Rails codebase, a senior sees a fat controller and immediately sees the service extraction inside it. They see a soft-delete column and immediately wonder if it is hiding a Liskov violation. They see a class with hardcoded collaborators and immediately know the test file will be heavy with stubs. The patterns become a way of reading code, not a checklist.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The best way to internalize them is the same way every other senior did: <strong>read real code that uses them well</strong>. Mastodon, Forem, Discourse, Gumroad, and Rails core itself are the canonical references for the Mastodon/Forem/Gumroad school of Rails. Basecamp's Fizzy and Campfire are the canonical references for the 37signals school. Both schools are senior. The skill is recognizing which school a team writes in, and being fluent in either when it is your turn to ship.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The principles are not the goal. The goal is fluency.</strong> The principles are signposts on the way there.
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-dip-config-injection" class="text-ruby hover:text-ruby-dark transition-colors">← DIP 2 — Config Injection</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Course Home →</a>
+    </div>
+  </article>
+</Layout>

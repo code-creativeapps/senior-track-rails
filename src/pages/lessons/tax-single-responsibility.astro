@@ -1,0 +1,120 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="One class, one reason to change" description="Why a class that handles payment, inventory, email, analytics, and audit logs becomes the file no one wants to touch.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 6 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">One class, one reason to change</h1>
+      <p class="text-xl text-gray-600">Why a class that handles payment, inventory, email, analytics, and audit logs becomes the file no one wants to touch.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class OrderProcessor
+  def process(order)
+    return false unless valid?(order)
+
+    charge_card(order)
+    update_inventory(order)
+    send_confirmation_email(order)
+    notify_warehouse(order)
+    update_analytics(order)
+    log_to_audit(order)
+
+    true
+  end
+  # ... 200 lines of private methods
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed">This class has <strong>six different reasons it might need to change in the future, all rolled into one file</strong>. Whenever the payment provider changes, you have to touch this class. Whenever the inventory system changes, same thing. The same goes for emails, the warehouse API, the analytics events, and the audit log format. Every team in the company eventually ends up working in this file at some point, and every change to one piece carries a real risk of accidentally breaking something else.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, think about how you'd split this class. What would each new piece be responsible for, and what does <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">OrderProcessor</code> end up doing?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4"><strong>Split each responsibility into its own small class</strong>. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">OrderProcessor</code> stays as the orchestrator that knows the order in which steps run, but each of the six steps becomes a focused object that knows how to do its piece and nothing else. A change to the payment logic now only touches the payment class, and a change to the email template only touches the email class.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>Each piece can be tested without setting up the others</li>
+            <li>A change to one component touches one file</li>
+            <li>The orchestrator's flow is readable in 10 lines</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`class OrderProcessor
+  def initialize(order)
+    @order = order
+  end
+
+  def process
+    OrderValidator.new(@order).check!
+    OrderCharger.new(@order).charge!
+    InventoryUpdater.new(@order).decrement!
+    OrderConfirmationMailer.with(order: @order).deliver_later
+    WarehouseNotification.new(@order).enqueue
+    OrderAuditLogger.log(@order)
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Single responsibility
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>Every class in your codebase has a set of reasons it might need to change in the future. Maybe a downstream API changes its contract. Maybe the business rules around something get updated. Maybe you switch vendors. The Single Responsibility Principle says <strong>a class should ideally have only one of those reasons</strong> — one axis along which it might evolve.</p>
+            <p>When a class ends up with several unrelated responsibilities, <strong>every change to one of them risks accidentally affecting the others</strong>. The tests get harder to write because you have to stub all the unrelated collaborators. The file gets longer and longer, and reasoning about its behavior gets harder because you have to juggle all the different concerns in your head at once.</p>
+            <p>Splitting by responsibility doesn't mean breaking everything down into one-method classes. It means <strong>each class should be clearly answering one question</strong>. The orchestrator's job is to know what runs and in what order. Each step's job is to do its piece. The orchestrator doesn't care how the email is built, and the email class doesn't care about the warehouse.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-scoped-queries" class="text-ruby hover:text-ruby-dark transition-colors">← Card 5</a>
+      <a href="/lessons/tax-open-closed" class="text-ruby hover:text-ruby-dark transition-colors">Card 7 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

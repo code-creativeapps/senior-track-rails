@@ -1,0 +1,208 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="SRP 4 of 7 — Policy Objects in Real Rails Code" description="Where policy objects come from, why authorization keeps escaping into the wrong files, and how Forem uses ListingPolicy to keep auth rules co-located with the resources they protect.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SRP Series · 4 of 7</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🚦</span>
+        <h1 class="text-4xl font-bold text-gray-900">Policy Objects</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the pattern comes from, why authorization keeps escaping into the wrong files, and how Forem uses <code class="text-lg">ListingPolicy</code> to keep auth rules co-located with the resources they protect.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Authorization in Rails has been through several generations. The earliest apps put it on the user model — <code class="bg-gray-100 px-2 py-1 rounded">user.admin?</code>, <code class="bg-gray-100 px-2 py-1 rounded">user.can_edit?(post)</code>, <code class="bg-gray-100 px-2 py-1 rounded">user.can_destroy?(comment)</code>. <strong>Every "who is allowed to do what" question became a predicate method on User.</strong> When the app had three resources, this was manageable. When it had thirty, the User model had hundreds of methods named after every other model in the codebase.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The first generation of authorization gems tried to fix this by giving the rules their own home. <strong>CanCan</strong>, released by Ryan Bates in 2009, introduced a single <code class="bg-gray-100 px-2 py-1 rounded">Ability</code> class that contained every authorization rule in the system. The rules used a DSL: <code class="bg-gray-100 px-2 py-1 rounded">can :update, Post, user_id: user.id</code>. <strong>It pulled the rules off User, but it put them all into one file</strong>, which became its own kind of problem at scale. A rule change for listings meant editing the same file that owned rules for comments, articles, and reactions.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Pundit</strong>, released by Jonas Nicklas at Elabs in 2012, applied SRP to the problem itself. Instead of one Ability class for the whole app, <strong>Pundit gives every resource its own policy class</strong>, located at <code class="bg-gray-100 px-2 py-1 rounded">app/policies/&#123;resource&#125;_policy.rb</code>. The Listing model gets ListingPolicy. The Article model gets ArticlePolicy. Each policy class contains the predicates for that resource and only that resource. <strong>One file per resource means one team's rule changes affect one team's policy file.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The underlying rule the pattern enforces: <strong>"who you are" and "what you are allowed to do to a Listing" are different responsibilities, owned by different teams, and they should not live in the same class.</strong> The User model owns identity, profile, account state. The ListingPolicy owns the authorization rules around listings. The Listing model itself owns the data and the domain logic, and it never asks the user-permission question directly.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Authorization in a Rails app without policies lands in one of two places, and both have specific failure modes.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Place one: the User model.</strong>
+      </p>
+      <CodeBlock code={`class User < ApplicationRecord
+  def can_edit_listing?(listing)
+    listing.user_id == id || org_admin?(listing.organization_id)
+  end
+
+  def can_destroy_listing?(listing)
+    can_edit_listing?(listing)
+  end
+
+  def can_create_listing?
+    confirmed? && !suspended?
+  end
+
+  # ... 30 more can_*? methods for every other resource
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Every team's authorization tweak ends up touching User.</strong> The listings team adds a rule, the articles team adds a rule, the comments team adds a rule. User becomes a file that owns "what is a user" plus thirty unrelated authorization predicates. <strong>Five teams sharing one file means five reasons that file changes, and five sources of regressions every time someone edits it.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Place two: the controller.</strong>
+      </p>
+      <CodeBlock code={`class ListingsController < ApplicationController
+  before_action :authorize_owner_or_admin, only: [:edit, :update, :destroy]
+
+  private
+
+  def authorize_owner_or_admin
+    listing = Listing.find(params[:id])
+    unless listing.user_id == current_user.id ||
+           current_user.org_admin?(listing.organization_id)
+      head :forbidden
+    end
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Better than the User-model version, but it has its own problem. <strong>The same authorization rule will land in any other place a Listing can be edited.</strong> An admin controller. An API controller. A GraphQL resolver. An importer that updates listings on behalf of a user. Each one re-implements the rule, slightly differently each time. <strong>The day the auth team changes the rule, four files need to update at once, and missing one is a security bug.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        There is a third problem: <strong>the controller version is impossible to test in isolation</strong>. To verify "Alice can edit her own listing but cannot edit Bob's," you need to spin up a request, sign in as Alice, hit the controller, check the response. That same coverage at the policy-class level is two lines of Ruby and runs in milliseconds.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Forem solves it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Forem (the codebase behind dev.to) uses Pundit, and every resource that can be authorized has its own policy class. Here is the real Listing one:
+      </p>
+      <CodeBlock code={`# forem/app/policies/listing_policy.rb · @9eb974c4
+# License: AGPL-3.0
+
+class ListingPolicy < ApplicationPolicy
+  def edit?
+    user_author? || authorized_organization_admin_editor?
+  end
+
+  alias update? edit?
+  alias delete_confirm? edit?
+  alias destroy? edit?
+
+  def authorized_organization_poster?
+    user.org_member?(record.organization_id)
+  end
+
+  private
+
+  def user_author?
+    record.user_id == user.id
+  end
+
+  def authorized_organization_admin_editor?
+    user.org_admin?(record.organization_id)
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Read it carefully. Four design choices are doing the work:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The class name matches the resource it protects.</strong> <code class="bg-gray-100 px-2 py-1 rounded">ListingPolicy</code> answers every authorization question about listings. If you want to know what is allowed for listings, you open one file. <strong>Locality is the whole point.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>One predicate per controller action.</strong> <code class="bg-gray-100 px-2 py-1 rounded">edit?</code>, <code class="bg-gray-100 px-2 py-1 rounded">update?</code>, <code class="bg-gray-100 px-2 py-1 rounded">destroy?</code>, <code class="bg-gray-100 px-2 py-1 rounded">show?</code>, <code class="bg-gray-100 px-2 py-1 rounded">index?</code>. The naming convention mirrors RESTful actions, so the controller side becomes a one-liner: <code class="bg-gray-100 px-2 py-1 rounded">authorize(@listing)</code> automatically picks the right predicate based on the action name.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Aliases collapse equivalent rules.</strong> "If you can edit, you can update and destroy" is expressed in three <code class="bg-gray-100 px-2 py-1 rounded">alias</code> lines, not three near-identical methods. <strong>The rule is stated once and reused; there is no drift between "edit" and "destroy" because they literally point at the same code.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Private helpers spell out the rule in plain English.</strong> <code class="bg-gray-100 px-2 py-1 rounded">user_author?</code> and <code class="bg-gray-100 px-2 py-1 rounded">authorized_organization_admin_editor?</code>. Reading the class top to bottom is the spec for "who can edit a listing." A new engineer onboarding to the team can answer that question in thirty seconds without grepping the codebase.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The controller side is one method call per action:
+      </p>
+      <CodeBlock code={`class ListingsController < ApplicationController
+  def edit
+    @listing = Listing.find(params[:id])
+    authorize(@listing)   # Pundit checks ListingPolicy#edit?
+  end
+
+  def update
+    @listing = Listing.find(params[:id])
+    authorize(@listing)   # Pundit checks ListingPolicy#update?
+    @listing.update!(listing_params)
+    redirect_to @listing
+  end
+end`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four benefits, each one addressing a specific failure of the no-policy version.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>User stops being the answer to every authorization question.</strong> The User model describes who the user is — the columns, the associations, the account state. The ListingPolicy describes what someone can do to a listing. <strong>A new resource means a new policy file, not a User edit.</strong> The number of teams editing User collapses back to one.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The same policy is consulted from every caller.</strong> Controller, API endpoint, GraphQL resolver, background importer, console session — every one of them asks <code class="bg-gray-100 px-2 py-1 rounded">ListingPolicy.new(user, listing).edit?</code>. <strong>There is no risk of the API and the web UI enforcing different rules</strong>, because there is only one rule and every caller routes through it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Tests get fast.</strong> A policy spec instantiates the policy with a user and a record and asserts on the predicates. No HTTP, no DB transactions, no controller cycle. <strong>"Alice can edit her own listing, Alice cannot edit Bob's, an org admin can edit any listing in their org"</strong> is three test cases, three assertions, milliseconds each.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Auditability is built in.</strong> "Who can edit a listing?" is one file. Compliance audits, security reviews, new-hire onboarding — all benefit from this kind of locality. <strong>The question "where do we enforce permissions for X?" has a one-word answer: <code class="bg-gray-100 px-2 py-1 rounded">XPolicy</code>.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">A caveat on scopes</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Pundit also lets policies own <em>visibility</em>, not only action permissions, through a nested <code class="bg-gray-100 px-2 py-1 rounded">Scope</code> class inside the policy file. <strong>"Which listings can this user even see?"</strong> belongs in the same place as "Can this user edit a listing?" because the answer comes from the same set of facts about the user and the resource. Forem and most Pundit-shaped apps put visibility scopes and action predicates in the same policy file. <strong>The SRP framing is: everything that decides what a user can do or see with respect to listings.</strong>
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Resist the urge to put business logic in policy classes</strong> only because it happens to involve a user. Policies are about <em>permission</em>, not <em>behavior</em>. If a method calculates a price, transitions a status, or sends an email, it does not belong in a policy. Policies answer yes-or-no questions. Anything else belongs in a service object or on the model.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p><strong>Authorization is not a property of the user, and it is not a property of the resource.</strong> It is a relationship between the two of them, evaluated in a specific context. That relationship has its own reasons to change (new compliance rules, new role types, new business logic), and those reasons are separate from "who is the user" and "what is the resource." Giving the relationship its own class is the SRP move.</p>
+        <p>What Pundit got right, in retrospect, was sizing the unit of code to match the unit of change. CanCan had one Ability class for the whole app — one file, every team's rules. Pundit has one policy class per resource — one file, one team's rules. <strong>Smaller scope, less coordination between teams, fewer regressions when one team's rule moves.</strong></p>
+        <p>The pattern generalizes. <strong>Any time a question is asked across many places in your codebase about a specific resource — visibility, billing, eligibility, validation — extract a class whose name names the resource and whose methods name the questions.</strong> Authorization is the most common case, but the technique is the same for anything that has the same "asked everywhere, owned by one team" shape.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rEn "(def can_|def authorized_|head :forbidden|return false unless current_user)" app/</code>.</li>
+        <li>Look at the output. <strong>Are authorization decisions scattered across models, controllers, and helpers?</strong> Count the distinct files. If the count is more than two or three, authorization is escaping into too many places.</li>
+        <li>Pick one resource (Listing, Article, Order, whatever you have). Trace every authorization decision about that resource across the codebase.</li>
+        <li>Sketch the policy class. List the action predicates (<code class="bg-gray-100 px-2 py-1 rounded">create?</code>, <code class="bg-gray-100 px-2 py-1 rounded">edit?</code>, <code class="bg-gray-100 px-2 py-1 rounded">update?</code>, <code class="bg-gray-100 px-2 py-1 rounded">destroy?</code>, <code class="bg-gray-100 px-2 py-1 rounded">show?</code>, <code class="bg-gray-100 px-2 py-1 rounded">index?</code>) and group them with aliases when the rules are identical.</li>
+        <li>Bonus: if you find the same auth rule implemented in two different places (controller + helper, controller + admin controller, web + API), <strong>write down which one is more strict</strong>. The looser one is the bug. Policy extraction prevents that class of bug by construction.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-srp-query-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 3 — Query Objects</a>
+      <a href="/lessons/senior-srp-decorators" class="text-ruby hover:text-ruby-dark transition-colors">SRP 5 — Decorators →</a>
+    </div>
+  </article>
+</Layout>

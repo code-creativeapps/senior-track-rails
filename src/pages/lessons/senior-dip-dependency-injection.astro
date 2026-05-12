@@ -1,0 +1,195 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="DIP 1 of 3 — Dependency Injection in Real Rails Code" description="Where the Dependency Inversion Principle comes from, why hardcoded collaborators trap your tests and your refactors, and how to pass collaborators in instead of looking them up.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">DIP Series · 1 of 3</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🔁</span>
+        <h1 class="text-4xl font-bold text-gray-900">Dependency Injection</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the Dependency Inversion Principle comes from, why hardcoded collaborators trap your tests and your refactors, and how to pass collaborators in instead of looking them up.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The Dependency Inversion Principle is the D in SOLID.</strong> Robert Martin formalized it in the mid-1990s, and the one-line version is: <strong>high-level modules should not depend on low-level modules. Both should depend on abstractions</strong>. There is a second clause that matters: <strong>abstractions should not depend on details. Details should depend on abstractions.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The "inversion" in the name refers to the direction of dependency. In a naive design, a high-level class calls into low-level classes that do the actual work. The high-level class depends on the low-level ones, which means a change to the low-level ones ripples up. <strong>Dependency Inversion reverses that arrow</strong>: both ends depend on an abstraction in the middle, and either side can change without disturbing the other.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In practice, "dependency inversion" in Rails almost always shows up as <strong>dependency injection</strong>: instead of a class looking up its collaborators directly, the collaborators are passed in. The class still uses them; it does not own the relationship.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        That sounds abstract, so here is the practical version: <strong>a service that uses a notifier should take the notifier as an argument, not call <code class="bg-gray-100 px-2 py-1 rounded">NotifierClass</code> directly</strong>. The "abstraction" is the notifier's interface (whatever methods the service calls on it). In production, the caller passes in the real notifier. In tests, the caller passes in a fake one. <strong>The service is unchanged either way.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails service that sends a Slack message when an order ships:
+      </p>
+      <CodeBlock code={`class ShipOrderService
+  def call(order)
+    order.update!(shipped_at: Time.current)
+    Slack::Notifier.new(ENV["SLACK_WEBHOOK"]).post(
+      "Order ##{order.id} shipped to #{order.user.email}"
+    )
+    order
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>This works.</strong> The problem is what it does to everything that touches the class:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Tests have to stub <code class="bg-gray-100 px-2 py-1 rounded">Slack::Notifier</code>.</strong> Every test that exercises ShipOrderService has to monkey-patch the class to prevent a real HTTP call. Test files accumulate stubs that drift from the real notifier's behavior.</li>
+        <li><strong>Local development needs Slack credentials.</strong> A developer running the test suite or kicking the service in a console hits <code class="bg-gray-100 px-2 py-1 rounded">ENV["SLACK_WEBHOOK"]</code>, which is either nil (the service raises) or production-real (a real message gets sent). Both are bad.</li>
+        <li><strong>Swapping notifiers requires a code change.</strong> The day the team moves to Discord, every service that calls <code class="bg-gray-100 px-2 py-1 rounded">Slack::Notifier</code> gets edited. The dependency is hardcoded.</li>
+        <li><strong>The service has two responsibilities entangled.</strong> "Mark the order shipped" and "find a Slack webhook and send a message" live in the same method. Reading the service tells you everything about how Slack works at this company, which is information the service should not carry.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Each of these is a small symptom of the same underlying coupling: <strong>the service depends on a specific notifier class</strong>. The arrow points the wrong way.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The fix: inject the collaborator</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Invert the dependency by accepting the notifier as an argument:
+      </p>
+      <CodeBlock code={`class ShipOrderService
+  def initialize(notifier: default_notifier)
+    @notifier = notifier
+  end
+
+  def call(order)
+    order.update!(shipped_at: Time.current)
+    @notifier.post("Order ##{order.id} shipped to #{order.user.email}")
+    order
+  end
+
+  private
+
+  def default_notifier
+    Slack::Notifier.new(ENV["SLACK_WEBHOOK"])
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Three changes, all small, with disproportionate payoffs:</strong>
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><code class="bg-gray-100 px-2 py-1 rounded">initialize</code> accepts a notifier. In production, callers pass nothing and get the Slack default. In tests, they pass a fake.</li>
+        <li>The default lives in a private method, so the class still works without any setup in the common case. <strong>You did not push the configuration burden onto every caller.</strong></li>
+        <li>The <code class="bg-gray-100 px-2 py-1 rounded">post</code> call uses the injected notifier, not a hardcoded class. <strong>The service depends on a role (whatever responds to <code class="bg-gray-100 px-2 py-1 rounded">post</code>), not on the Slack::Notifier class.</strong></li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Production code calls <code class="bg-gray-100 px-2 py-1 rounded">ShipOrderService.new.call(order)</code> and gets Slack. Tests call <code class="bg-gray-100 px-2 py-1 rounded">ShipOrderService.new(notifier: FakeNotifier.new).call(order)</code> and assert against the fake. <strong>No stubs, no monkey patches, no global state.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fake can be three lines:
+      </p>
+      <CodeBlock code={`class FakeNotifier
+  attr_reader :messages
+  def initialize; @messages = []; end
+  def post(text); @messages << text; end
+end
+
+# in a test:
+notifier = FakeNotifier.new
+ShipOrderService.new(notifier: notifier).call(order)
+assert_equal ["Order #1 shipped to alice@example.com"], notifier.messages`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The test reads like the actual behavior</strong>: send a message, check that the message was sent. No setup ritual, no library knowledge required.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where Rails uses this pattern itself</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails core injects dependencies in multiple places, although it does not call the pattern by name. Three examples worth knowing:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. ActiveJob's queue adapter.</strong> When you write <code class="bg-gray-100 px-2 py-1 rounded">MyJob.perform_later(arg)</code>, the job class does not know whether the queue is Sidekiq, Solid Queue, or the test adapter. Rails injects the adapter via configuration: <code class="bg-gray-100 px-2 py-1 rounded">config.active_job.queue_adapter = :sidekiq</code> in production, <code class="bg-gray-100 px-2 py-1 rounded">= :test</code> in tests. <strong>The job code is the same; the dependency it talks to swaps based on which adapter was injected.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. ActionMailer's delivery method.</strong> Mailers call <code class="bg-gray-100 px-2 py-1 rounded">mail(to: ..., subject: ...)</code>. The mail object knows nothing about SMTP or test mode. The delivery method is injected: <code class="bg-gray-100 px-2 py-1 rounded">config.action_mailer.delivery_method = :smtp</code> in production, <code class="bg-gray-100 px-2 py-1 rounded">= :test</code> in tests. <strong>The mailer's code is identical across environments because the dependency it uses is injected, not looked up.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. ActiveStorage's service.</strong> The OCP series covered this: the storage backend is injected via <code class="bg-gray-100 px-2 py-1 rounded">config.active_storage.service</code>. Disk in dev, S3 in production, a test fake in tests. <strong>The model code that calls <code class="bg-gray-100 px-2 py-1 rounded">user.avatar.attach(io)</code> never knows which one it is talking to.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        These are all examples of <strong>dependency injection at the framework level</strong>. Your application code can use the same shape at a smaller scale: pass collaborators to services as constructor arguments. The same payoffs apply.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When and how to inject</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three signals that a class is begging for an injected dependency:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>The class calls a specific external service.</strong> A mailer client, a Slack client, a Stripe client, a Twilio client. Anything that makes network calls is a candidate, because tests do not want to make them and production wants flexibility.</li>
+        <li><strong>The class calls a class that depends on global state.</strong> A class that reads from <code class="bg-gray-100 px-2 py-1 rounded">ENV</code> directly, talks to <code class="bg-gray-100 px-2 py-1 rounded">Rails.cache</code>, or instantiates a connection pool is making decisions that should be made elsewhere.</li>
+        <li><strong>The class has to be stubbed in every test that uses it.</strong> If every test of <code class="bg-gray-100 px-2 py-1 rounded">ShipOrderService</code> starts with <code class="bg-gray-100 px-2 py-1 rounded">Slack::Notifier.expects(:post)</code>, the stub is doing the role of an injected dependency, badly.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        When you inject, three style rules:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Provide a default.</strong> Callers in production should not have to wire up a notifier every time. The class's constructor accepts a keyword argument with a default that does the obvious production thing. <strong>The injection is for tests and special cases; the default is for the common case.</strong></li>
+        <li><strong>Inject into the constructor, not the method.</strong> A class that takes a notifier in its constructor has one place to set it. A class that takes a notifier as an argument to every method makes every caller responsible for passing it. The constructor wins.</li>
+        <li><strong>Inject the collaborator, not its configuration.</strong> Pass in <code class="bg-gray-100 px-2 py-1 rounded">notifier: SlackNotifier.new(webhook_url)</code>, not <code class="bg-gray-100 px-2 py-1 rounded">webhook_url: "..."</code>. The service should not know that the notifier needs a webhook URL.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When NOT to inject</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Dependency injection has a cost: the constructor grows, and every place that uses the class has to know what defaults are appropriate. <strong>Do not inject ActiveRecord models, framework classes, or anything that is already trivially testable.</strong> A service that calls <code class="bg-gray-100 px-2 py-1 rounded">Order.find(id)</code> does not need <code class="bg-gray-100 px-2 py-1 rounded">order_class:</code> injected; ActiveRecord is already a global, the framework is already there, and you can use a real Order in tests via fixtures or factories.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The rule of thumb: <strong>inject what crosses an external boundary</strong> (network, filesystem, third-party services) or <strong>what carries hidden state</strong> (clocks, randomness, IDs). Do not inject what is already part of your application's normal vocabulary.
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>One special case worth knowing:</strong> <code class="bg-gray-100 px-2 py-1 rounded">Time.current</code> and <code class="bg-gray-100 px-2 py-1 rounded">SecureRandom.uuid</code> are often worth injecting if your tests need to control them. <strong>The Rails ecosystem also offers ActiveSupport::Testing::TimeHelpers (<code class="bg-gray-100 px-2 py-1 rounded">freeze_time</code>, <code class="bg-gray-100 px-2 py-1 rounded">travel_to</code>) and the <code class="bg-gray-100 px-2 py-1 rounded">timecop</code> gem</strong> as alternatives. Both work; injection is more explicit, helpers are easier.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>Dependency Inversion is about who controls the wiring. <strong>In a class that looks up its own collaborators, the class is in charge of finding them, which means changing the collaborator changes the class.</strong> In a class that receives its collaborators, the class is in charge of using them — and the caller can change what gets passed in without modifying the class itself.</p>
+        <p>The deeper move is to <strong>separate "what does this class do?" from "what does it talk to?"</strong> A service that ships an order is doing the same logical thing whether the notification goes to Slack, Discord, or a test inbox. The work is the same; the collaborator changes. Injecting the collaborator captures that distinction in the code.</p>
+        <p>For Ruby specifically, dependency injection is not exotic. <strong>Constructor injection in Ruby is keyword arguments with sensible defaults.</strong> That is it. No DI containers, no IoC frameworks, no XML config. The simple version — pass the thing in, default to the production version — gets you 95% of the benefit at 5% of the ceremony.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rEn "Slack|Twilio|Stripe|HTTParty|Faraday|Net::HTTP" app/services/ app/jobs/</code>. <strong>Each hit is a candidate for injection.</strong></li>
+        <li>Pick the worst offender (the class your tests stub most often). Open its test file. Count the stubs at the top of each test. <strong>That is the cost of not injecting.</strong></li>
+        <li>Refactor the class to accept the collaborator as a keyword argument with a default. <strong>Production code does not change; the tests get to drop the stubs and pass in a fake instead.</strong></li>
+        <li>Bonus: write the smallest possible fake notifier (or fake API client, or fake SMS sender). Three or four lines. <strong>Notice how much clearer the tests get when the fake is in plain sight instead of hidden inside a stub block.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-isp-role-interfaces" class="text-ruby hover:text-ruby-dark transition-colors">← ISP 2 — Role Interfaces</a>
+      <a href="/lessons/senior-dip-config-injection" class="text-ruby hover:text-ruby-dark transition-colors">DIP 2 — Config as Injected Dependency →</a>
+    </div>
+  </article>
+</Layout>

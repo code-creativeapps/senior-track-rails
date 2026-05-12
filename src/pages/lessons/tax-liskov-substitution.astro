@@ -1,0 +1,117 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="A subclass that breaks the parent's promises isn't really a subclass" description="Why GuestUser inheriting from User causes random NoMethodErrors throughout the app.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 8 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">A subclass that breaks the parent's promises isn't really a subclass</h1>
+      <p class="text-xl text-gray-600">Why <code class="bg-gray-100 px-2 py-1 rounded text-base">GuestUser</code> inheriting from <code class="bg-gray-100 px-2 py-1 rounded text-base">User</code> causes random <code class="bg-gray-100 px-2 py-1 rounded text-base">NoMethodErrors</code> throughout the app.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class User < ApplicationRecord
+  validates :email, presence: true
+end
+
+class GuestUser < User
+  def save
+    raise "Guests cannot be saved"
+  end
+
+  def email
+    nil
+  end
+end
+
+# In a service that takes any User:
+def send_welcome(user)
+  WelcomeMailer.welcome(user.email.downcase).deliver_later
+  user.save
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GuestUser</code> inherits from <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code>, so as far as the type system (or anyone reading the code) is concerned, you can pass a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GuestUser</code> anywhere a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code> is expected. The trouble is that <strong>it doesn't actually behave like one</strong>. Its <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">email</code> returns <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">nil</code> instead of a string, and its <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">save</code> raises instead of saving. So a method like <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">send_welcome</code>, which assumes the user it's been given has a real email and can be saved, blows up the moment a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GuestUser</code> flows through it — usually deep inside a service object that's painful to trace back to the source.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, ask yourself: should <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GuestUser</code> inherit from <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code> at all? If not, what should it be instead?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4"><strong>Stop pretending <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">GuestUser</code> is a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code></strong>. If something can't honor the contract that <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code> defines, then it isn't really a subclass — it's a different concept that happens to share some attributes. Make <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Guest</code> its own class, and have any code that needs to handle guests check for them explicitly.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>Code that handles users can rely on the User contract</li>
+            <li>Guest-handling code is intentional, not accidental</li>
+            <li>Bugs from passing a Guest where a User is expected become impossible</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`class Guest
+  def initialize(session_id:)
+    @session_id = session_id
+  end
+
+  # Guest has its own surface. It doesn't pretend to be a User.
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Liskov substitution
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>The Liskov Substitution Principle says that if class B is a subclass of A, then anywhere your code expects an A, it should be safe to pass a B. <strong>The subclass has to honor the parent's contract</strong>: the same methods, the same expectations about what they return, the same conditions under which they succeed.</p>
+            <p>Inheritance creates an implicit promise. Anyone reading the code sees that <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">GuestUser &lt; User</code> and assumes that everything they know about <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">User</code> still applies. If the subclass quietly changes that contract, like returning <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">nil</code> where a string was promised or raising where a method was supposed to succeed, then <strong>all the code that interacts with it through the <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">User</code> type can break in ways that are very hard to predict</strong>.</p>
+            <p>The fix is usually not to override the methods more carefully. It's to recognize that the relationship isn't really "is-a" in the first place. <strong>A guest isn't a special kind of user, it's a different concept that happens to overlap</strong>. Modeling it as its own type makes that explicit and forces every consumer to handle each case intentionally.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-open-closed" class="text-ruby hover:text-ruby-dark transition-colors">← Card 7</a>
+      <a href="/lessons/tax-interface-segregation" class="text-ruby hover:text-ruby-dark transition-colors">Card 9 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

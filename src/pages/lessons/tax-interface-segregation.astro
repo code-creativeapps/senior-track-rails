@@ -1,0 +1,120 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Depend on the smallest interface that does the job" description="Why a service that demands a full User can't be reused with a Lead or a Contact.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 9 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Depend on the smallest interface that does the job</h1>
+      <p class="text-xl text-gray-600">Why a service that demands a full <code class="bg-gray-100 px-2 py-1 rounded text-base">User</code> can't be reused with a Lead or a Contact.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class ReportPdfService
+  def initialize(user)
+    @user = user
+  end
+
+  def generate
+    pdf.text "Report for #{@user.full_name} (#{@user.email})"
+    pdf.text "Generated #{Time.current}"
+  end
+end
+
+# Two months later, marketing asks:
+# "Can we generate this report for a Lead before they sign up?"
+# Lead has full_name and email. But it isn't a User.`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed">The service signature says it takes a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code>, but if you actually look at what it uses, it only ever calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">full_name</code> and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">email</code>. Nothing else. So when marketing comes back two months later and asks if you can run the same report for a Lead — which has those exact two attributes — you can't, even though it would technically work fine. <strong>The service is coupled to the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code> class even though it never needed any of the things that make a User a User</strong>.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, ask yourself what the service actually needs from the user it's passed. Could you express that more narrowly?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4"><strong>Take only what the service actually needs</strong>. Either accept the values directly as keyword arguments, or accept any object that responds to those two methods. Either way, the service is no longer tied to the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code> class, and any other type with the same two attributes can pass through it without anyone having to fake a User.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>Any source of name + email works (User, Lead, Contact)</li>
+            <li>Tests don't need to build a full User factory</li>
+            <li>The service describes what it actually depends on</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`class ReportPdfService
+  def initialize(full_name:, email:)
+    @full_name = full_name
+    @email = email
+  end
+
+  def generate
+    pdf.text "Report for #{@full_name} (#{@email})"
+    pdf.text "Generated #{Time.current}"
+  end
+end
+
+# Now any source works:
+ReportPdfService.new(full_name: user.full_name, email: user.email).generate
+ReportPdfService.new(full_name: lead.full_name, email: lead.email).generate`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Interface segregation
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>The Interface Segregation Principle says that <strong>a class shouldn't depend on more of an interface than it actually uses</strong>. If your service only needs two methods on the object you're passing in, then it should accept anything that has those two methods, not demand a specific class with twenty.</p>
+            <p><strong>The cost of demanding more than you need is coupling</strong>. As soon as the service signature says "I need a <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">User</code>", every caller has to either pass a real User or do something awkward to fake one. Test setup gets heavier than it needs to be, and reusing the service with related-but-different types (Lead, Contact, Subscriber) becomes effectively impossible. The service has accidentally locked itself to a class that wasn't actually relevant to what it does.</p>
+            <p>Shrinking the dependency makes the relationship between the service and its caller more honest. <strong>The service says exactly what it needs, the caller provides exactly that</strong>, and any new type that fits the same minimal shape can plug in without the service ever having to know.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-liskov-substitution" class="text-ruby hover:text-ruby-dark transition-colors">← Card 8</a>
+      <a href="/lessons/tax-dependency-inversion" class="text-ruby hover:text-ruby-dark transition-colors">Card 10 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

@@ -1,0 +1,116 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Background jobs must be safe to run twice" description="Why Sidekiq retries can charge your customers twice, and how to make a job idempotent.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> All lessons
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 13 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Background jobs must be safe to run twice</h1>
+      <p class="text-xl text-gray-600">Why a Sidekiq retry will charge your customer a second time if the job isn't idempotent.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class ChargeUserJob < ApplicationJob
+  def perform(user_id, amount_cents)
+    user = User.find(user_id)
+    Stripe::Charge.create(
+      amount: amount_cents,
+      currency: "usd",
+      customer: user.stripe_customer_id
+    )
+  end
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed">Sidekiq automatically retries jobs that fail. The failure could be a network blip mid-API-call, a worker getting a SIGTERM during a deploy, a timeout on the response from Stripe. In all of those cases the API call may have already succeeded — you just didn't get the response back. Sidekiq then runs the job again and Stripe charges the customer a second time. <strong>The job worked. It just worked twice.</strong> The customer calls support.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, think about what would have to be true for the job to be safe to run any number of times. What state do you need to track, and where?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4">Make the work safe to run any number of times. <strong>Pass an idempotency key to Stripe</strong> so the second call returns the original result without doing anything new, and store local state so the job short-circuits before the API call on retry.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>Sidekiq can retry the job freely without anyone getting double-charged</li>
+            <li>Stripe deduplicates by the idempotency key on its side</li>
+            <li>You can re-run the job manually to recover from failures, without fear</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`class ChargeUserJob < ApplicationJob
+  def perform(charge_request_id)
+    request = ChargeRequest.find(charge_request_id)
+    return if request.completed?
+
+    result = Stripe::Charge.create(
+      amount: request.amount_cents,
+      currency: "usd",
+      customer: request.user.stripe_customer_id,
+      idempotency_key: "charge-request-#{request.id}"
+    )
+
+    request.update!(completed: true, stripe_charge_id: result.id)
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Idempotency
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>Anything that runs in a system you don't fully control — background workers, message queues, retried HTTP calls — can run more than once. Network failures don't tell you whether the work succeeded; they just tell you that the response didn't make it back. So <strong>any work that can be retried has to be safe to retry</strong>, which means doing it once and doing it ten times have to produce the same result.</p>
+            <p>For local state, that's usually a check-then-act pattern: look at a record before doing the work, skip if it's already done, mark it done after. For external APIs, most modern providers expose an idempotency key — you generate a unique ID for the operation, send it with the call, and the API guarantees that subsequent calls with the same key return the original result instead of doing the work again.</p>
+            <p>The hard part isn't the technique, it's noticing that retries are something to design for in the first place. The job that "works" the first time is exactly the one that bites you the day a worker dies between the API call and writing the result back.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-exception-handling" class="text-ruby hover:text-ruby-dark transition-colors">← Card 12</a>
+      <a href="/lessons/tax-batched-iteration" class="text-ruby hover:text-ruby-dark transition-colors">Card 14 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

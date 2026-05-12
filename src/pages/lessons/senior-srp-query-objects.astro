@@ -1,0 +1,188 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="SRP 3 of 7 — Query Objects in Real Rails Code" description="Where query objects come from, why scopes stop scaling at a certain size, and how Mastodon's Trends::Query keeps complex filter logic out of its models.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SRP Series · 3 of 7</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🔍</span>
+        <h1 class="text-4xl font-bold text-gray-900">Query Objects</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the pattern comes from, why scopes stop scaling at a certain size, and how Mastodon's <code class="text-lg">Trends::Query</code> keeps complex filter logic out of its models.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        ActiveRecord ships with scopes for a reason. A scope is a small named query attached to a model — <code class="bg-gray-100 px-2 py-1 rounded">User.active</code>, <code class="bg-gray-100 px-2 py-1 rounded">Post.published</code>, <code class="bg-gray-100 px-2 py-1 rounded">Order.recent</code>. <strong>For one-condition queries, scopes are the right tool.</strong> They are short, they compose with chaining, and they live next to the model whose data they describe.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The problem is that scopes have no natural limit. The same syntax that gives you <code class="bg-gray-100 px-2 py-1 rounded">scope :active, -> &#123; where(active: true) &#125;</code> also lets you write a thirty-line scope with seven joins, an optional authorization filter, dynamic ordering, and a special case for unconfirmed users. <strong>The scope still lives on the model, but at that size it stops being "a small named query" and starts being a whole query-building system.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The query-object pattern, popularized in the same Helmkamp post that named form objects in 2012, says: <strong>once the query is non-trivial, it deserves its own class</strong>. The model still owns "what a row in this table is." A separate class owns "how to ask this table for the rows that match a particular need." Both can still talk to the same ActiveRecord relation API. They do not need to be the same class.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The underlying SRP move is the same one we keep meeting. <strong>"Describe the data" and "find the right subset of the data for this caller" are different responsibilities.</strong> They have different reasons to change. The day a new authorization rule lands, the query object changes; the model does not. The day the schema changes, the model changes; the query object might not. Separating them means each change touches the file that owns that responsibility, and nothing else.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Mastodon-style app with a "trending tags" feature. Tags appear on the trending page if they are recent, if they are not banned, if the moderation team has not locked them, and if the current viewer is allowed to see them. The team starts with a scope. The scope grows:
+      </p>
+      <CodeBlock code={`class Tag < ApplicationRecord
+  scope :listable_for, ->(account) do
+    relation = where(listable: true)
+    relation = relation.where("created_at > ?", 7.days.ago)
+    relation = relation.where(locked: false) unless account&.moderator?
+    relation = relation.joins(:trend).where(trend: { allowed: true })
+    relation = relation.where("trend.score > ?", 0.5) unless account&.confirmed?
+    relation = relation.order("trend.score DESC")
+    relation
+  end
+
+  scope :discoverable_for, ->(account, limit:, offset:) do
+    listable_for(account).limit(limit).offset(offset)
+  end
+
+  # ... 12 more scopes that share most of these conditions
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The Tag model now has three reasons to change.</strong> The first is "what is a tag in our database" — its columns, its associations, its callbacks. The second is "what is allowed to be shown right now to whom" — an authorization rule that depends on whether the viewer is a moderator, whether the viewer is confirmed, whether the trend score is high enough. The third is "how do we paginate this list" — limit, offset, ordering. Each one has a different team behind it: the data team owns the first, the safety team owns the second, the product team owns the third.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The same query shape is about to spread.</strong> When trending statuses arrive next month, someone will copy these scopes onto the Status model. When trending links arrive after that, someone will copy them onto Link. Three copies, three subtly diverging implementations, and a single bug-fix that needs to land in three places at once.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Mastodon solves it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Mastodon's solution is a class whose only job is "find trending records of a given type for a given viewer." It lives at <code class="bg-gray-100 px-2 py-1 rounded">app/models/trends/query.rb</code>. The class is generic over the record type, so the same code handles trending tags, statuses, and links:
+      </p>
+      <CodeBlock code={`# mastodon/app/models/trends/query.rb · @bdad4f78
+# License: AGPL-3.0
+
+class Trends::Query
+  include Enumerable
+
+  attr_reader :klass, :loaded
+  alias loaded? loaded
+
+  def initialize(_prefix, klass)
+    @klass   = klass
+    @records = []
+    @loaded  = false
+    @allowed = false
+    @account = nil
+    @limit   = nil
+    @offset  = nil
+  end
+
+  def allowed!
+    @allowed = true
+    self
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Notice four design choices:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>It is a plain Ruby class, not a model or a concern.</strong> The constructor takes a prefix (used for caching) and the ActiveRecord class it queries against. Same query object, three different subjects, no inheritance.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>It includes <code class="bg-gray-100 px-2 py-1 rounded">Enumerable</code>.</strong> That single line lets callers iterate over a query like a regular collection — <code class="bg-gray-100 px-2 py-1 rounded">query.each do |tag| ... end</code>, <code class="bg-gray-100 px-2 py-1 rounded">query.map(&amp;:id)</code>, <code class="bg-gray-100 px-2 py-1 rounded">query.to_a</code> — without the class itself needing to know which underlying records will be returned.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The filter methods are builder-style.</strong> <code class="bg-gray-100 px-2 py-1 rounded">allowed!</code>, <code class="bg-gray-100 px-2 py-1 rounded">filtered_for!(account)</code>, <code class="bg-gray-100 px-2 py-1 rounded">limit(n)</code>, <code class="bg-gray-100 px-2 py-1 rounded">offset(n)</code> all mutate state and return <code class="bg-gray-100 px-2 py-1 rounded">self</code>, so the caller can chain them or call them conditionally. <strong>This is the same shape an ActiveRecord relation has, but without the gravitational pull of the model.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Execution is lazy.</strong> The <code class="bg-gray-100 px-2 py-1 rounded">@loaded</code> flag tracks whether records have actually been fetched from the database. Setting up the query is free; running it happens on first iteration, exactly once.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        A caller in a controller or a service uses it like this:
+      </p>
+      <CodeBlock code={`# In a controller or service
+trends = Trends::Query.new("tags", Tag)
+           .allowed!
+           .filtered_for!(current_account)
+           .limit(20)
+           .offset(params[:offset].to_i)
+
+trends.each do |tag|
+  # query executes here, on first iteration, once
+end`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four wins come out of the extraction, mirroring the four problems on the fat-Tag version.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The Tag model is back to describing a tag.</strong> The thirty lines of trend-filter logic moved out, and so did the dependence on whether the viewer is a moderator. The model file shrinks. The schema is what changes the model file, not authorization decisions.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The same query object serves three models.</strong> Mastodon uses <code class="bg-gray-100 px-2 py-1 rounded">Trends::Query</code> for Tag, Status, and Link. The shared logic lives once. <strong>A bug fix or a new authorization rule lands in one place and applies to all three subjects automatically.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The query becomes testable in isolation.</strong> A test creates a few fixtures and calls <code class="bg-gray-100 px-2 py-1 rounded">Trends::Query.new("tags", Tag).limit(10).to_a</code>. No controller cycle, no view rendering, no factory cascade of every association on Tag. The test runs fast, and it covers exactly the query's behavior.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Conditional filters become composable.</strong> The caller decides which builder methods to apply based on the request: <code class="bg-gray-100 px-2 py-1 rounded">query.allowed! if current_user.confirmed?</code>, <code class="bg-gray-100 px-2 py-1 rounded">query.limit(20) if request.format.html?</code>. No more deeply nested conditionals inside a scope lambda. <strong>The decision logic moves out to the caller, where it actually belongs.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When you should reach for one</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three signals tell you a scope has outgrown its home:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>The scope is longer than five lines, or has more than two branching conditions.</strong> A scope with an <code class="bg-gray-100 px-2 py-1 rounded">unless account&amp;.moderator?</code> hidden in the middle is doing two jobs.</li>
+        <li><strong>Multiple controllers or services build the same shape of filtered list using overlapping scopes.</strong> If three pages all start with <code class="bg-gray-100 px-2 py-1 rounded">Tag.listable_for(...).then(...).then(...)</code>, the common prefix is begging to be extracted.</li>
+        <li><strong>The query has an authorization dimension.</strong> "What is this user allowed to see" is not the model's job. Scopes that take a user as an argument are usually query objects in disguise.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Do not extract query objects for one-liners.</strong> If your scope is <code class="bg-gray-100 px-2 py-1 rounded">where(active: true)</code>, keep it as a scope. The query-object pattern earns its weight when the same multi-condition query gets reused, when authorization is part of the query, or when the query is large enough that a future reader cannot hold all of it in their head at once.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p><strong>The model and the query are answering different questions.</strong> The model answers "what is a tag" — a database row, a set of columns, a few associations. The query answers "given a viewer and a moment in time, which tags are interesting right now?" The first question barely changes; the second one changes every time the safety team or the product team wants to tune the rules.</p>
+        <p>The deeper principle, the one that goes back to David Parnas in the 1970s, is that <strong>good module boundaries match the boundaries of change in the world</strong>. A change that comes from one team should touch one file. A query object turns "viewer permissions for trending content" into a single file that one team owns, instead of a thirty-line scope on a model that ten teams touch.</p>
+        <p>The pattern is also a small admission that <strong>ActiveRecord's scope feature was designed for a world where queries stay simple</strong>. Once a query has its own state, its own builder methods, and its own subject (it can run against multiple tables), it has become a domain concept in its own right. Give that concept a class, give it a name, and let the model go back to being a model.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "scope " app/models | awk -F: '&#123;print $1&#125;' | sort | uniq -c | sort -rn | head -5</code> to find the models with the most scopes.</li>
+        <li>Open the worst offender. Find the scope with the most chained <code class="bg-gray-100 px-2 py-1 rounded">.where(...).where(...).joins(...)</code>.</li>
+        <li>Count how many <em>different kinds of decisions</em> that scope makes. Filter? Sort? Authorize? Paginate? <strong>If the count is three or more, that scope is a query-object candidate.</strong></li>
+        <li>Sketch the query object: its name (<code class="bg-gray-100 px-2 py-1 rounded">&#123;Subject&#125;sQuery</code> or a domain-specific name like <code class="bg-gray-100 px-2 py-1 rounded">TrendsQuery</code>), its builder methods, what its initializer should accept.</li>
+        <li>Bonus: grep your controllers and services for the same scope name (<code class="bg-gray-100 px-2 py-1 rounded">grep -rn "ScopeName" app/controllers app/services</code>). <strong>The more callers, the bigger the payoff from extracting it once.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-srp-form-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 2 — Form Objects</a>
+      <a href="/lessons/senior-srp-policy-objects" class="text-ruby hover:text-ruby-dark transition-colors">SRP 4 — Policy Objects →</a>
+    </div>
+  </article>
+</Layout>

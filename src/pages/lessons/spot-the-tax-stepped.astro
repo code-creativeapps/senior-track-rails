@@ -1,0 +1,429 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Spot the Tax — Stepped (test)" description="Stepped-reveal version of Spot the Tax. See the code, then reveal the hint, the solution, and the principle one at a time.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Single-page version
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Senior Track · Spot the Tax · stepped (test)</p>
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Working code that will cost you.</h1>
+      <p class="text-xl text-gray-600">Same five snippets as the main page. This time each card walks you through the lesson in three steps. Look at the code, take a guess, then reveal the hint, the solution, and the principle.</p>
+    </div>
+
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-5">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        <strong>How to use this page.</strong> For each card, read the code and ask yourself "what's wrong with this in six months?" Click <em>Reveal the hint</em> to see whether you spotted the problem. Then walk through the solution and the underlying principle.
+      </p>
+    </div>
+
+    <!-- Card 1 -->
+    <section class="border border-gray-300 rounded-xl p-6 space-y-5 bg-white" data-card-stepper>
+      <div class="flex justify-between items-start gap-4">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Card 1</p>
+          <h2 class="text-2xl font-bold text-gray-900">The validation that lies under load</h2>
+        </div>
+        <div class="flex gap-1.5 mt-1.5 flex-shrink-0" data-dots>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+        </div>
+      </div>
+      <p class="text-gray-700 italic">What will this cost you in six months?</p>
+      <CodeBlock code={`class User < ApplicationRecord
+  validates :email, presence: true, uniqueness: true
+end
+
+# In the controller:
+def create
+  @user = User.new(user_params)
+  if @user.save
+    redirect_to @user
+  else
+    render :new
+  end
+end`} language="ruby" />
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The problem :</strong> Two simultaneous signups both pass <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">valid?</code> and both insert. The validation runs in Ruby, between the read and the write, with no lock. The database ends up with two users sharing the same email.</p>
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The solution :</strong> Put the uniqueness rule in the database itself. Only the database can guarantee that no two rows have the same value at the same time.</p>
+        <ul class="list-disc list-inside ml-4 space-y-1 text-gray-700">
+          <li>The rule holds under any amount of concurrent traffic</li>
+          <li>The database raises a specific error you can catch</li>
+          <li>The validation can stay for the friendly UI message</li>
+        </ul>
+        <CodeBlock code={`# In a migration:
+add_index :users, :email, unique: true`} language="ruby" />
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The principle at play :</strong></p>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 flex-shrink-0">
+              <path d="M9 18h6" />
+              <path d="M10 22h4" />
+              <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+            </svg>
+            <p class="text-sm font-bold text-amber-900">Database constraints</p>
+          </div>
+          <p class="text-gray-700 leading-relaxed">When two web requests arrive at the same instant, your Rails server runs them in parallel on different processes. Neither one sees the other's in-flight work. The validation runs in Ruby, between "is this email free?" and "INSERT." Both requests can pass a millisecond apart, before either has actually inserted, and both then succeed.</p>
+          <p class="text-gray-700 leading-relaxed">The database is the only part of the stack that sees every write at once. A unique index tells it "reject any insert that duplicates this column." The first insert wins. The second one fails immediately, before the row exists.</p>
+          <p class="text-gray-700 leading-relaxed">That's why uniqueness has to live there. It isn't that Ruby is wrong. It's that no Ruby process has visibility over what other processes are doing in this moment. Only the database does.</p>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <button data-next class="next-btn px-4 py-2.5 bg-ruby text-white rounded-lg font-semibold hover:bg-ruby-dark transition-colors text-sm"></button>
+      </div>
+    </section>
+
+    <!-- Card 2 -->
+    <section class="border border-gray-300 rounded-xl p-6 space-y-5 bg-white" data-card-stepper>
+      <div class="flex justify-between items-start gap-4">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Card 2</p>
+          <h2 class="text-2xl font-bold text-gray-900">The callback that takes the database hostage</h2>
+        </div>
+        <div class="flex gap-1.5 mt-1.5 flex-shrink-0" data-dots>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+        </div>
+      </div>
+      <p class="text-gray-700 italic">What will this cost you in six months?</p>
+      <CodeBlock code={`class User < ApplicationRecord
+  before_save :sync_to_mailchimp
+
+  private
+
+  def sync_to_mailchimp
+    Mailchimp::Subscribers.upsert(
+      email: email,
+      merge_fields: { name: name }
+    )
+  end
+end`} language="ruby" />
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The problem :</strong> Every save now waits for Mailchimp to respond. The save runs inside a database transaction, which holds open until the API call returns. If Mailchimp is slow, saves are slow. If Mailchimp is down, saves fail. If the transaction rolls back after the API call already succeeded, the user exists in Mailchimp but not in your database.</p>
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The solution :</strong> Move the external call out of the lifecycle. After the controller saves, enqueue a job that handles the sync.</p>
+        <ul class="list-disc list-inside ml-4 space-y-1 text-gray-700">
+          <li>A Mailchimp outage doesn't break user signups</li>
+          <li>The job retries on failure, the save doesn't</li>
+          <li>Database transactions stay short</li>
+        </ul>
+        <CodeBlock code={`class UsersController < ApplicationController
+  def create
+    @user = User.new(user_params)
+    if @user.save
+      MailchimpSyncJob.perform_later(@user.id)
+      redirect_to @user
+    else
+      render :new
+    end
+  end
+end`} language="ruby" />
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The principle at play :</strong></p>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 flex-shrink-0">
+              <path d="M9 18h6" />
+              <path d="M10 22h4" />
+              <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+            </svg>
+            <p class="text-sm font-bold text-amber-900">Transaction scope</p>
+          </div>
+          <p class="text-gray-700 leading-relaxed">Rails wraps every save in a database transaction — a deal with the database to do a series of writes together, with a guarantee that they all succeed or none of them do. While the transaction is open, the database holds locks. Other requests trying to touch those rows wait.</p>
+          <p class="text-gray-700 leading-relaxed">If your <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">before_save</code> calls Mailchimp and the API takes two seconds, your transaction holds locks for two seconds. Other requests stack up behind it. And if anything later in the transaction fails, the user save rolls back — but the Mailchimp call already went out. There is no rollback for HTTP.</p>
+          <p class="text-gray-700 leading-relaxed">That's why external calls live after the transaction commits. The "all or nothing" guarantee only covers database writes. Putting an HTTP call inside the transaction creates a state your database can't undo.</p>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <button data-next class="next-btn px-4 py-2.5 bg-ruby text-white rounded-lg font-semibold hover:bg-ruby-dark transition-colors text-sm"></button>
+      </div>
+    </section>
+
+    <!-- Card 3 -->
+    <section class="border border-gray-300 rounded-xl p-6 space-y-5 bg-white" data-card-stepper>
+      <div class="flex justify-between items-start gap-4">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Card 3</p>
+          <h2 class="text-2xl font-bold text-gray-900">The cascade that runs in Ruby</h2>
+        </div>
+        <div class="flex gap-1.5 mt-1.5 flex-shrink-0" data-dots>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+        </div>
+      </div>
+      <p class="text-gray-700 italic">What will this cost you in six months?</p>
+      <CodeBlock code={`class User < ApplicationRecord
+  has_many :events, dependent: :destroy
+  has_many :messages, dependent: :destroy
+  has_many :reactions, dependent: :destroy
+end
+
+# In the controller:
+def destroy
+  current_user.destroy
+  redirect_to root_path
+end`} language="ruby" />
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The problem :</strong> Deleting a user with 50,000 events instantiates 50,000 Ruby objects, fires 50,000 callbacks, and runs 50,000 DELETE statements. The delete that should take 50ms takes minutes, sometimes times out partway through, and leaves the data in a half-deleted state.</p>
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The solution :</strong> Pick the right cascade for the work. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:delete_all</code> deletes in SQL without instantiating Ruby objects. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:destroy</code> is for cases where you actually need callbacks on the children.</p>
+        <ul class="list-disc list-inside ml-4 space-y-1 text-gray-700">
+          <li>Deletes happen at SQL speed</li>
+          <li>Memory stays bounded regardless of how many associated rows exist</li>
+          <li>For real <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:destroy</code> cases, the work can move to a job that you can monitor and retry</li>
+        </ul>
+        <CodeBlock code={`class User < ApplicationRecord
+  has_many :events, dependent: :delete_all
+  has_many :messages, dependent: :delete_all
+  has_many :reactions, dependent: :delete_all
+end`} language="ruby" />
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The principle at play :</strong></p>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 flex-shrink-0">
+              <path d="M9 18h6" />
+              <path d="M10 22h4" />
+              <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+            </svg>
+            <p class="text-sm font-bold text-amber-900">Bulk operations in SQL</p>
+          </div>
+          <p class="text-gray-700 leading-relaxed">SQL and Ruby work very differently. SQL runs inside the database, in one round trip, optimized by the query planner. Ruby runs in your application, one object at a time, with all the overhead of object creation and callback chains.</p>
+          <p class="text-gray-700 leading-relaxed"><code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">dependent: :destroy</code> runs in Ruby. Rails loads every associated record, instantiates each one, fires its destroy callbacks, then runs DELETE for that single row. Fifty thousand records means fifty thousand objects in memory and fifty thousand DELETE statements. <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">dependent: :delete_all</code> runs in SQL — one statement, done in milliseconds.</p>
+          <p class="text-gray-700 leading-relaxed">They aren't two ways to write the same operation. They're two different operations with the same name. Pick <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">:destroy</code> only when you actually need callbacks to fire on the children. Most of the time, you don't.</p>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <button data-next class="next-btn px-4 py-2.5 bg-ruby text-white rounded-lg font-semibold hover:bg-ruby-dark transition-colors text-sm"></button>
+      </div>
+    </section>
+
+    <!-- Card 4 -->
+    <section class="border border-gray-300 rounded-xl p-6 space-y-5 bg-white" data-card-stepper>
+      <div class="flex justify-between items-start gap-4">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Card 4</p>
+          <h2 class="text-2xl font-bold text-gray-900">The schema you can't query</h2>
+        </div>
+        <div class="flex gap-1.5 mt-1.5 flex-shrink-0" data-dots>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+        </div>
+      </div>
+      <p class="text-gray-700 italic">What will this cost you in six months?</p>
+      <CodeBlock code={`class Order < ApplicationRecord
+  serialize :metadata, JSON
+end
+
+# Writing:
+order.metadata = { plan: "pro", referrer: "google", utm_campaign: "spring" }
+order.save
+
+# Reading later, in a report:
+Order.where("created_at > ?", 90.days.ago).select do |o|
+  o.metadata["plan"] == "pro"
+end`} language="ruby" />
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The problem :</strong> The metadata column is text, holding JSON. Writing dumps the hash. Reading parses it. Querying inside the JSON requires loading every row, parsing in Ruby, and filtering. The database can't index inside a serialized text blob.</p>
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The solution :</strong> If a field is queryable, give it a real column with an index. If the data is genuinely opaque, use Postgres <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">jsonb</code> instead of a serialized text column.</p>
+        <ul class="list-disc list-inside ml-4 space-y-1 text-gray-700">
+          <li>Queries inside the data become possible</li>
+          <li>The database uses indexes instead of full scans</li>
+          <li>Reads and writes don't pay a parse/dump tax</li>
+        </ul>
+        <CodeBlock code={`# Option 1: promote the queryable field to a column
+add_column :orders, :plan, :string
+add_index :orders, :plan
+
+# Option 2: switch to jsonb for genuinely opaque data
+change_column :orders, :metadata, :jsonb, using: "metadata::jsonb"
+add_index :orders, :metadata, using: :gin`} language="ruby" />
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The principle at play :</strong></p>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 flex-shrink-0">
+              <path d="M9 18h6" />
+              <path d="M10 22h4" />
+              <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+            </svg>
+            <p class="text-sm font-bold text-amber-900">Indexable storage</p>
+          </div>
+          <p class="text-gray-700 leading-relaxed">Databases are fast at queries because they build indexes. An index is a separate structure that maps "this value lives at these rows." A query for <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">plan = 'pro'</code> can use the index to jump directly to the matching rows instead of scanning every row.</p>
+          <p class="text-gray-700 leading-relaxed">Indexes work on column values. They don't look inside text fields. When you store JSON in a <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">text</code> column, the database sees one big string. It can't index <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">metadata.plan</code>. To filter on that field, the database has to load every row, your app parses every JSON string, and Ruby filters in memory.</p>
+          <p class="text-gray-700 leading-relaxed">Postgres <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">jsonb</code> is different. It stores JSON in a binary format the database understands and lets you build indexes on paths inside it. The database stays in charge of the work. That's where the rule comes from: JSON-as-text is fine when you genuinely never query inside the data, but the moment you do, the storage choice decides whether the database can help you.</p>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <button data-next class="next-btn px-4 py-2.5 bg-ruby text-white rounded-lg font-semibold hover:bg-ruby-dark transition-colors text-sm"></button>
+      </div>
+    </section>
+
+    <!-- Card 5 -->
+    <section class="border border-gray-300 rounded-xl p-6 space-y-5 bg-white" data-card-stepper>
+      <div class="flex justify-between items-start gap-4">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Card 5</p>
+          <h2 class="text-2xl font-bold text-gray-900">The find that trusts the URL</h2>
+        </div>
+        <div class="flex gap-1.5 mt-1.5 flex-shrink-0" data-dots>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+          <span class="step-dot" data-dot></span>
+        </div>
+      </div>
+      <p class="text-gray-700 italic">What will this cost you in six months?</p>
+      <CodeBlock code={`class InvoicesController < ApplicationController
+  before_action :authenticate_user!
+
+  def show
+    @invoice = Invoice.find(params[:id])
+  end
+end`} language="ruby" />
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The problem :</strong> Anyone logged in can view any invoice by changing the URL from <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/invoices/123</code> to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/invoices/124</code>. Authentication checked who they are. Authorization (whether they can see this invoice) was never checked.</p>
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The solution :</strong> Make the query itself enforce ownership. If the invoice doesn't belong to the user, the lookup raises <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">RecordNotFound</code>.</p>
+        <ul class="list-disc list-inside ml-4 space-y-1 text-gray-700">
+          <li>The unsafe version stops being writable — you have to scope the query</li>
+          <li>One enforcement point instead of remembering to authorize after every find</li>
+          <li>A 404 reveals less information than a 403</li>
+        </ul>
+        <CodeBlock code={`def show
+  @invoice = current_user.invoices.find(params[:id])
+end`} language="ruby" />
+      </div>
+
+      <div data-stage class="space-y-3 hidden">
+        <p class="text-gray-700 leading-relaxed"><strong>The principle at play :</strong></p>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 flex-shrink-0">
+              <path d="M9 18h6" />
+              <path d="M10 22h4" />
+              <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+            </svg>
+            <p class="text-sm font-bold text-amber-900">Scoped queries</p>
+          </div>
+          <p class="text-gray-700 leading-relaxed">The web works on URLs that anyone can change. Your server gets a request for <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">/invoices/123</code> and has to decide what to return. Two questions go into that decision, and they are separate. Authentication asks "who is this user?" — Devise and similar tools answer it. Authorization asks "what is this user allowed to see?" — different question, different code.</p>
+          <p class="text-gray-700 leading-relaxed"><code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">Invoice.find(params[:id])</code> doesn't ask the second question. By writing that line, you've decided "any logged-in user can see any invoice." You can fix it by adding an authorization check after the find, but that relies on every developer remembering it on every action.</p>
+          <p class="text-gray-700 leading-relaxed"><code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">current_user.invoices.find(params[:id])</code> builds the query against the user's own records. If the invoice doesn't belong to the user, nothing matches and <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">find</code> raises <code class="bg-amber-100 px-1.5 py-0.5 rounded text-sm">RecordNotFound</code>. There is no path through the code where authorization can be skipped, because authorization is part of the query. That's the rule: build the safe path so the unsafe one becomes harder to write than the safe one.</p>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <button data-next class="next-btn px-4 py-2.5 bg-ruby text-white rounded-lg font-semibold hover:bg-ruby-dark transition-colors text-sm"></button>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-3">
+      <h3 class="text-xl font-bold text-gray-900">If the stepped flow worked for you</h3>
+      <p class="text-gray-700 leading-relaxed">
+        Tell me. If it lands, the same shape can roll across the SOLID, senior, and DDD cards from the main page.
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors">← Single-page version</a>
+      <span class="text-gray-400 text-sm">Senior Track · Spot the Tax · stepped (test)</span>
+    </div>
+  </article>
+</Layout>
+
+<script is:inline>
+  document.querySelectorAll('[data-card-stepper]').forEach(function (card) {
+    var step = 0;
+    var stages = card.querySelectorAll('[data-stage]');
+    var dots = card.querySelectorAll('[data-dot]');
+    var nextBtn = card.querySelector('[data-next]');
+    var labels = ['Reveal the hint →', 'Reveal the solution →', 'Reveal the principle →'];
+
+    function render() {
+      stages.forEach(function (s, i) {
+        if (i < step) {
+          s.classList.remove('hidden');
+        } else {
+          s.classList.add('hidden');
+        }
+      });
+      dots.forEach(function (d, i) {
+        if (i < step) {
+          d.classList.add('active');
+        } else {
+          d.classList.remove('active');
+        }
+      });
+      if (step < stages.length) {
+        nextBtn.textContent = labels[step];
+        nextBtn.dataset.action = 'next';
+      } else {
+        nextBtn.textContent = '↻ Start over';
+        nextBtn.dataset.action = 'reset';
+      }
+    }
+
+    nextBtn.addEventListener('click', function () {
+      if (nextBtn.dataset.action === 'reset') {
+        step = 0;
+      } else {
+        step += 1;
+      }
+      render();
+    });
+
+    render();
+  });
+</script>
+
+<style>
+  .step-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    border: 1px solid #d1d5db;
+    background: white;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .step-dot.active {
+    background: #b91c1c;
+    border-color: #b91c1c;
+  }
+</style>

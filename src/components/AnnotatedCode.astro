@@ -1,0 +1,110 @@
+---
+import { codeToHtml } from 'shiki';
+
+export interface Annotation {
+  line: number;
+  id: string;
+  severity: 'blocker' | 'request' | 'nit';
+}
+
+interface Props {
+  code: string;
+  annotations?: Annotation[];
+  language?: string;
+  theme?: string;
+}
+
+const { code, annotations = [], language = 'ruby', theme = 'github-dark' } = Astro.props;
+
+const decodedCode = code
+  .replace(/&#60;/g, '<')
+  .replace(/&#62;/g, '>')
+  .replace(/&#123;/g, '{')
+  .replace(/&#125;/g, '}')
+  .replace(/&amp;/g, '&');
+
+const annotationByLine = new Map<number, Annotation>();
+annotations.forEach((a) => annotationByLine.set(a.line, a));
+
+const html = await codeToHtml(decodedCode, {
+  lang: language,
+  theme,
+  transformers: [
+    {
+      name: 'annotations',
+      line(node, lineNumber) {
+        const ann = annotationByLine.get(lineNumber);
+        if (ann) {
+          const existingClass = (node.properties?.class as string) || '';
+          node.properties = node.properties || {};
+          node.properties.class = `${existingClass} annotated annotated-${ann.severity}`.trim();
+          node.properties['data-annotation-id'] = ann.id;
+        }
+      },
+    },
+  ],
+});
+---
+
+<div class="annotated-code">
+  <Fragment set:html={html} />
+</div>
+
+<style>
+  .annotated-code :global(pre.shiki) {
+    margin: 0;
+    padding: 1.25rem 0;
+    border-radius: 0.5rem;
+    background: #0d1117 !important;
+    overflow-x: auto;
+  }
+  .annotated-code :global(code) {
+    display: block;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 0.875em;
+    line-height: 1.7;
+  }
+  .annotated-code :global(.line) {
+    display: block;
+    padding: 0 1.25rem;
+    position: relative;
+    transition: filter 0.1s;
+  }
+
+  /* Annotation styling — only visible after .revealed is added on a parent */
+  :global(.revealed) .annotated-code :global(.line.annotated) {
+    cursor: help;
+    padding-left: 2.25rem;
+  }
+  :global(.revealed) .annotated-code :global(.line.annotated)::before {
+    position: absolute;
+    left: 0.75rem;
+    font-size: 0.7rem;
+    line-height: 1.7;
+    width: 1rem;
+  }
+  :global(.revealed) .annotated-code :global(.line.annotated.annotated-blocker)::before {
+    content: '🔴';
+  }
+  :global(.revealed) .annotated-code :global(.line.annotated.annotated-request)::before {
+    content: '🟡';
+  }
+  :global(.revealed) .annotated-code :global(.line.annotated.annotated-nit)::before {
+    content: '🟢';
+  }
+  :global(.revealed) .annotated-code :global(.line.annotated.annotated-blocker) {
+    background: rgba(239, 68, 68, 0.18);
+    border-left: 2px solid #ef4444;
+  }
+  :global(.revealed) .annotated-code :global(.line.annotated.annotated-request) {
+    background: rgba(249, 115, 22, 0.18);
+    border-left: 2px solid #f97316;
+  }
+  :global(.revealed) .annotated-code :global(.line.annotated.annotated-nit) {
+    background: rgba(34, 197, 94, 0.15);
+    border-left: 2px solid #22c55e;
+  }
+  :global(.revealed) .annotated-code :global(.line.annotated:hover) {
+    filter: brightness(1.4);
+  }
+</style>

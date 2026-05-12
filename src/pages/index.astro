@@ -1,0 +1,166 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const solidSeries = [
+  {
+    id: 'srp',
+    title: 'Single Responsibility',
+    letter: 'S',
+    count: 7,
+    summary: 'Seven extractions for fat models and fat controllers. Service, form, query, policy, decorator, concern, and value objects.',
+    lessons: [
+      { slug: 'senior-srp-service-objects',  emoji: '⚙️', label: 'Service Objects' },
+      { slug: 'senior-srp-form-objects',     emoji: '📋', label: 'Form Objects' },
+      { slug: 'senior-srp-query-objects',    emoji: '🔍', label: 'Query Objects' },
+      { slug: 'senior-srp-policy-objects',   emoji: '🚦', label: 'Policy Objects' },
+      { slug: 'senior-srp-decorators',       emoji: '🎨', label: 'Decorators' },
+      { slug: 'senior-srp-concerns',         emoji: '🧩', label: 'Concerns' },
+      { slug: 'senior-srp-value-objects',    emoji: '💎', label: 'Value Objects' },
+    ],
+  },
+  {
+    id: 'ocp',
+    title: 'Open/Closed',
+    letter: 'O',
+    count: 5,
+    summary: 'Five shapes for adding behavior without modifying existing code. Registry, adapter, middleware, pub-sub, delegated_type.',
+    lessons: [
+      { slug: 'senior-ocp-registry',         emoji: '🗂️', label: 'Registry' },
+      { slug: 'senior-ocp-adapter',          emoji: '🔌', label: 'Adapter' },
+      { slug: 'senior-ocp-middleware',       emoji: '🔗', label: 'Middleware' },
+      { slug: 'senior-ocp-pub-sub',          emoji: '📣', label: 'Pub-Sub' },
+      { slug: 'senior-ocp-delegated-type',   emoji: '🧬', label: 'delegated_type' },
+    ],
+  },
+  {
+    id: 'lsp',
+    title: 'Liskov Substitution',
+    letter: 'L',
+    count: 2,
+    summary: "Duck typing as Ruby's native idiom for substitutability, and where inheritance breaks the contract.",
+    lessons: [
+      { slug: 'senior-lsp-duck-typing',       emoji: '🪞', label: 'Duck Typing' },
+      { slug: 'senior-lsp-contract-breaking', emoji: '🪞', label: 'Contract Breaking' },
+    ],
+  },
+  {
+    id: 'isp',
+    title: 'Interface Segregation',
+    letter: 'I',
+    count: 2,
+    summary: 'Focused concerns over fat mixins, and role-based interfaces over class-based dispatch.',
+    lessons: [
+      { slug: 'senior-isp-focused-concerns', emoji: '✂️', label: 'Focused Concerns' },
+      { slug: 'senior-isp-role-interfaces',  emoji: '✂️', label: 'Role Interfaces' },
+    ],
+  },
+  {
+    id: 'dip',
+    title: 'Dependency Inversion',
+    letter: 'D',
+    count: 3,
+    summary: 'Inject collaborators, centralize configuration, and let the test environment swap dependencies cleanly.',
+    lessons: [
+      { slug: 'senior-dip-dependency-injection', emoji: '🔁', label: 'Dependency Injection' },
+      { slug: 'senior-dip-config-injection',     emoji: '🔁', label: 'Config Injection' },
+      { slug: 'senior-dip-test-seams',           emoji: '🔁', label: 'Test Seams' },
+    ],
+  },
+];
+
+const otherLessons = [
+  { slug: 'senior-eager-loading',         title: 'Eager Loading — includes vs preload vs eager_load vs joins' },
+  { slug: 'senior-open-closed-payouts',   title: 'Open/Closed in Practice — Gumroad payout system (long-form)' },
+  { slug: 'senior-open-closed-payouts-2', title: 'Open/Closed in Practice — invented examples' },
+  { slug: 'senior-glossary',              title: 'Senior Track Glossary' },
+];
+---
+
+<Layout title="Home" description="The Senior Track for Rails developers leveling up from mid to senior. SOLID principles in real OSS code, Spot the Tax cards, and the design judgment that separates intermediate from senior.">
+  <section class="bg-white border-b border-gray-200">
+    <div class="max-w-4xl mx-auto px-6 py-16">
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-3">RailsFullStack</p>
+      <h1 class="text-5xl font-bold text-gray-900 mb-4">Senior Track</h1>
+      <p class="text-xl text-gray-600 max-w-2xl">
+        The gap from intermediate to senior Rails developer is not more syntax. It is design judgment, calibration, and the ability to defend technical decisions. <strong class="text-gray-900">This track closes that gap, anchored in real production Rails code.</strong>
+      </p>
+    </div>
+  </section>
+
+  <section id="solid" class="max-w-4xl mx-auto px-6 py-12 space-y-8">
+    <div>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SOLID in Real Rails Code</p>
+      <h2 class="text-3xl font-bold text-gray-900 mb-3">The five principles, 19 lessons</h2>
+      <p class="text-gray-700 max-w-2xl">
+        Each principle anchored in source code from Mastodon, Forem, Discourse, Gumroad, and Rails core. The lessons trace the rule back to where it came from, name the anti-pattern with a concrete scenario, and walk through how a senior codebase actually applies it.
+      </p>
+    </div>
+
+    <div class="grid gap-5">
+      {solidSeries.map((series) => (
+        <article class="bg-white rounded-lg border border-gray-200 p-6">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-baseline gap-4">
+              <span class="text-5xl font-bold text-ruby leading-none">{series.letter}</span>
+              <div>
+                <h3 class="text-xl font-bold text-gray-900">{series.title}</h3>
+                <p class="text-sm text-gray-500">{series.count} lessons</p>
+              </div>
+            </div>
+          </div>
+          <p class="text-gray-700 mb-5">{series.summary}</p>
+          <ul class="grid gap-2 sm:grid-cols-2">
+            {series.lessons.map((lesson, i) => (
+              <li>
+                <a href={`/lessons/${lesson.slug}`} class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 transition-colors group">
+                  <span class="text-xl" aria-hidden="true">{lesson.emoji}</span>
+                  <span class="text-sm text-gray-500 w-6 tabular-nums">{i + 1}.</span>
+                  <span class="text-gray-700 group-hover:text-ruby transition-colors">{lesson.label}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section id="spot-the-tax" class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax</p>
+      <h2 class="text-3xl font-bold text-gray-900 mb-3">20 cards · code that ships, costs that compound</h2>
+      <p class="text-gray-700 max-w-2xl">
+        Each card shows a piece of Rails code that works today but will cost something specific in six months. Read the code, predict the cost, reveal the principle. Faster than a lesson, sharper than a tutorial.
+      </p>
+    </div>
+    <a href="/lessons/spot-the-tax" class="inline-flex items-center gap-2 px-5 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium">
+      Browse all 20 cards →
+    </a>
+  </section>
+
+  <section class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Other Senior Track lessons</p>
+      <h2 class="text-3xl font-bold text-gray-900 mb-3">Long-form and reference</h2>
+    </div>
+    <ul class="space-y-3">
+      {otherLessons.map((lesson) => (
+        <li>
+          <a href={`/lessons/${lesson.slug}`} class="block p-4 bg-white rounded-lg border border-gray-200 hover:border-ruby transition-colors group">
+            <h3 class="font-semibold text-gray-900 group-hover:text-ruby transition-colors">{lesson.title}</h3>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section class="max-w-4xl mx-auto px-6 py-12">
+    <div class="bg-ruby/5 border border-ruby/20 rounded-lg p-6">
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Coming next</p>
+      <h2 class="text-2xl font-bold text-gray-900 mb-3">Scaling Rails Apps — 8 lessons</h2>
+      <p class="text-gray-700">
+        Diagnose before you scale. Indexes and EXPLAIN. The concurrency model. Hot rows. Caching. Background jobs. Pagination at scale. Bulk operations. Anchored in real material from Shopify, GitHub, and Artsy's engineering teams, plus Rails core and the same OSS apps as the SOLID series.
+      </p>
+    </div>
+  </section>
+</Layout>

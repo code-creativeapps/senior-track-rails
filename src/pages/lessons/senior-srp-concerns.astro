@@ -1,0 +1,225 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="SRP 6 of 7 — Concerns in Real Rails Code" description="Where the Concerns pattern comes from, why it's the most controversial Rails pattern, and how Mastodon uses small focused concerns like Expireable to share behavior cleanly across models.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SRP Series · 6 of 7</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🧩</span>
+        <h1 class="text-4xl font-bold text-gray-900">Concerns</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the pattern comes from, why it is the most controversial Rails pattern, and how Mastodon uses small focused concerns like <code class="text-lg">Expireable</code> to share behavior cleanly across models.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Ruby has had modules since the language was born. <strong>A module is a bag of methods you can mix into a class</strong> with <code class="bg-gray-100 px-2 py-1 rounded">include</code>. The capability is there at the language level; the question Rails had to answer was where the modules should live and how they should be organized.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 4, released in 2013, added the <code class="bg-gray-100 px-2 py-1 rounded">app/models/concerns/</code> and <code class="bg-gray-100 px-2 py-1 rounded">app/controllers/concerns/</code> directories to the default app skeleton, plus the <code class="bg-gray-100 px-2 py-1 rounded">ActiveSupport::Concern</code> helper to make modules with callbacks and class methods less painful to write. The move was partly a code-organization decision and partly an ideological one. <strong>DHH had been arguing that the "fat model" critique in the Rails community was solving the wrong problem.</strong> Instead of pulling logic out into services and forms and queries, he suggested pulling it out into concerns — modules that stay attached to the model but live in their own file.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        That choice made concerns the most divisive pattern in Rails. <strong>One camp uses them everywhere</strong>, on the theory that a 1000-line model is fine as long as it is split across ten 100-line concerns. <strong>Another camp avoids them entirely</strong>, on the theory that a method mixed in from somewhere else is harder to find than a method called on a collaborator, and that the SRP failure of a fat model is not solved by chopping the model into modules that all share its state.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The honest answer, and the one the most experienced Rails codebases converge on, is somewhere in between. <strong>Concerns are the right tool when you have a small, focused capability that genuinely applies to multiple models and does not have its own state.</strong> They are the wrong tool when they are a "junk drawer" for model methods nobody knew where else to put. The rest of this lesson is about telling those two cases apart.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app where the team learned about concerns and moved everything in. The User model file shrank from 800 lines to 50 lines. The 750 lines did not disappear, though. They moved into eight files in <code class="bg-gray-100 px-2 py-1 rounded">app/models/concerns/user/</code>, with names like <code class="bg-gray-100 px-2 py-1 rounded">UserAuthentication</code>, <code class="bg-gray-100 px-2 py-1 rounded">UserBilling</code>, <code class="bg-gray-100 px-2 py-1 rounded">UserNotifications</code>, <code class="bg-gray-100 px-2 py-1 rounded">UserSearch</code>:
+      </p>
+      <CodeBlock code={`# app/models/user.rb
+class User < ApplicationRecord
+  include UserAuthentication
+  include UserBilling
+  include UserNotifications
+  include UserSearch
+  include UserExports
+  include UserSocialGraph
+  include UserAdmin
+  include UserAvatar
+end
+
+# app/models/concerns/user_billing.rb
+module UserBilling
+  extend ActiveSupport::Concern
+
+  included do
+    has_many :charges
+    has_many :subscriptions
+    has_one :default_payment_method
+
+    after_commit :sync_stripe_customer
+    after_destroy :cancel_active_subscriptions
+  end
+
+  def charge!(amount_cents)
+    # ... 60 lines of charging logic
+  end
+
+  def subscribed?
+    subscriptions.active.exists?
+  end
+
+  # ... 40 more methods
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The User model is still a 1000-line class.</strong> The lines are spread across eight files instead of one, but every concern can read and write every other concern's instance variables, call every other concern's methods, and participate in every other concern's callbacks. The coupling did not get smaller. It got harder to see, because now a method invoked on User might be defined in any of eight files.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Two specific failure modes show up in this code. <strong>First, the concerns are not reusable.</strong> <code class="bg-gray-100 px-2 py-1 rounded">UserBilling</code> only applies to User. The name says so. There is no second model in the app that could include it. If the concern is single-use, putting it in a separate file is only a navigation hop with no abstraction win.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Second, the concerns have state coupling.</strong> <code class="bg-gray-100 px-2 py-1 rounded">UserBilling#charge!</code> calls <code class="bg-gray-100 px-2 py-1 rounded">self.email</code> from the User table. <code class="bg-gray-100 px-2 py-1 rounded">UserNotifications</code> reads <code class="bg-gray-100 px-2 py-1 rounded">self.preferences</code> which is set by <code class="bg-gray-100 px-2 py-1 rounded">UserAuthentication</code>. <strong>The concerns share the model's mutable state implicitly, and any one of them can break any other one's assumptions about what that state contains.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Mastodon uses concerns well</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Mastodon has a few dozen concerns under <code class="bg-gray-100 px-2 py-1 rounded">app/models/concerns/</code>, and they look nothing like the User-junk-drawer version. Here is a real one:
+      </p>
+      <CodeBlock code={`# mastodon/app/models/concerns/expireable.rb · @bdad4f78
+# License: AGPL-3.0
+
+module Expireable
+  extend ActiveSupport::Concern
+
+  included do
+    scope :expired, -> { where.not(expires_at: nil).where(expires_at: ...Time.now.utc) }
+
+    def expires_in
+      return @expires_in if defined?(@expires_in)
+      return nil if expires_at.nil?
+
+      (expires_at - created_at).to_i
+    end
+
+    def expires_in=(interval)
+      self.expires_at = interval.present? ? interval.to_i.seconds.from_now : nil
+      @expires_in     = interval
+    end
+
+    def expire!
+      touch(:expires_at)
+    end
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Read it carefully. Four design choices are doing the work:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The concern names a capability, not a domain.</strong> <code class="bg-gray-100 px-2 py-1 rounded">Expireable</code> is a behavior: "this thing has an <code class="bg-gray-100 px-2 py-1 rounded">expires_at</code> column and a notion of expiring." The name says nothing about which models include it. <strong>The capability is reusable</strong> — anywhere Mastodon has a record that can expire (invites, applications, app sessions, tokens), the same module is mixed in. One implementation, multiple subjects.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The concern is small and focused.</strong> Twenty lines. One scope, three methods, one shared assumption (the <code class="bg-gray-100 px-2 py-1 rounded">expires_at</code> column). The whole module fits on a screen, and you can predict every other model's behavior around expiry by reading these twenty lines once.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The state the concern depends on is explicit.</strong> The concern reads <code class="bg-gray-100 px-2 py-1 rounded">expires_at</code> and <code class="bg-gray-100 px-2 py-1 rounded">created_at</code>. That is its entire interface to the host model. <strong>Any class that has those two columns can include Expireable.</strong> The concern does not silently depend on other concerns or on a sprawling model state.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The concern does not couple to other concerns.</strong> Expireable does not call methods defined in <code class="bg-gray-100 px-2 py-1 rounded">Lockable</code> or <code class="bg-gray-100 px-2 py-1 rounded">Reviewable</code>. It uses the model's columns and that is it. A teammate adding a new model that needs expiry behavior knows the only requirement is "have an <code class="bg-gray-100 px-2 py-1 rounded">expires_at</code> column."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Using it is a single line:
+      </p>
+      <CodeBlock code={`class Invite < ApplicationRecord
+  include Expireable
+end
+
+class UserInviteRequest < ApplicationRecord
+  include Expireable
+end
+
+# Both now have:
+#   .expired                   (scope)
+#   invite.expires_in          (instance method)
+#   invite.expires_in = 1.hour (instance method)
+#   invite.expire!             (instance method)`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The test that tells you a concern is earning its weight</h2>
+      <p class="text-gray-700 leading-relaxed">
+        There is a simple thought experiment for every concern in your codebase:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Is the concern included in at least two models?</strong> If yes, the capability is genuinely shared and the concern is doing what concerns are for. If no, the concern is single-use and is probably only a navigation hop. Inline it back into the model or extract it to a service object.</li>
+        <li><strong>Can you describe the concern's name without using the word "stuff" or "logic"?</strong> "Expireable" passes. "UserStuff" or "AccountLogic" fails. A concern that needs vague words to describe what it does is a junk drawer.</li>
+        <li><strong>Does the concern depend on a small, explicit set of columns or methods?</strong> Expireable needs <code class="bg-gray-100 px-2 py-1 rounded">expires_at</code> and <code class="bg-gray-100 px-2 py-1 rounded">created_at</code>. That is a clear contract. A concern that depends on twenty methods and seven columns and three callbacks is too tangled to be reusable.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>If all three checks pass, the concern is doing real work.</strong> If any one of them fails, the pattern is being misapplied.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three benefits come out of using concerns correctly, each one solving a specific failure mode of the model-by-model duplicated version.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>One implementation across many models.</strong> Mastodon has expiry behavior on at least five models. Without Expireable, the scope, the predicates, and the <code class="bg-gray-100 px-2 py-1 rounded">expire!</code> method would be copy-pasted five times. A bug fix would need to land in five files. With Expireable, the fix lands in one file and applies everywhere.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The shared contract is discoverable.</strong> A new engineer looking at the Invite model sees <code class="bg-gray-100 px-2 py-1 rounded">include Expireable</code>. They open the concern file, read twenty lines, and understand the expiry behavior across the whole codebase. <strong>The line of code is documentation as well as inclusion.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The host model stays focused.</strong> The Invite model file is short, because the expiry logic lives elsewhere. The lines in invite.rb are about what an invite specifically is, not about the generic capability of expiring. The model's main file is about the model's main purpose.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When you should not use a concern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three failure modes to watch for:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>The concern is included in exactly one model.</strong> The name probably gives it away (<code class="bg-gray-100 px-2 py-1 rounded">UserBilling</code>, <code class="bg-gray-100 px-2 py-1 rounded">OrderShipping</code>). If there is no second model that would include it, it is only code organization within the model, and a service object or a value object would carry the responsibility more honestly.</li>
+        <li><strong>The concern has its own internal state.</strong> If the module has <code class="bg-gray-100 px-2 py-1 rounded">@instance_variables</code> that other parts of the host class read or write, you are building a class disguised as a module. <strong>Make it a real class</strong> with its own initializer and have the model collaborate with it.</li>
+        <li><strong>The concern is a workflow.</strong> If the concern is "do these eight things in order to charge a user," it is a service object pretending to be a mixin. Workflows do not belong as concerns; <strong>workflows belong in service objects</strong>, where they can be tested and called from anywhere.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>One pragmatic rule:</strong> a good concern fits on a screen, names a capability not a domain, and is included by more than one model. <strong>If you find yourself writing a concern that fails any of those three checks, the right pattern is usually a service object or a value object, not a concern.</strong>
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>The Single Responsibility Principle is about giving each reason to change its own home. Concerns are an unusual tool in that family because <strong>they let multiple "homes" share a single physical location</strong>. Expiry is a responsibility that genuinely applies to five different models, and putting it in five separate files would create the opposite problem (duplication).</p>
+        <p>What makes a concern correct, then, is whether the capability it captures is <strong>genuinely cross-cutting</strong>. A capability is cross-cutting when the same logic applies to multiple subjects whose other behaviors have nothing in common. Expiry applies equally to invites, sessions, and tokens, even though invites, sessions, and tokens are otherwise unrelated. <strong>That is what concerns are for.</strong></p>
+        <p>The failure mode is using concerns as a code-organization trick for a single model. The model's coupling does not change when its code is split across eight files inside the same directory. <strong>Concerns are an SRP tool for capabilities that span models, not for organizing a single model's internals.</strong> When in doubt, ask "would a second model include this?" If the answer is no, it is not a concern.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>List the files under <code class="bg-gray-100 px-2 py-1 rounded">app/models/concerns/</code>. For each one, grep <code class="bg-gray-100 px-2 py-1 rounded">app/models/</code> for <code class="bg-gray-100 px-2 py-1 rounded">include ConcernName</code> and count how many models include it.</li>
+        <li><strong>Any concern included in exactly one model is suspect.</strong> Open it. Is the capability inherently model-specific (UserBilling, OrderShipping)? If yes, the concern should probably be inlined into the model or extracted into a service.</li>
+        <li>For each concern that is included in multiple models, check that the contract is small. Grep the concern for <code class="bg-gray-100 px-2 py-1 rounded">self\\.</code> calls. <strong>Each one is a method or column the concern assumes the host model has.</strong> If the list is short and named, the concern is well-defined. If it is long, the concern is a leaky abstraction.</li>
+        <li>Bonus: look at the file size of your models. <strong>If a 1000-line model has been split into ten 100-line concerns, the model has not gotten simpler.</strong> The coupling is the same; only the navigation got worse. The honest fix is service objects, not concerns.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-srp-decorators" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 5 — Decorators</a>
+      <a href="/lessons/senior-srp-value-objects" class="text-ruby hover:text-ruby-dark transition-colors">SRP 7 — Value Objects →</a>
+    </div>
+  </article>
+</Layout>

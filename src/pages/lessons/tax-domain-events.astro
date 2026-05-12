@@ -1,0 +1,118 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="When the controller knows about every downstream concern" description="Why a create action that fires payment, inventory, email, analytics, and Slack inline becomes a coordination nightmare.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> All lessons
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 19 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">When the controller knows about every downstream concern</h1>
+      <p class="text-xl text-gray-600">Why a create action that fires payment, inventory, email, analytics, and Slack inline becomes a coordination nightmare.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class OrdersController < ApplicationController
+  def create
+    order = Order.create!(order_params)
+
+    PaymentService.charge(order)
+    InventoryService.reserve(order)
+    OrderConfirmationMailer.with(order: order).deliver_later
+    AnalyticsService.track(order, "order_placed")
+    SlackNotifier.notify_sales(order) if order.total_cents > 1_000_00
+    AffiliateService.credit(order) if order.referrer_code.present?
+
+    redirect_to order
+  end
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed">Every concern that runs after an order is placed lives in this controller. <strong>Adding loyalty points means editing this controller. Adding fraud screening means editing this controller.</strong> Every team that wants to do something when an order is placed has to come and add a line. The action becomes a junk drawer of unrelated calls, and any failure in one of them risks taking down the others or leaving the system in an inconsistent state.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, ask yourself how you'd let other parts of the app react to an order being placed without the controller having to know about each one.
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4"><strong>Have the controller announce that an order was placed</strong>, and let each interested concern subscribe to that announcement. The controller now does one thing — place the order and emit the event. Adding loyalty points becomes a new subscriber, with no edits to the controller.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>The action does one thing: place the order</li>
+            <li>New side effects are new listeners, not edits to the controller</li>
+            <li>Each listener can be retried, logged, and tested on its own</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`class OrdersController < ApplicationController
+  def create
+    order = Order.create!(order_params)
+    OrderEvents.publish(:placed, order)
+    redirect_to order
+  end
+end
+
+# Each concern lives where it belongs:
+OrderEvents.subscribe(:placed) { |order| PaymentJob.perform_later(order.id) }
+OrderEvents.subscribe(:placed) { |order| InventoryReservationJob.perform_later(order.id) }
+OrderEvents.subscribe(:placed) { |order| OrderConfirmationMailer.with(order: order).deliver_later }
+# Adding loyalty points is one new subscriber, no controller edits.`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Domain events
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>When something significant happens in your domain — an order is placed, a user signs up, a payment fails — the code that triggers it shouldn't have to know everyone who cares. <strong>The trigger announces "this happened"; everyone who's interested arranges to react on their own.</strong> That's a domain event.</p>
+            <p>The benefit is that adding a new reaction doesn't require touching the trigger. The team that wants to send a Slack alert when high-value orders come in can register their own subscriber, in their own file, without coordinating with the team that owns the orders controller. The trigger keeps doing exactly one thing: triggering. Everything downstream is somebody else's responsibility.</p>
+            <p>Rails has a built-in version of this with <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">ActiveSupport::Notifications</code>, and gems like <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">wisper</code> exist for richer pub/sub. The mechanism matters less than the shift in mindset: <em>the action that does the thing is not responsible for the things that happen because of it</em>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-bounded-contexts" class="text-ruby hover:text-ruby-dark transition-colors">← Card 18</a>
+      <a href="/lessons/tax-aggregate-roots" class="text-ruby hover:text-ruby-dark transition-colors">Card 20 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

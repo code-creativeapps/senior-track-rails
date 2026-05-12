@@ -1,0 +1,266 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="SRP 7 of 7 — Value Objects in Real Rails Code" description="Where value objects come from, why concepts like Money and DateRange keep escaping as scattered methods on models, and how Rails' ActiveSupport::Duration shows the pattern at its best.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SRP Series · 7 of 7</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">💎</span>
+        <h1 class="text-4xl font-bold text-gray-900">Value Objects</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the pattern comes from, why concepts like Money and DateRange keep escaping as scattered methods on models, and how Rails' own <code class="text-lg">ActiveSupport::Duration</code> shows the pattern at its best.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The term "value object" comes from Domain-Driven Design, Eric Evans' 2003 book. <strong>An entity (like a User) has an identity that persists across changes</strong> — Alice with id 42 is Alice even if her email and her name change. <strong>A value object has no identity; it is defined entirely by its attributes.</strong> A 10-dollar bill is interchangeable with any other 10-dollar bill. Two coordinates with the same latitude and longitude are the same point. Two date ranges with the same start and end are the same range. Equality is by value, not by reference.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In Rails terms, <strong>entities are usually ActiveRecord models. Value objects are usually plain Ruby classes.</strong> They do not have database tables of their own (or, when they do, they appear as columns inside an entity's row, not as their own table). They are immutable. They implement <code class="bg-gray-100 px-2 py-1 rounded">==</code> by comparing attributes. They often include <code class="bg-gray-100 px-2 py-1 rounded">Comparable</code>. They have methods that return new value objects, not methods that mutate the existing one.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Rails has used value objects since the very first version, even before the pattern had a name in the community. The earliest API for them was <code class="bg-gray-100 px-2 py-1 rounded">composed_of</code>, added to ActiveRecord around 2005. Rails 5 introduced the <strong>Attribute API</strong> in 2016, a much better way to attach value-typed attributes to a model. Rails core itself ships a number of value objects you use every day: <code class="bg-gray-100 px-2 py-1 rounded">ActiveSupport::Duration</code>, <code class="bg-gray-100 px-2 py-1 rounded">ActiveSupport::TimeWithZone</code>, the path objects in <code class="bg-gray-100 px-2 py-1 rounded">Pathname</code>. The pattern is everywhere; most Rails developers use value objects without naming them.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The SRP rule the pattern enforces: <strong>a small immutable concept like Money, Coordinates, or DateRange has its own behavior that does not belong on the entity that happens to store it.</strong> The Order model owns "what is an order in our database." A Money value object owns "how do two amounts of money behave when you add them, compare them, format them, or check whether they are negative." Two responsibilities, two classes.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture an e-commerce app. The team stored prices in cents on the Order table from day one, the way every Rails app since 2008 has. The product team kept asking for money-related features: "show the price in the user's currency," "compare to the previous month's total," "format with the right decimal separator." Each request landed as a method on Order:
+      </p>
+      <CodeBlock code={`class Order < ApplicationRecord
+  # column: total_cents, currency
+
+  def total_formatted
+    case currency
+    when "USD" then "$#{format("%.2f", total_cents / 100.0)}"
+    when "EUR" then "€#{format("%.2f", total_cents / 100.0)}"
+    when "JPY" then "¥#{total_cents}"
+    else "#{total_cents / 100.0} #{currency}"
+    end
+  end
+
+  def total_in_user_currency(rate)
+    converted_cents = (total_cents * rate).round
+    # ... 8 lines of currency-formatting logic again, slightly different
+  end
+
+  def greater_than_previous?(previous_order)
+    return false unless currency == previous_order.currency
+    total_cents > previous_order.total_cents
+  end
+
+  def negative_total?
+    total_cents < 0
+  end
+
+  # ... 12 more methods that all live on Order but are about money,
+  # not about orders
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Read it. <strong>Order now has fifteen methods about money</strong>, all of which would apply equally to Invoice, Refund, Subscription, Payout, and every other model in the app that has a price. The formatting logic for Yen vs Dollars is going to be duplicated across all of them. The "what currencies can we compare safely" check is going to drift between models. <strong>A single bug fix to currency formatting will need to land in a dozen places.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The deeper problem is that <strong>money is its own concept, with its own rules, and Order is the wrong place to put those rules.</strong> Two amounts in different currencies cannot be compared without an exchange rate. Negative zero is the same as positive zero. The smallest representable unit depends on the currency (cents for USD, the whole yen for JPY). None of those are Order rules; they are money rules. Putting them on Order means every model that handles money is reading and re-implementing the same set of rules.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How a value object solves it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A Money value object lives in its own file and captures everything that is true about money, with no knowledge of orders, invoices, or any other entity:
+      </p>
+      <CodeBlock code={`# app/models/money.rb (or app/value_objects/money.rb)
+# Original illustrative code — every real app would extend this
+# substantially. The Money gem (RubyMoney) is the canonical version
+# of this class.
+
+class Money
+  include Comparable
+
+  attr_reader :cents, :currency
+
+  def initialize(cents, currency)
+    @cents    = Integer(cents)
+    @currency = currency.to_s.upcase.freeze
+    freeze
+  end
+
+  def +(other)
+    raise CurrencyMismatch unless currency == other.currency
+    Money.new(cents + other.cents, currency)
+  end
+
+  def -(other)
+    raise CurrencyMismatch unless currency == other.currency
+    Money.new(cents - other.cents, currency)
+  end
+
+  def <=>(other)
+    return nil unless currency == other.currency
+    cents <=> other.cents
+  end
+
+  def negative?
+    cents < 0
+  end
+
+  def to_s
+    format = CURRENCY_FORMATS.fetch(currency, "%{amount} %{code}")
+    format(format, amount: cents / 100.0, code: currency)
+  end
+
+  def hash
+    [cents, currency].hash
+  end
+
+  def eql?(other)
+    other.is_a?(Money) && cents == other.cents && currency == other.currency
+  end
+
+  class CurrencyMismatch < StandardError; end
+
+  CURRENCY_FORMATS = {
+    "USD" => "$%{amount:.2f}",
+    "EUR" => "€%{amount:.2f}",
+    "JPY" => "¥%{amount:.0f}"
+  }.freeze
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Four design choices make this a real value object, not a "class shaped like one":
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>It is immutable.</strong> The constructor calls <code class="bg-gray-100 px-2 py-1 rounded">freeze</code> on the instance. There is no <code class="bg-gray-100 px-2 py-1 rounded">cents=</code> setter, no <code class="bg-gray-100 px-2 py-1 rounded">add!</code> mutating method. <strong>Every operation that "changes" the money returns a new Money</strong>, the same way <code class="bg-gray-100 px-2 py-1 rounded">"abc".upcase</code> returns a new string instead of modifying the original.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>It implements <code class="bg-gray-100 px-2 py-1 rounded">==</code>, <code class="bg-gray-100 px-2 py-1 rounded">hash</code>, and <code class="bg-gray-100 px-2 py-1 rounded">eql?</code> by value.</strong> Two Money instances with the same cents and currency are equal. They have the same hash, so they work as hash keys. They satisfy <code class="bg-gray-100 px-2 py-1 rounded">eql?</code>, so they work in Sets. <strong>Identity-by-value is what makes a value object usable like a primitive.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>It includes <code class="bg-gray-100 px-2 py-1 rounded">Comparable</code> with a context-aware <code class="bg-gray-100 px-2 py-1 rounded">&lt;=&gt;</code>.</strong> Comparing USD to EUR returns nil — the value object refuses to silently produce an incorrect answer. <strong>The class encodes the rule "you cannot compare different currencies"</strong> so no caller can forget it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>It raises rather than returns garbage.</strong> Adding USD and JPY raises a <code class="bg-gray-100 px-2 py-1 rounded">CurrencyMismatch</code> error. The alternative — silently treating the cents as comparable — would produce a "9 + 100 = 109" bug where 9 dollars somehow grew by adding 100 yen.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        With Money in place, the Order model becomes much smaller:
+      </p>
+      <CodeBlock code={`class Order < ApplicationRecord
+  # columns: total_cents, currency
+
+  def total
+    Money.new(total_cents, currency)
+  end
+end
+
+# usage:
+order.total.to_s              # "$129.99"
+order.total + other.total     # raises if currencies mismatch
+order.total > previous.total  # nil if currencies mismatch
+order.total.negative?         # money rule, not order rule`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Rails core does this too</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The most famous value object in Rails is one you use without thinking about it. When you write <code class="bg-gray-100 px-2 py-1 rounded">5.minutes</code> or <code class="bg-gray-100 px-2 py-1 rounded">1.day.ago</code>, you are calling methods that return <code class="bg-gray-100 px-2 py-1 rounded">ActiveSupport::Duration</code> instances. The class is in <code class="bg-gray-100 px-2 py-1 rounded">activesupport/lib/active_support/duration.rb</code> and it is a textbook value object:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Immutable.</strong> <code class="bg-gray-100 px-2 py-1 rounded">5.minutes</code> never changes; arithmetic on durations returns new durations.</li>
+        <li><strong>Equality by value.</strong> <code class="bg-gray-100 px-2 py-1 rounded">5.minutes == 5.minutes</code> is true. <code class="bg-gray-100 px-2 py-1 rounded">5.minutes == 300.seconds</code> is also true, because they represent the same duration.</li>
+        <li><strong>Operations return new instances.</strong> <code class="bg-gray-100 px-2 py-1 rounded">5.minutes + 1.day</code> is a new Duration combining both.</li>
+        <li><strong>Context-encoded rules.</strong> You cannot meaningfully convert "5 months" to seconds without picking a starting date, because months have different lengths. Duration handles this correctly by carrying the parts (years, months, weeks, days) separately and only resolving them when you add the duration to a specific time.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>If you have ever written <code class="bg-gray-100 px-2 py-1 rounded">1.day.ago</code> and not thought about it, you have used a value object correctly without noticing.</strong> That is the pattern's signature: when done right, it disappears into the way the code reads.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four benefits, each one a fix for a specific Order-with-money-methods failure.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The rules live in one place.</strong> Currency formatting, comparison, addition, all in <code class="bg-gray-100 px-2 py-1 rounded">Money</code>. Order, Invoice, Refund, Payout all use it without re-implementing anything. <strong>A bug fix in money handling lands in one file and applies across every model that has a price.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Bad combinations cannot compile.</strong> Adding USD to JPY raises. Comparing different currencies returns nil. <strong>The class makes it impossible for a caller to silently produce the wrong answer</strong>, which is the failure mode the Order-version had built right in.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The code reads at the right level of abstraction.</strong> <code class="bg-gray-100 px-2 py-1 rounded">order.total > previous.total</code> is what you actually mean. <code class="bg-gray-100 px-2 py-1 rounded">order.total_cents > previous.total_cents &amp;&amp; order.currency == previous.currency</code> is the implementation detail you no longer have to think about. <strong>The signal-to-noise ratio of business code goes up.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Tests get small and obvious.</strong> Test <code class="bg-gray-100 px-2 py-1 rounded">Money.new(99, "USD") + Money.new(1, "USD") == Money.new(100, "USD")</code>, and you have covered an axis of behavior that every model in the app relies on. <strong>One value object test guards every caller.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When you should reach for one</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three signals tell you a concept deserves to be a value object:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>The concept has its own behavior.</strong> Money has addition, comparison, formatting. Coordinates have distance and bearing. DateRange has overlap, contains?, union. <strong>If the methods you keep writing about a column are really methods about that column's underlying concept, the concept deserves a class.</strong></li>
+        <li><strong>The concept appears on more than one model.</strong> Money lives on Order, Invoice, Refund, Subscription. Address lives on User, Shipment, Billing. <strong>The duplication is the signal.</strong></li>
+        <li><strong>The concept has rules that the model is not enforcing.</strong> The Order model "supports" comparison across currencies, in the sense that it does not stop you. The Money value object refuses. <strong>The right abstraction makes invalid states unrepresentable</strong>; the model-based version makes them quietly possible.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Common value-object candidates worth looking for in your app:</strong> Money, Coordinates, Address, DateRange, PhoneNumber, EmailAddress, Url, Color, Percentage, FileSize, IpAddress, SocialSecurityNumber, RoleName, Permission. <strong>Every one of these is a concept with its own rules that tends to land as scattered methods on whatever model happens to store it.</strong>
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>The SRP rule says a class should have one reason to change. Value objects are SRP applied to the smallest, most overlooked unit: <strong>a concept that lives inside a model as one or two columns and a handful of scattered methods.</strong> The concept has its own rules of behavior, and those rules belong to the concept, not to whichever entity happens to carry the columns.</p>
+        <p>The deeper move, going back to Eric Evans, is that <strong>your code should mirror how domain experts talk</strong>. A finance team does not say "the order's total_cents." They say "the order total" and they think of it as money — something you can add to other money, compare to other money, and format for display. <strong>Value objects let the code use the same vocabulary as the people who own the domain</strong>, which makes the code easier to discuss, easier to debug, and easier to evolve.</p>
+        <p>The pattern also has a structural payoff: <strong>value objects move correctness from runtime to construction time</strong>. The day a caller tries to add 9 dollars to 100 yen, the Money version raises. The Order-with-cents version returns 109 and continues silently. <strong>The right abstraction does not only organize the code; it eliminates whole classes of bugs.</strong></p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Open the largest model in your app. Find any group of columns that always appear together: <code class="bg-gray-100 px-2 py-1 rounded">amount_cents</code> + <code class="bg-gray-100 px-2 py-1 rounded">currency</code>, <code class="bg-gray-100 px-2 py-1 rounded">street</code> + <code class="bg-gray-100 px-2 py-1 rounded">city</code> + <code class="bg-gray-100 px-2 py-1 rounded">zip</code> + <code class="bg-gray-100 px-2 py-1 rounded">country</code>, <code class="bg-gray-100 px-2 py-1 rounded">start_at</code> + <code class="bg-gray-100 px-2 py-1 rounded">end_at</code>. <strong>Each group is a value-object candidate.</strong></li>
+        <li>For each group, search the model file for methods that operate on those columns: formatting, comparison, validation, arithmetic. The more methods, the stronger the case.</li>
+        <li>Now grep the whole codebase for the same column names: <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "amount_cents" app/</code>. <strong>If the columns show up on multiple models with similar surrounding code, the value object will pay for itself across all of them.</strong></li>
+        <li>Sketch the value-object class. Constructor, equality, key behaviors. <strong>Imagine the calling code if the class existed.</strong> If the code reads much better, build it.</li>
+      </ol>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Closing the series</h2>
+      <p class="text-gray-700 leading-relaxed">
+        You have now seen seven extractions in service of the Single Responsibility Principle: <strong>services for verbs, forms for validating inputs, queries for filtered reads, policies for authorization, decorators for display, concerns for cross-cutting capabilities, and value objects for self-contained concepts</strong>. All seven share the same instinct: when a class has more than one reason to change, give the extra reasons their own home.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>None of these patterns are mandatory.</strong> None of them earn their weight at small scale. A fresh Rails app with one resource and one form does not need any of them. <strong>The skill is knowing the moment a fat model or fat controller crosses the line from "fine" to "the next change will touch unrelated code."</strong> That moment is when a senior reaches for one of these tools.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Bryan Helmkamp wrote the post that gave most of these patterns their names in 2012, and the original title was <em>"7 Patterns to Refactor Fat ActiveRecord Models."</em> The seven in his list are the seven you have now read. <strong>Thirteen years later, they are still the seven moves Rails seniors reach for first.</strong> Not because the language has stood still, but because the underlying SRP shape is the right one.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The best calibration is to read the source of apps that have already crossed the threshold. Mastodon, Forem, Discourse, and Gumroad each have hundreds of these classes, organized in slightly different ways but converging on the same core moves. <strong>The more you read, the faster you will see the shape when it is time to extract one in your own code.</strong>
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-srp-concerns" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 6 — Concerns</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Course Home →</a>
+    </div>
+  </article>
+</Layout>

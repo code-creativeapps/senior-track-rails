@@ -1,0 +1,280 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="DIP 2 of 3 — Configuration as an Injected Dependency" description="Where Rails' configuration pattern comes from, why ENV.fetch scattered through your code is a coupling problem, and how Rails.application.config.x makes configuration a real, injectable dependency.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">DIP Series · 2 of 3</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🔁</span>
+        <h1 class="text-4xl font-bold text-gray-900">Configuration as an Injected Dependency</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where Rails' configuration pattern comes from, why <code class="text-lg">ENV.fetch</code> scattered through your code is a coupling problem, and how <code class="text-lg">Rails.application.config.x</code> makes configuration a real, injectable dependency.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The first DIP lesson focused on injecting <em>collaborators</em>: notifiers, clients, services. This lesson is about a quieter form of dependency that almost every Rails app gets wrong at some point: <strong>configuration</strong>. The webhook URL the Slack notifier needs. The API key for Stripe. The bucket name for uploads. The number of seconds before a token expires. These are not collaborators; they are values. But they are still dependencies, and they still want to be injected.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The naive Rails app reaches for <code class="bg-gray-100 px-2 py-1 rounded">ENV.fetch("X")</code> wherever it needs a config value</strong>, scattered across services, models, jobs, and initializers. This works on day one. It rots over time. Tests have to set environment variables; deploys have to remember every variable in use; refactors have to find every <code class="bg-gray-100 px-2 py-1 rounded">ENV.fetch</code> call.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Rails ships a better pattern, hiding in plain sight: <strong><code class="bg-gray-100 px-2 py-1 rounded">Rails.application.config.x</code></strong>. The <code class="bg-gray-100 px-2 py-1 rounded">.x</code> namespace is a Rails-blessed home for application-specific configuration. You set values once, in an initializer or environment-specific config file. Every class that needs them reads from the same place. <strong>Configuration becomes a single, central, injectable dependency</strong> instead of a swarm of <code class="bg-gray-100 px-2 py-1 rounded">ENV.fetch</code> calls.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior framing: <strong>your configuration is a dependency, like any other. The DIP move is to give it a single, named home</strong>, not to look it up from inside the code that uses it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app where the team has been adding integrations for two years. Stripe, Mailchimp, Slack, Twilio, Sentry, Datadog. Every integration's configuration lives wherever the integration's first caller happened to be:
+      </p>
+      <CodeBlock code={`# app/services/charge_user.rb
+class ChargeUser
+  def call(user, cents)
+    Stripe.api_key = ENV.fetch("STRIPE_SECRET_KEY")
+    Stripe::Charge.create(
+      amount:   cents,
+      currency: ENV.fetch("STRIPE_CURRENCY", "usd"),
+      customer: user.stripe_customer_id
+    )
+  end
+end
+
+# app/jobs/send_newsletter_job.rb
+class SendNewsletterJob
+  def perform(list_id)
+    client = Mailchimp::API.new(ENV.fetch("MAILCHIMP_API_KEY"))
+    client.lists.members(list_id).each { |m| send_to(m.email) }
+  end
+end
+
+# app/controllers/webhooks_controller.rb
+class WebhooksController < ApplicationController
+  def stripe
+    payload   = request.body.read
+    signature = request.headers["Stripe-Signature"]
+    event     = Stripe::Webhook.construct_event(
+      payload, signature, ENV.fetch("STRIPE_WEBHOOK_SECRET")
+    )
+    # ...
+  end
+end
+
+# config/initializers/sentry.rb
+Sentry.init do |config|
+  config.dsn = ENV.fetch("SENTRY_DSN", nil)
+  config.traces_sample_rate = ENV.fetch("SENTRY_SAMPLE_RATE", "0.1").to_f
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Four files, four different patterns, two duplicate Stripe ENV reads.</strong> What goes wrong:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>There is no single place that lists what configuration the app needs.</strong> Onboarding a new developer means grepping the codebase for <code class="bg-gray-100 px-2 py-1 rounded">ENV.fetch</code> calls and hoping you found them all.</li>
+        <li><strong>Tests have to set environment variables, even for fully isolated unit tests.</strong> A test that exercises <code class="bg-gray-100 px-2 py-1 rounded">ChargeUser</code> has to ensure <code class="bg-gray-100 px-2 py-1 rounded">STRIPE_SECRET_KEY</code> is set in the test environment, or the production lookup blows up.</li>
+        <li><strong>Defaults are inconsistent.</strong> Some lookups use <code class="bg-gray-100 px-2 py-1 rounded">fetch</code> with a default; some raise on missing values; some default to nil. The behavior of "what happens if STRIPE_CURRENCY is unset?" depends on which file you look at.</li>
+        <li><strong>Type coercion happens at every call site.</strong> <code class="bg-gray-100 px-2 py-1 rounded">ENV.fetch("SAMPLE_RATE", "0.1").to_f</code> repeats every time the value is read. Forgetting <code class="bg-gray-100 px-2 py-1 rounded">.to_f</code> in one place is a subtle production bug.</li>
+        <li><strong>The dependency is invisible.</strong> Reading <code class="bg-gray-100 px-2 py-1 rounded">ChargeUser</code> tells you it depends on Stripe. It does not tell you it depends on <em>which</em> Stripe configuration values, until you read the body of every method.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Rails-blessed pattern: config.x</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 4.2 added a configuration namespace called <code class="bg-gray-100 px-2 py-1 rounded">Rails.application.config.x</code>, intended exactly for this use case. <strong>Every config value the app needs gets defined in one place — usually <code class="bg-gray-100 px-2 py-1 rounded">config/application.rb</code> or an environment file — and every caller reads from the same namespace.</strong> The shape:
+      </p>
+      <CodeBlock code={`# config/application.rb
+module MyApp
+  class Application < Rails::Application
+    # ... Rails defaults ...
+
+    config.x.stripe.secret_key      = ENV.fetch("STRIPE_SECRET_KEY", nil)
+    config.x.stripe.publishable_key = ENV.fetch("STRIPE_PUBLISHABLE_KEY", nil)
+    config.x.stripe.webhook_secret  = ENV.fetch("STRIPE_WEBHOOK_SECRET", nil)
+    config.x.stripe.currency        = ENV.fetch("STRIPE_CURRENCY", "usd")
+
+    config.x.mailchimp.api_key = ENV.fetch("MAILCHIMP_API_KEY", nil)
+    config.x.mailchimp.list_id = ENV.fetch("MAILCHIMP_LIST_ID", nil)
+
+    config.x.slack.webhook_url = ENV.fetch("SLACK_WEBHOOK_URL", nil)
+    config.x.slack.channel     = ENV.fetch("SLACK_CHANNEL", "#general")
+
+    config.x.sentry.dsn          = ENV.fetch("SENTRY_DSN", nil)
+    config.x.sentry.sample_rate  = ENV.fetch("SENTRY_SAMPLE_RATE", "0.1").to_f
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Now the application has <strong>one file that lists every configuration value</strong>, with its source and default and any type coercion. Reading <code class="bg-gray-100 px-2 py-1 rounded">config/application.rb</code> answers "what does this app need to run?" in 30 seconds.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Callers now read from the namespace:
+      </p>
+      <CodeBlock code={`# app/services/charge_user.rb
+class ChargeUser
+  def call(user, cents)
+    stripe_config = Rails.application.config.x.stripe
+    Stripe.api_key = stripe_config.secret_key
+    Stripe::Charge.create(
+      amount:   cents,
+      currency: stripe_config.currency,
+      customer: user.stripe_customer_id
+    )
+  end
+end
+
+# app/jobs/send_newsletter_job.rb
+class SendNewsletterJob
+  def perform(list_id)
+    api_key = Rails.application.config.x.mailchimp.api_key
+    Mailchimp::API.new(api_key).lists.members(list_id).each { |m| send_to(m.email) }
+  end
+end
+
+# app/controllers/webhooks_controller.rb
+class WebhooksController < ApplicationController
+  def stripe
+    secret = Rails.application.config.x.stripe.webhook_secret
+    event  = Stripe::Webhook.construct_event(request.body.read,
+                                              request.headers["Stripe-Signature"],
+                                              secret)
+    # ...
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The lookups are uniform. The type coercion happened once, in <code class="bg-gray-100 px-2 py-1 rounded">application.rb</code>. The default for <code class="bg-gray-100 px-2 py-1 rounded">currency</code> is in one place, not three.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Per-environment configuration</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The <code class="bg-gray-100 px-2 py-1 rounded">config.x</code> namespace lives on <code class="bg-gray-100 px-2 py-1 rounded">Rails.application.config</code>, which means you can override it per environment in <code class="bg-gray-100 px-2 py-1 rounded">config/environments/*.rb</code>:
+      </p>
+      <CodeBlock code={`# config/environments/development.rb
+Rails.application.configure do
+  config.x.slack.webhook_url = "https://hooks.slack.com/services/DEV/WEBHOOK"
+  config.x.stripe.secret_key = "sk_test_dev_key"
+end
+
+# config/environments/test.rb
+Rails.application.configure do
+  config.x.slack.webhook_url = nil  # the notifier should fall back to in-memory
+  config.x.stripe.secret_key = "sk_test_xxxxx"
+end
+
+# config/environments/production.rb
+Rails.application.configure do
+  # values come from real environment variables
+  # set in application.rb, no overrides needed
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The differences between dev, test, and prod live in the environment files where they belong.</strong> Production uses real ENV values. Development uses fake-but-functional ones. Tests use empty or known values. No code change needed; the environment file decides.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Going one step further: an explicit Config object</h2>
+      <p class="text-gray-700 leading-relaxed">
+        For apps with substantial configuration, <code class="bg-gray-100 px-2 py-1 rounded">Rails.application.config.x.stripe.secret_key</code> gets verbose. The senior next step is to expose configuration through a small dedicated class:
+      </p>
+      <CodeBlock code={`# app/lib/app_config.rb
+module AppConfig
+  module Stripe
+    def self.secret_key;     Rails.application.config.x.stripe.secret_key; end
+    def self.webhook_secret; Rails.application.config.x.stripe.webhook_secret; end
+    def self.currency;       Rails.application.config.x.stripe.currency; end
+  end
+
+  module Mailchimp
+    def self.api_key; Rails.application.config.x.mailchimp.api_key; end
+    def self.list_id; Rails.application.config.x.mailchimp.list_id; end
+  end
+
+  module Slack
+    def self.webhook_url; Rails.application.config.x.slack.webhook_url; end
+    def self.channel;     Rails.application.config.x.slack.channel; end
+  end
+end
+
+# usage
+AppConfig::Stripe.secret_key`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The module is documentation as well as code.</strong> A new developer who wants to know "what Stripe configuration does this app use?" opens <code class="bg-gray-100 px-2 py-1 rounded">AppConfig::Stripe</code> and sees three methods. The same module is the test seam — overriding any of those methods in a test stubs the value cleanly.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        We used exactly this shape in the senior-track-lab learning POC: <code class="bg-gray-100 px-2 py-1 rounded">config/initializers/app_config.rb</code> exposes <code class="bg-gray-100 px-2 py-1 rounded">AppConfig.github_app_id</code>, <code class="bg-gray-100 px-2 py-1 rounded">AppConfig.openai_api_key</code>, <code class="bg-gray-100 px-2 py-1 rounded">AppConfig.score_model</code>. <strong>Every configuration value the app needs is one short method call, in one file, with a sensible default per environment.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four wins, each one fixing a specific failure of the <code class="bg-gray-100 px-2 py-1 rounded">ENV.fetch</code>-everywhere version.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>One place to find every value.</strong> Onboarding documentation can point at <code class="bg-gray-100 px-2 py-1 rounded">config/application.rb</code> (or the AppConfig module). <strong>"What environment variables does this app need?" has a real answer.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Tests do not depend on ENV.</strong> A test that exercises <code class="bg-gray-100 px-2 py-1 rounded">ChargeUser</code> can override <code class="bg-gray-100 px-2 py-1 rounded">AppConfig::Stripe.secret_key</code> to return a fake, or rely on the value already set in <code class="bg-gray-100 px-2 py-1 rounded">config/environments/test.rb</code>. <strong>No <code class="bg-gray-100 px-2 py-1 rounded">ENV["STRIPE_SECRET_KEY"]</code> dance in CI.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Type coercion is centralized.</strong> The string "0.1" gets converted to the float 0.1 once. Every caller sees a float. <strong>A forgotten <code class="bg-gray-100 px-2 py-1 rounded">.to_f</code> cannot ship as a production bug.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Refactoring becomes safe.</strong> Renaming an environment variable is one edit in <code class="bg-gray-100 px-2 py-1 rounded">application.rb</code>. <strong>Every caller continues to work because none of them named the variable.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When NOT to use this</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Two cases where the central-config pattern is overkill:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>One-off scripts or rake tasks.</strong> A migration script that uses <code class="bg-gray-100 px-2 py-1 rounded">ENV["UPLOAD_BUCKET"]</code> in one place, runs once, and is deleted does not need the namespace. <strong>The pattern earns its weight when the value is read from many places.</strong></li>
+        <li><strong>Truly local-scoped configuration.</strong> A Sidekiq concurrency setting that only Sidekiq's config block reads is already centralized — there is one place that uses it. Moving it to <code class="bg-gray-100 px-2 py-1 rounded">config.x</code> would not buy anything.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>For secrets specifically:</strong> the Rails ecosystem also offers <code class="bg-gray-100 px-2 py-1 rounded">Rails.application.credentials</code> (encrypted, committed to the repo) as an alternative to <code class="bg-gray-100 px-2 py-1 rounded">ENV</code>. The two can coexist. Credentials are good for keys that should never leak; ENV is good for values that change per environment. <strong>Both work fine as the source feeding <code class="bg-gray-100 px-2 py-1 rounded">config.x</code></strong>; the namespace centralizes the read, not where the value comes from.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>Configuration is a dependency. <strong>The Dependency Inversion Principle says high-level code should not depend directly on low-level details like environment variable names</strong>; it should depend on an abstraction. The <code class="bg-gray-100 px-2 py-1 rounded">config.x</code> namespace is that abstraction. Callers ask for <code class="bg-gray-100 px-2 py-1 rounded">AppConfig::Stripe.secret_key</code>; they do not care whether the value comes from ENV, encrypted credentials, a YAML file, or a hardcoded default.</p>
+        <p>The deeper move is to <strong>treat configuration as a single, named concept in the app</strong>, not as scattered string lookups. The integration with Stripe is "we have Stripe credentials and they look like this." That is a fact about the app, and it deserves a home in the codebase that does not require grepping to find.</p>
+        <p>The pragmatic value, the one that pays off every time a new developer joins: <strong>onboarding is reading one file</strong>. Not running <code class="bg-gray-100 px-2 py-1 rounded">grep -rn ENV.fetch app/</code> and hoping the output is complete.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rEn "ENV\\[|ENV\\.fetch" app/ lib/ config/ | wc -l</code>. <strong>The number that prints is your configuration sprawl.</strong></li>
+        <li>Group the matches by integration: Stripe, Mailchimp, Slack, whatever your app uses. <strong>For each integration, you should find the same values referenced in two or more files.</strong> That is the duplication centralization will eliminate.</li>
+        <li>Sketch the <code class="bg-gray-100 px-2 py-1 rounded">config.x</code> setup in <code class="bg-gray-100 px-2 py-1 rounded">config/application.rb</code>: one block per integration, every value listed.</li>
+        <li>Sketch the AppConfig module: one inner module per integration, one method per value. <strong>Imagine the moment a new developer joins your team and asks "what env vars does the app need?"</strong> The AppConfig module is your answer.</li>
+        <li>Bonus: look at <code class="bg-gray-100 px-2 py-1 rounded">config/environments/test.rb</code>. <strong>How many environment variables does CI need set?</strong> Every one of them is a place the central-config approach would simplify.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-dip-dependency-injection" class="text-ruby hover:text-ruby-dark transition-colors">← DIP 1 — Dependency Injection</a>
+      <a href="/lessons/senior-dip-test-seams" class="text-ruby hover:text-ruby-dark transition-colors">DIP 3 — Test Seams →</a>
+    </div>
+  </article>
+</Layout>

@@ -1,0 +1,241 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Glossary — Senior Track Vocabulary" description="Plain-language definitions of ten technical terms that come up in senior-track Rails lessons, with code examples for each.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Glossary — Senior Track Vocabulary</h1>
+      <p class="text-xl text-gray-600">Ten technical terms that come up across the senior-track lessons. Each one includes a plain-language definition and a short code example.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Duck Typing</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Duck typing is a style of typing where what matters is what an object can do, not what class it belongs to. The principle: "if it walks like a duck and quacks like a duck, it is a duck." Ruby uses this style heavily. Methods do not declare the types of their arguments. They just call methods on whatever they receive and trust that it will respond.
+      </p>
+      <CodeBlock code={`class Stripe
+  def process_payments(payments); puts "via Stripe"; end
+end
+
+class PayPal
+  def process_payments(payments); puts "via PayPal"; end
+end
+
+def dispatch(processor, payments)
+  processor.process_payments(payments) # no class check
+end
+
+dispatch(Stripe.new, []) # via Stripe
+dispatch(PayPal.new, []) # via PayPal`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The compiler does not enforce a contract here, so the discipline is on the developer. The test suite is what catches mistakes.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Eager Loading</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Eager loading is the Active Record technique of fetching associated records up front to avoid N+1 queries. Instead of letting Rails make one extra database call per record, you tell it to load the associations in advance. The four eager-loading methods are <code class="bg-gray-100 px-2 py-1 rounded">includes</code>, <code class="bg-gray-100 px-2 py-1 rounded">preload</code>, <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code>, and <code class="bg-gray-100 px-2 py-1 rounded">joins</code>. They differ in whether they generate a JOIN, fetch separately, or just filter.
+      </p>
+      <CodeBlock code={`# preload — always two queries, no JOIN:
+Post.preload(:author).limit(50)
+# SELECT * FROM posts LIMIT 50
+# SELECT * FROM users WHERE id IN (...)
+
+# eager_load — single query with LEFT OUTER JOIN:
+Post.eager_load(:author).where("users.role = ?", "admin")`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        See <a href="/lessons/senior-eager-loading" class="text-ruby hover:underline">Lesson 1</a> for the full decision tree.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Idempotency</h2>
+      <p class="text-gray-700 leading-relaxed">
+        An operation is idempotent when running it multiple times produces the same result as running it once. Idempotency matters anywhere code might retry: background jobs, webhooks, payment APIs, message queues. Without it, a network blip can cause a customer to be charged twice.
+      </p>
+      <CodeBlock code={`# Not idempotent — running twice charges twice:
+def charge_user(user, cents)
+  Stripe::Charge.create(amount: cents, customer: user.stripe_id)
+end
+
+# Idempotent — Stripe deduplicates by the idempotency key:
+def charge_user(user, cents, request_id)
+  Stripe::Charge.create(
+    amount: cents,
+    customer: user.stripe_id,
+    idempotency_key: request_id
+  )
+end`} language="ruby" />
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Note:</strong> Idempotency is usually achieved with one of three mechanisms: a unique key on the request, a database unique constraint that rejects duplicates, or a "check before write" pattern that skips the operation if the result already exists.
+        </p>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Liskov Substitution</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The "L" in SOLID. A subtype must be usable in place of its parent type without breaking the code that calls it. In Ruby, where there is no formal type system, the rule generalizes: any object that participates in a shared contract should honor the same expectations of what its methods do, not just what they are called.
+      </p>
+      <CodeBlock code={`class StripePayout
+  def amount_cents; @cents; end # returns Integer
+end
+
+class PaypalPayout
+  def amount_cents; "12345"; end # returns String — Liskov violation
+end
+
+# Caller assumes Integer:
+total = payouts.sum(&:amount_cents) # crashes for PayPal`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Both classes have an <code class="bg-gray-100 px-2 py-1 rounded">amount_cents</code> method, but they return different types. The caller cannot substitute one for the other safely. The contract is only the method name, not the behavior — and that is not enough.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Memoization</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Memoization is a caching technique. The first time a method runs, the result is stored. On subsequent calls, the stored value is returned without rerunning the calculation. In Ruby, the <code class="bg-gray-100 px-2 py-1 rounded">||=</code> operator is the idiomatic shortcut, scoped to an instance variable.
+      </p>
+      <CodeBlock code={`class Report
+  def total_revenue
+    @total_revenue ||= compute_total_revenue
+  end
+
+  private
+
+  def compute_total_revenue
+    # 5 seconds of database queries
+    Order.completed.sum(:cents)
+  end
+end
+
+report = Report.new
+report.total_revenue # runs the calculation
+report.total_revenue # returns the cached value`} language="ruby" />
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Important:</strong> Memoize only when the underlying value will not change for the lifetime of the object. Otherwise the cache returns stale data. Memoizing <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">false</code> or <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">nil</code> with <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">||=</code> is a known bug source. The expression re-runs on every call when the result is falsy.
+        </p>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">N+1 Query</h2>
+      <p class="text-gray-700 leading-relaxed">
+        An N+1 query is a performance bug where one query for a parent collection triggers one additional query per child record, leading to N+1 database round trips for N records. The bug almost always comes from accessing an association inside a loop without having preloaded it.
+      </p>
+      <CodeBlock code={`# N+1: one query for posts, then 50 more for authors.
+posts = Post.limit(50)
+posts.each { |post| puts post.author.name }
+# Total: 1 + 50 = 51 queries
+
+# Fixed with eager loading:
+posts = Post.includes(:author).limit(50)
+posts.each { |post| puts post.author.name }
+# Total: 2 queries`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        N+1 is one of the most common Rails performance issues. Detect it in development with the <a href="https://github.com/flyerhzm/bullet" class="text-ruby hover:underline">Bullet</a> gem.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Polymorphism</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Polymorphism is the property where multiple classes respond to the same message with different behavior. Calling code depends on the message, not on the class — so swapping one implementation for another does not require changes to the caller. Polymorphism is what makes the registry pattern in <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:underline">Lesson 2</a> work.
+      </p>
+      <CodeBlock code={`class Stripe
+  def process_payments(payments); end
+end
+
+class PayPal
+  def process_payments(payments); end
+end
+
+class Wise
+  def process_payments(payments); end
+end
+
+[Stripe.new, PayPal.new, Wise.new].each do |processor|
+  processor.process_payments(payments) # one line, three behaviors
+end`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Public Surface</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The public surface of a class is the set of methods it exposes to callers. Other code depends on this surface. Everything else (internal helpers, instance variables, private methods) is the "private surface" — it can change without affecting anyone outside the class.
+      </p>
+      <CodeBlock code={`class PaypalPayoutProcessor
+  # Public surface — callers depend on these:
+  def self.is_user_payable(user, amount); end
+  def self.process_payments(payments); end
+
+  # Private — internal helpers, free to change:
+  def self.format_paypal_request(payment); end
+  private_class_method :format_paypal_request
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Senior-level class design is largely about deciding what belongs on the public surface. A small, stable public surface is what makes a class easy to refactor without breaking the rest of the codebase.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Registry (Pattern)</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A registry is a small object or module whose only job is to map an identifier (often a string) to the class that handles it. Used to dispatch behavior without scattered <code class="bg-gray-100 px-2 py-1 rounded">case</code> statements. The registry is the single place where the type-to-class mapping lives.
+      </p>
+      <CodeBlock code={`module PayoutProcessorType
+  ALL = {
+    "STRIPE" => StripePayoutProcessor,
+    "PAYPAL" => PaypalPayoutProcessor
+  }.freeze
+
+  def self.get(type)
+    ALL[type]
+  end
+end
+
+PayoutProcessorType.get("STRIPE").process_payments(payments)`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Adding a new processor is one new file plus one new line in <code class="bg-gray-100 px-2 py-1 rounded">ALL</code>. See <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:underline">Lesson 2</a> for a full walkthrough.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Shotgun Surgery</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A code smell named by Martin Fowler in <em>Refactoring</em>. One logical change requires edits to many files. Adding a single new processor type forces you to grep for <code class="bg-gray-100 px-2 py-1 rounded">case payment.processor</code> and update the same conditional in seven different places. The symptom is a 3-line bug fix that ends up touching 30 files.
+      </p>
+      <CodeBlock code={`# Adding a "Wise" processor in this codebase requires editing:
+# - app/sidekiq/process_payment_worker.rb
+# - app/models/user.rb
+# - app/mailers/payout_mailer.rb
+# - app/admin/dashboards/payouts_dashboard.rb
+# - app/services/payout_csv_export.rb
+# - app/views/admin/payouts/index.html.erb
+# - and three more files...
+#
+# Each one has a copy of:
+#   case payment.processor
+#   when "stripe" then ...
+#   when "paypal" then ...
+#   end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The cure is usually to give the concept a single home (a registry, a service, a base class) and route every dispatch through it.
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 2</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Course Home →</a>
+    </div>
+  </article>
+</Layout>

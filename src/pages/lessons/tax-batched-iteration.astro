@@ -1,0 +1,102 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="User.all.each will eventually run out of memory" description="Why a job that works at 5,000 users takes down your worker at 5 million.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> All lessons
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 14 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4"><code class="bg-gray-100 px-2 py-1 rounded text-3xl">User.all.each</code> will eventually run out of memory</h1>
+      <p class="text-xl text-gray-600">Why a digest sender that works at launch becomes an outage trigger as the table grows.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class WeeklyDigestSender
+  def call
+    User.all.each do |user|
+      next unless user.subscribed?
+      WeeklyDigestMailer.with(user: user).digest.deliver_later
+    end
+  end
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User.all.each</code> loads every row from the users table into memory before iterating. At 5,000 users that's fine. At 50,000 it's slow. At 2,000,000 the worker process runs out of memory long before it sends a single email. <strong>The code that worked perfectly at launch becomes an outage trigger</strong> the day your table grows past whatever Sidekiq's memory limit happens to be.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, think about how you'd iterate over a table that doesn't fit in memory. What does Active Record give you for that?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4">Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_each</code> instead of <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">each</code>. It fetches records in batches (default 1,000) so memory usage stays bounded regardless of table size. While you're at it, push the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">subscribed?</code> filter into the database so you skip the rows you weren't going to email anyway.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>Memory usage doesn't grow with the table</li>
+            <li>The database does the filtering, which is faster than <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">next unless</code> in Ruby</li>
+            <li>The same code works at 5K users and 5M users</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`User.where(subscribed: true).find_each do |user|
+  WeeklyDigestMailer.with(user: user).digest.deliver_later
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Bounded memory iteration
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>Active Record's <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">.each</code> is just <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">Enumerable#each</code> on the result of the query. The query has to materialize first, which means the database returns every row and Ruby instantiates every one as a User object before the iteration begins. <strong>Memory usage grows linearly with the size of the table.</strong></p>
+            <p><code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">find_each</code> works differently: it fetches one batch at a time, yields each record to your block, then loads the next batch. At any moment, only the current batch is in memory. The total work is the same; the peak memory usage stays flat.</p>
+            <p>The general principle is that <strong>code which iterates over a collection should not assume the collection fits in memory</strong>. Tables grow, request payloads grow, log files grow. Anything that loads "all of X" works fine until X gets big enough to exceed your worker's memory budget — at which point your code transitions from working to causing an outage with no intermediate warning.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-idempotent-jobs" class="text-ruby hover:text-ruby-dark transition-colors">← Card 13</a>
+      <a href="/lessons/tax-callback-bypass" class="text-ruby hover:text-ruby-dark transition-colors">Card 15 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

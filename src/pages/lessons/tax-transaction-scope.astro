@@ -1,0 +1,114 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="External I/O belongs outside the transaction" description="Why an HTTP call inside before_save slows down every save and can leave your data in a broken state.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 2 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">External I/O belongs outside the transaction</h1>
+      <p class="text-xl text-gray-600">Why an HTTP call inside <code class="bg-gray-100 px-2 py-1 rounded text-base">before_save</code> slows down every save and can leave your data in a broken state.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class User < ApplicationRecord
+  before_save :sync_to_mailchimp
+
+  private
+
+  def sync_to_mailchimp
+    Mailchimp::Subscribers.upsert(
+      email: email,
+      merge_fields: { name: name }
+    )
+  end
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed">Every time a user gets saved, the save now has to wait for Mailchimp to respond. That waiting happens inside the database transaction Rails opens for the save, which means the transaction stays open the whole time the API call is in flight. If Mailchimp is slow, every save gets slow with it; if Mailchimp is down, your saves fail entirely. And if anything later in the transaction causes it to roll back, the user save gets undone — but the Mailchimp call already went out, so <strong>you end up with a user that exists in Mailchimp but doesn't exist in your database</strong>.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, try to work out the fix yourself. Where should the Mailchimp call live instead, and how do you want to handle a Mailchimp outage?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4"><strong>Pull the Mailchimp call out of the model's lifecycle entirely</strong>. Once the controller has finished saving the user, enqueue a background job that handles the Mailchimp sync separately. That way the save no longer depends on Mailchimp being up, and a slow API response can't slow down your signups.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>A Mailchimp outage doesn't break user signups</li>
+            <li>The job retries on failure, the save doesn't</li>
+            <li>Database transactions stay short</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`class UsersController < ApplicationController
+  def create
+    @user = User.new(user_params)
+    if @user.save
+      MailchimpSyncJob.perform_later(@user.id)
+      redirect_to @user
+    else
+      render :new
+    end
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Transaction scope
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>Rails wraps every save in a database transaction, which is essentially a deal with the database: do all of these writes together, and if anything fails, undo all of them. While the transaction is open, <strong>the database is also holding locks on the rows being changed</strong>, so any other request that wants to touch those same rows has to wait its turn.</p>
+            <p>When your <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">before_save</code> calls Mailchimp and Mailchimp takes two seconds to respond, the transaction stays open for those two seconds and other requests start stacking up behind it. On top of that, if anything later in the transaction causes a rollback, the user save gets undone — but the Mailchimp call already happened, and <strong>HTTP doesn't have a rollback</strong>. You're left with state in Mailchimp that has no equivalent in your database.</p>
+            <p>That's why external calls belong after the transaction commits. <strong>The "all or nothing" guarantee only covers things the database can control</strong>, which means database writes. As soon as you put an HTTP call inside the transaction, you create a situation where your database can roll back but the outside world cannot.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-database-constraints" class="text-ruby hover:text-ruby-dark transition-colors">← Card 1</a>
+      <a href="/lessons/tax-bulk-operations" class="text-ruby hover:text-ruby-dark transition-colors">Card 3 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

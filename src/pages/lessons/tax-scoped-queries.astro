@@ -1,0 +1,101 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Authorization belongs in the query, not after" description="Why Invoice.find(params[:id]) is a security hole, even with authenticate_user!">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 5 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Authorization belongs in the query, not after</h1>
+      <p class="text-xl text-gray-600">Why <code class="bg-gray-100 px-2 py-1 rounded text-base">Invoice.find(params[:id])</code> is a security hole, even with <code class="bg-gray-100 px-2 py-1 rounded text-base">authenticate_user!</code>.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class InvoicesController < ApplicationController
+  before_action :authenticate_user!
+
+  def show
+    @invoice = Invoice.find(params[:id])
+  end
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed">Any logged-in user can view any invoice in the system just by changing the ID in the URL. The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_action :authenticate_user!</code> ran successfully, but all that did was confirm that the request came from someone who is logged in. <strong>It never checked whether this particular user is allowed to see this particular invoice.</strong> So the request goes through, the wrong invoice gets rendered, and you have an information leak that's effectively impossible to detect from your logs.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, think about how you'd actually close this hole. What's the shape of the safer code, and what would make the unsafe version impossible to write by accident?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4"><strong>Build the ownership check directly into the query</strong>, by going through the user's own invoices instead of looking up invoices globally. If the invoice doesn't belong to the user, the query simply matches nothing and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find</code> raises <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">RecordNotFound</code> — exactly the same response you'd get if the invoice didn't exist at all.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>The unsafe version stops being writable — you have to scope the query</li>
+            <li>One enforcement point instead of remembering to authorize after every find</li>
+            <li>A 404 reveals less information than a 403</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`def show
+  @invoice = current_user.invoices.find(params[:id])
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Scoped queries
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>The web works on URLs, and anyone can change a URL. So when your server receives a request for <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">/invoices/123</code>, it has to decide what to send back. There are really two questions in that decision, and they need to be answered separately. Authentication asks "who is making this request?", which is what Devise or any other auth library handles. Authorization asks "is this person allowed to see this resource?", which is <strong>a completely different question and needs different code.</strong></p>
+            <p><code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">Invoice.find(params[:id])</code> only handles the first question. By writing that line, you've implicitly decided that any logged-in user can look at any invoice in the system. You can patch over that by adding an explicit authorization check after the find, but <strong>that approach depends on every developer remembering to add it on every action</strong> — and the first time someone forgets, you have a security incident on your hands.</p>
+            <p><code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">current_user.invoices.find(params[:id])</code> takes a different approach: it builds the query against the user's own invoices, so if the invoice doesn't belong to them, the query matches nothing and the controller renders 404. <strong>Authorization stops being a separate step you can forget about and becomes part of the query itself</strong>. The general principle here is to design your APIs so the safe path is the easiest one to write, which makes the unsafe one harder to do accidentally.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-indexable-storage" class="text-ruby hover:text-ruby-dark transition-colors">← Card 4</a>
+      <a href="/lessons/tax-single-responsibility" class="text-ruby hover:text-ruby-dark transition-colors">Card 6 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

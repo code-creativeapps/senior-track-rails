@@ -1,0 +1,912 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Spot the Tax — Slides (test)" description="Slide-deck version of Spot the Tax. Code stays on the left, right pane progresses through problem, solution, and principle.">
+  <div class="slide-deck">
+    <header class="deck-header">
+      <a href="/lessons/spot-the-tax" class="back-link">
+        <span>←</span> Single-page version
+      </a>
+      <span class="slide-counter" id="slide-counter">1 / 21</span>
+    </header>
+
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+
+    <main class="slides">
+
+      <!-- Cover -->
+      <section data-slide class="slide slide-cover">
+        <p class="slide-eyebrow">Senior Track · Spot the Tax</p>
+        <h1 class="slide-title-cover">Working code that will cost you.</h1>
+        <p class="slide-subtitle">Five Rails snippets, walked through one stage at a time. Look at each one and try to spot the tax before clicking through.</p>
+        <p class="slide-hint">Press <kbd>→</kbd> to start. Use <kbd>←</kbd> / <kbd>→</kbd> to navigate.</p>
+      </section>
+
+      <!-- ============== CARD 1 ============== -->
+
+      <section data-slide class="slide">
+        <p class="slide-eyebrow">Card 1 of 5 · Spot the tax</p>
+        <h2 class="slide-title">The validation that lies under load</h2>
+        <p class="slide-question">What will this cost you in six months?</p>
+        <CodeBlock code={`class User < ApplicationRecord
+  validates :email, presence: true, uniqueness: true
+end
+
+# In the controller:
+def create
+  @user = User.new(user_params)
+  if @user.save
+    redirect_to @user
+  else
+    render :new
+  end
+end`} language="ruby" />
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 1 of 5 · The problem</p>
+          <h2 class="slide-title">The validation that lies under load</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class User < ApplicationRecord
+  validates :email, presence: true, uniqueness: true
+end
+
+# In the controller:
+def create
+  @user = User.new(user_params)
+  if @user.save
+    redirect_to @user
+  else
+    render :new
+  end
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">Two simultaneous signups both pass <code>valid?</code> and both insert. The validation runs in Ruby, between the read and the write, with no lock. The database ends up with two users sharing the same email.</p>
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 1 of 5 · The solution</p>
+          <h2 class="slide-title">The validation that lies under load</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class User < ApplicationRecord
+  validates :email, presence: true, uniqueness: true
+end
+
+# In the controller:
+def create
+  @user = User.new(user_params)
+  if @user.save
+    redirect_to @user
+  else
+    render :new
+  end
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">Put the uniqueness rule in the database itself. Only the database can guarantee that no two rows have the same value at the same time.</p>
+            <ul class="slide-list">
+              <li>The rule holds under any amount of concurrent traffic</li>
+              <li>The database raises a specific error you can catch</li>
+              <li>The validation can stay for the friendly UI message</li>
+            </ul>
+            <CodeBlock code={`# In a migration:
+add_index :users, :email, unique: true`} language="ruby" />
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 1 of 5 · The principle at play</p>
+          <h2 class="slide-title">The validation that lies under load</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class User < ApplicationRecord
+  validates :email, presence: true, uniqueness: true
+end
+
+# In the controller:
+def create
+  @user = User.new(user_params)
+  if @user.save
+    redirect_to @user
+  else
+    render :new
+  end
+end`} language="ruby" />
+          </div>
+          <div class="right-pane principle-pane">
+            <div class="principle-title-row">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="principle-icon">
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
+                <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+              </svg>
+              <h3 class="principle-name">Database constraints</h3>
+            </div>
+            <p class="slide-body">When two web requests arrive at the same instant, your Rails server runs them in parallel on different processes. Neither one sees the other's in-flight work. The validation runs in Ruby, between "is this email free?" and "INSERT." Both requests can pass a millisecond apart, before either has actually inserted, and both then succeed.</p>
+            <p class="slide-body">The database is the only part of the stack that sees every write at once. A unique index tells it "reject any insert that duplicates this column." The first insert wins. The second one fails immediately, before the row exists.</p>
+            <p class="slide-body">That's why uniqueness has to live there. It isn't that Ruby is wrong. It's that no Ruby process has visibility over what other processes are doing in this moment. Only the database does.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============== CARD 2 ============== -->
+
+      <section data-slide class="slide">
+        <p class="slide-eyebrow">Card 2 of 5 · Spot the tax</p>
+        <h2 class="slide-title">The callback that takes the database hostage</h2>
+        <p class="slide-question">What will this cost you in six months?</p>
+        <CodeBlock code={`class User < ApplicationRecord
+  before_save :sync_to_mailchimp
+
+  private
+
+  def sync_to_mailchimp
+    Mailchimp::Subscribers.upsert(
+      email: email,
+      merge_fields: { name: name }
+    )
+  end
+end`} language="ruby" />
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 2 of 5 · The problem</p>
+          <h2 class="slide-title">The callback that takes the database hostage</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class User < ApplicationRecord
+  before_save :sync_to_mailchimp
+
+  private
+
+  def sync_to_mailchimp
+    Mailchimp::Subscribers.upsert(
+      email: email,
+      merge_fields: { name: name }
+    )
+  end
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">Every save now waits for Mailchimp to respond. The save runs inside a database transaction, which holds open until the API call returns. If Mailchimp is slow, saves are slow. If Mailchimp is down, saves fail. If the transaction rolls back after the API call already succeeded, the user exists in Mailchimp but not in your database.</p>
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 2 of 5 · The solution</p>
+          <h2 class="slide-title">The callback that takes the database hostage</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class User < ApplicationRecord
+  before_save :sync_to_mailchimp
+
+  private
+
+  def sync_to_mailchimp
+    Mailchimp::Subscribers.upsert(
+      email: email,
+      merge_fields: { name: name }
+    )
+  end
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">Move the external call out of the lifecycle. After the controller saves, enqueue a job that handles the sync.</p>
+            <ul class="slide-list">
+              <li>A Mailchimp outage doesn't break user signups</li>
+              <li>The job retries on failure, the save doesn't</li>
+              <li>Database transactions stay short</li>
+            </ul>
+            <CodeBlock code={`class UsersController < ApplicationController
+  def create
+    @user = User.new(user_params)
+    if @user.save
+      MailchimpSyncJob.perform_later(@user.id)
+      redirect_to @user
+    else
+      render :new
+    end
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 2 of 5 · The principle at play</p>
+          <h2 class="slide-title">The callback that takes the database hostage</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class User < ApplicationRecord
+  before_save :sync_to_mailchimp
+
+  private
+
+  def sync_to_mailchimp
+    Mailchimp::Subscribers.upsert(
+      email: email,
+      merge_fields: { name: name }
+    )
+  end
+end`} language="ruby" />
+          </div>
+          <div class="right-pane principle-pane">
+            <div class="principle-title-row">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="principle-icon">
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
+                <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+              </svg>
+              <h3 class="principle-name">Transaction scope</h3>
+            </div>
+            <p class="slide-body">Rails wraps every save in a database transaction — a deal with the database to do a series of writes together, with a guarantee that they all succeed or none of them do. While the transaction is open, the database holds locks. Other requests trying to touch those rows wait.</p>
+            <p class="slide-body">If your <code>before_save</code> calls Mailchimp and the API takes two seconds, your transaction holds locks for two seconds. Other requests stack up behind it. And if anything later in the transaction fails, the user save rolls back — but the Mailchimp call already went out. There is no rollback for HTTP.</p>
+            <p class="slide-body">That's why external calls live after the transaction commits. The "all or nothing" guarantee only covers database writes. Putting an HTTP call inside the transaction creates a state your database can't undo.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============== CARD 3 ============== -->
+
+      <section data-slide class="slide">
+        <p class="slide-eyebrow">Card 3 of 5 · Spot the tax</p>
+        <h2 class="slide-title">The cascade that runs in Ruby</h2>
+        <p class="slide-question">What will this cost you in six months?</p>
+        <CodeBlock code={`class User < ApplicationRecord
+  has_many :events, dependent: :destroy
+  has_many :messages, dependent: :destroy
+  has_many :reactions, dependent: :destroy
+end
+
+# In the controller:
+def destroy
+  current_user.destroy
+  redirect_to root_path
+end`} language="ruby" />
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 3 of 5 · The problem</p>
+          <h2 class="slide-title">The cascade that runs in Ruby</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class User < ApplicationRecord
+  has_many :events, dependent: :destroy
+  has_many :messages, dependent: :destroy
+  has_many :reactions, dependent: :destroy
+end
+
+# In the controller:
+def destroy
+  current_user.destroy
+  redirect_to root_path
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">Deleting a user with 50,000 events instantiates 50,000 Ruby objects, fires 50,000 callbacks, and runs 50,000 DELETE statements. The delete that should take 50ms takes minutes, sometimes times out partway through, and leaves the data in a half-deleted state.</p>
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 3 of 5 · The solution</p>
+          <h2 class="slide-title">The cascade that runs in Ruby</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class User < ApplicationRecord
+  has_many :events, dependent: :destroy
+  has_many :messages, dependent: :destroy
+  has_many :reactions, dependent: :destroy
+end
+
+# In the controller:
+def destroy
+  current_user.destroy
+  redirect_to root_path
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">Pick the right cascade for the work. <code>:delete_all</code> deletes in SQL without instantiating Ruby objects. <code>:destroy</code> is for cases where you actually need callbacks on the children.</p>
+            <ul class="slide-list">
+              <li>Deletes happen at SQL speed</li>
+              <li>Memory stays bounded regardless of how many associated rows exist</li>
+              <li>For real <code>:destroy</code> cases, the work can move to a job that you can monitor and retry</li>
+            </ul>
+            <CodeBlock code={`class User < ApplicationRecord
+  has_many :events, dependent: :delete_all
+  has_many :messages, dependent: :delete_all
+  has_many :reactions, dependent: :delete_all
+end`} language="ruby" />
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 3 of 5 · The principle at play</p>
+          <h2 class="slide-title">The cascade that runs in Ruby</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class User < ApplicationRecord
+  has_many :events, dependent: :destroy
+  has_many :messages, dependent: :destroy
+  has_many :reactions, dependent: :destroy
+end
+
+# In the controller:
+def destroy
+  current_user.destroy
+  redirect_to root_path
+end`} language="ruby" />
+          </div>
+          <div class="right-pane principle-pane">
+            <div class="principle-title-row">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="principle-icon">
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
+                <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+              </svg>
+              <h3 class="principle-name">Bulk operations in SQL</h3>
+            </div>
+            <p class="slide-body">SQL and Ruby work very differently. SQL runs inside the database, in one round trip, optimized by the query planner. Ruby runs in your application, one object at a time, with all the overhead of object creation and callback chains.</p>
+            <p class="slide-body"><code>dependent: :destroy</code> runs in Ruby. Rails loads every associated record, instantiates each one, fires its destroy callbacks, then runs DELETE for that single row. Fifty thousand records means fifty thousand objects in memory and fifty thousand DELETE statements. <code>dependent: :delete_all</code> runs in SQL — one statement, done in milliseconds.</p>
+            <p class="slide-body">They aren't two ways to write the same operation. They're two different operations with the same name. Pick <code>:destroy</code> only when you actually need callbacks to fire on the children. Most of the time, you don't.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============== CARD 4 ============== -->
+
+      <section data-slide class="slide">
+        <p class="slide-eyebrow">Card 4 of 5 · Spot the tax</p>
+        <h2 class="slide-title">The schema you can't query</h2>
+        <p class="slide-question">What will this cost you in six months?</p>
+        <CodeBlock code={`class Order < ApplicationRecord
+  serialize :metadata, JSON
+end
+
+# Writing:
+order.metadata = { plan: "pro", referrer: "google", utm_campaign: "spring" }
+order.save
+
+# Reading later, in a report:
+Order.where("created_at > ?", 90.days.ago).select do |o|
+  o.metadata["plan"] == "pro"
+end`} language="ruby" />
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 4 of 5 · The problem</p>
+          <h2 class="slide-title">The schema you can't query</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class Order < ApplicationRecord
+  serialize :metadata, JSON
+end
+
+# Writing:
+order.metadata = { plan: "pro", referrer: "google", utm_campaign: "spring" }
+order.save
+
+# Reading later, in a report:
+Order.where("created_at > ?", 90.days.ago).select do |o|
+  o.metadata["plan"] == "pro"
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">The metadata column is text, holding JSON. Writing dumps the hash. Reading parses it. Querying inside the JSON requires loading every row, parsing in Ruby, and filtering. The database can't index inside a serialized text blob.</p>
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 4 of 5 · The solution</p>
+          <h2 class="slide-title">The schema you can't query</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class Order < ApplicationRecord
+  serialize :metadata, JSON
+end
+
+# Writing:
+order.metadata = { plan: "pro", referrer: "google", utm_campaign: "spring" }
+order.save
+
+# Reading later, in a report:
+Order.where("created_at > ?", 90.days.ago).select do |o|
+  o.metadata["plan"] == "pro"
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">If a field is queryable, give it a real column with an index. If the data is genuinely opaque, use Postgres <code>jsonb</code> instead of a serialized text column.</p>
+            <ul class="slide-list">
+              <li>Queries inside the data become possible</li>
+              <li>The database uses indexes instead of full scans</li>
+              <li>Reads and writes don't pay a parse/dump tax</li>
+            </ul>
+            <CodeBlock code={`# Option 1: promote the queryable field to a column
+add_column :orders, :plan, :string
+add_index :orders, :plan
+
+# Option 2: switch to jsonb for genuinely opaque data
+change_column :orders, :metadata, :jsonb, using: "metadata::jsonb"
+add_index :orders, :metadata, using: :gin`} language="ruby" />
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 4 of 5 · The principle at play</p>
+          <h2 class="slide-title">The schema you can't query</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class Order < ApplicationRecord
+  serialize :metadata, JSON
+end
+
+# Writing:
+order.metadata = { plan: "pro", referrer: "google", utm_campaign: "spring" }
+order.save
+
+# Reading later, in a report:
+Order.where("created_at > ?", 90.days.ago).select do |o|
+  o.metadata["plan"] == "pro"
+end`} language="ruby" />
+          </div>
+          <div class="right-pane principle-pane">
+            <div class="principle-title-row">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="principle-icon">
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
+                <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+              </svg>
+              <h3 class="principle-name">Indexable storage</h3>
+            </div>
+            <p class="slide-body">Databases are fast at queries because they build indexes. An index is a separate structure that maps "this value lives at these rows." A query for <code>plan = 'pro'</code> can use the index to jump directly to the matching rows instead of scanning every row.</p>
+            <p class="slide-body">Indexes work on column values. They don't look inside text fields. When you store JSON in a <code>text</code> column, the database sees one big string. It can't index <code>metadata.plan</code>. To filter on that field, the database has to load every row, your app parses every JSON string, and Ruby filters in memory.</p>
+            <p class="slide-body">Postgres <code>jsonb</code> is different. It stores JSON in a binary format the database understands and lets you build indexes on paths inside it. The database stays in charge of the work. JSON-as-text is fine when you genuinely never query inside the data, but the moment you do, the storage choice decides whether the database can help you.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============== CARD 5 ============== -->
+
+      <section data-slide class="slide">
+        <p class="slide-eyebrow">Card 5 of 5 · Spot the tax</p>
+        <h2 class="slide-title">The find that trusts the URL</h2>
+        <p class="slide-question">What will this cost you in six months?</p>
+        <CodeBlock code={`class InvoicesController < ApplicationController
+  before_action :authenticate_user!
+
+  def show
+    @invoice = Invoice.find(params[:id])
+  end
+end`} language="ruby" />
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 5 of 5 · The problem</p>
+          <h2 class="slide-title">The find that trusts the URL</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class InvoicesController < ApplicationController
+  before_action :authenticate_user!
+
+  def show
+    @invoice = Invoice.find(params[:id])
+  end
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">Anyone logged in can view any invoice by changing the URL from <code>/invoices/123</code> to <code>/invoices/124</code>. Authentication checked who they are. Authorization (whether they can see this invoice) was never checked.</p>
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 5 of 5 · The solution</p>
+          <h2 class="slide-title">The find that trusts the URL</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class InvoicesController < ApplicationController
+  before_action :authenticate_user!
+
+  def show
+    @invoice = Invoice.find(params[:id])
+  end
+end`} language="ruby" />
+          </div>
+          <div class="right-pane">
+            <p class="slide-body">Make the query itself enforce ownership. If the invoice doesn't belong to the user, the lookup raises <code>RecordNotFound</code>.</p>
+            <ul class="slide-list">
+              <li>The unsafe version stops being writable — you have to scope the query</li>
+              <li>One enforcement point instead of remembering to authorize after every find</li>
+              <li>A 404 reveals less information than a 403</li>
+            </ul>
+            <CodeBlock code={`def show
+  @invoice = current_user.invoices.find(params[:id])
+end`} language="ruby" />
+          </div>
+        </div>
+      </section>
+
+      <section data-slide class="slide slide-split">
+        <div class="slide-split-header">
+          <p class="slide-eyebrow">Card 5 of 5 · The principle at play</p>
+          <h2 class="slide-title">The find that trusts the URL</h2>
+        </div>
+        <div class="slide-split-body">
+          <div class="left-pane">
+            <CodeBlock code={`class InvoicesController < ApplicationController
+  before_action :authenticate_user!
+
+  def show
+    @invoice = Invoice.find(params[:id])
+  end
+end`} language="ruby" />
+          </div>
+          <div class="right-pane principle-pane">
+            <div class="principle-title-row">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="principle-icon">
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
+                <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2v1.3h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2Z" />
+              </svg>
+              <h3 class="principle-name">Scoped queries</h3>
+            </div>
+            <p class="slide-body">The web works on URLs that anyone can change. Your server gets a request for <code>/invoices/123</code> and has to decide what to return. Two questions go into that decision, and they are separate. Authentication asks "who is this user?" — Devise and similar tools answer it. Authorization asks "what is this user allowed to see?" — different question, different code.</p>
+            <p class="slide-body"><code>Invoice.find(params[:id])</code> doesn't ask the second question. By writing that line, you've decided "any logged-in user can see any invoice." You can fix it by adding an authorization check after the find, but that relies on every developer remembering it on every action.</p>
+            <p class="slide-body"><code>current_user.invoices.find(params[:id])</code> builds the query against the user's own records. If the invoice doesn't belong to the user, nothing matches and <code>find</code> raises <code>RecordNotFound</code>. There is no path through the code where authorization can be skipped, because authorization is part of the query. That's the rule: build the safe path so the unsafe one becomes harder to write than the safe one.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="deck-footer">
+      <button id="prev-btn" class="nav-btn" aria-label="Previous slide">← Previous</button>
+      <span class="kbd-hint"><kbd>←</kbd> <kbd>→</kbd> to navigate</span>
+      <button id="next-btn" class="nav-btn" aria-label="Next slide">Next →</button>
+    </footer>
+  </div>
+</Layout>
+
+<script is:inline>
+  (function () {
+    const slides = Array.from(document.querySelectorAll('[data-slide]'));
+    const counter = document.getElementById('slide-counter');
+    const progress = document.getElementById('progress-fill');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const total = slides.length;
+
+    const initial = (() => {
+      const fromHash = parseInt(window.location.hash.replace('#', ''), 10);
+      if (Number.isFinite(fromHash) && fromHash >= 1 && fromHash <= total) return fromHash - 1;
+      return 0;
+    })();
+
+    let current = initial;
+
+    function render() {
+      slides.forEach((s, i) => {
+        s.style.display = i === current ? 'flex' : 'none';
+      });
+      counter.textContent = (current + 1) + ' / ' + total;
+      progress.style.width = (((current + 1) / total) * 100) + '%';
+      prevBtn.disabled = current === 0;
+      nextBtn.disabled = current === total - 1;
+      window.history.replaceState(null, '', '#' + (current + 1));
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    function next() { if (current < total - 1) { current++; render(); } }
+    function prev() { if (current > 0) { current--; render(); } }
+
+    prevBtn.addEventListener('click', prev);
+    nextBtn.addEventListener('click', next);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+    });
+
+    render();
+  })();
+</script>
+
+<style>
+  .slide-deck {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #fafafa;
+  }
+
+  .deck-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+  }
+
+  .back-link {
+    color: #b91c1c;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .back-link:hover { color: #7f1d1d; }
+
+  .slide-counter {
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  .progress-track {
+    height: 3px;
+    background: #f3f4f6;
+  }
+  .progress-fill {
+    height: 100%;
+    background: #b91c1c;
+    transition: width 0.2s ease;
+    width: 0%;
+  }
+
+  .slides {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  .slide {
+    flex-direction: column;
+    justify-content: flex-start;
+    max-width: 920px;
+    width: 100%;
+    gap: 1.5rem;
+    padding: 1rem 0;
+  }
+
+  .slide.slide-split {
+    max-width: 1400px;
+    gap: 1.25rem;
+  }
+
+  .slide.slide-cover {
+    align-items: flex-start;
+    justify-content: center;
+    text-align: left;
+    min-height: 60vh;
+    gap: 1.25rem;
+  }
+
+  .slide-split-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .left-pane,
+  .right-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .right-pane.principle-pane {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+  }
+
+  .principle-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .principle-icon {
+    color: #d97706;
+    flex-shrink: 0;
+  }
+
+  .principle-name {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #78350f;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .slide-eyebrow {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #b91c1c;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .slide-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .slide-title-cover {
+    font-size: 4rem;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  .slide-subtitle {
+    font-size: 1.5rem;
+    color: #6b7280;
+    margin: 0;
+  }
+
+  .slide-question {
+    font-size: 1.125rem;
+    color: #6b7280;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .slide-body {
+    font-size: 1.0625rem;
+    color: #374151;
+    line-height: 1.65;
+    margin: 0;
+  }
+
+  .slide-body code,
+  .slide-list code {
+    background: #f3f4f6;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.92em;
+    font-family: 'Monaco', 'Menlo', monospace;
+  }
+
+  .principle-pane .slide-body code,
+  .principle-pane .slide-list code {
+    background: #fef3c7;
+  }
+
+  .slide-list {
+    margin: 0;
+    padding-left: 1.5rem;
+    color: #374151;
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+  .slide-list li {
+    margin-bottom: 0.35rem;
+  }
+
+  .slide-hint {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 1rem;
+  }
+
+  kbd {
+    display: inline-block;
+    padding: 0.15rem 0.45rem;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 0.85em;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-bottom-width: 2px;
+    border-radius: 0.25rem;
+    color: #374151;
+  }
+
+  .deck-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    border-top: 1px solid #e5e7eb;
+    background: white;
+  }
+
+  .nav-btn {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    color: #111827;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .nav-btn:hover:not(:disabled) {
+    background: #f9fafb;
+    border-color: #9ca3af;
+  }
+  .nav-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .kbd-hint {
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  @media (max-width: 1024px) {
+    .slide-split-body {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .slide-title { font-size: 1.5rem; }
+    .slide-title-cover { font-size: 2.5rem; }
+    .slide-subtitle { font-size: 1.125rem; }
+    .slide-question { font-size: 1rem; }
+    .slide-body { font-size: 1rem; }
+    .slide-list { font-size: 0.95rem; }
+    .deck-header, .deck-footer, .slides { padding: 1rem; }
+    .kbd-hint { display: none; }
+  }
+</style>

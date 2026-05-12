@@ -1,0 +1,251 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Eager Loading — includes, preload, eager_load, and joins" description="Master the four query strategies every senior Rails developer reaches for instinctively, and learn when each is the right tool.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Senior Track · Lesson 1</p>
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Eager Loading — <code class="bg-gray-100 px-2 py-1 rounded text-3xl">includes</code>, <code class="bg-gray-100 px-2 py-1 rounded text-3xl">preload</code>, <code class="bg-gray-100 px-2 py-1 rounded text-3xl">eager_load</code>, and <code class="bg-gray-100 px-2 py-1 rounded text-3xl">joins</code></h1>
+      <p class="text-xl text-gray-600">Four query methods. Three different SQL strategies. One decision tree you'll use weekly. By the end of this lesson you'll know which to reach for without thinking.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The N+1 Problem in 30 Seconds</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Imagine a page that lists 50 posts and shows each post's author name. The naive code looks innocent:
+      </p>
+      <div class="bg-gray-900 text-green-200 font-mono rounded-lg p-6 overflow-x-auto">
+        <pre><code>posts = Post.limit(50)
+posts.each do |post|
+  puts post.author.name
+end</code></pre>
+      </div>
+      <p class="text-gray-700 leading-relaxed">
+        That single block runs <strong>51 SQL queries</strong>: one to fetch the posts, then one more <em>per post</em> to fetch its author. The N posts give you N+1 queries — hence the name.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Solving N+1 is the line between an intermediate Rails developer and a senior one. The intermediate developer knows <code class="bg-gray-100 px-2 py-1 rounded">includes</code> exists. The senior developer knows <em>which</em> of the four loading methods is the right one in each situation, and can read the generated SQL to prove it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Four Methods</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Active Record gives you four ways to pull associations into a query. They look similar from the Ruby side, but they generate very different SQL.
+      </p>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-2xl font-semibold text-gray-900 mb-3"><code class="bg-gray-100 px-2 py-1 rounded text-2xl">preload</code> — Two queries, no JOIN</h3>
+          <p class="text-gray-700 leading-relaxed">
+            <code class="bg-gray-100 px-2 py-1 rounded">preload</code> always issues two separate queries: one for the parent records, one for the associated records. It then stitches them together in Ruby using the foreign keys.
+          </p>
+          <div class="bg-gray-900 text-green-200 font-mono rounded-lg p-6 overflow-x-auto">
+            <pre><code>Post.preload(:author).limit(50)
+# SELECT * FROM posts LIMIT 50
+# SELECT * FROM users WHERE id IN (1, 2, 3, ...)</code></pre>
+          </div>
+          <p class="text-gray-700 leading-relaxed">
+            <strong>Use it when:</strong> you only need to read the association — display the author's name, count tags, render comments. You're not filtering or sorting by anything in the associated table.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-semibold text-gray-900 mb-3"><code class="bg-gray-100 px-2 py-1 rounded text-2xl">eager_load</code> — One query with LEFT OUTER JOIN</h3>
+          <p class="text-gray-700 leading-relaxed">
+            <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> issues a single query with a <code class="bg-gray-100 px-2 py-1 rounded">LEFT OUTER JOIN</code> and prefixed column aliases so Active Record can hydrate both the parent and the association from one result set.
+          </p>
+          <div class="bg-gray-900 text-green-200 font-mono rounded-lg p-6 overflow-x-auto">
+            <pre><code>Post.eager_load(:author).where("users.role = ?", "admin")
+# SELECT posts.id AS t0_r0, posts.title AS t0_r1, ...,
+#        users.id AS t1_r0, users.name AS t1_r1, ...
+# FROM posts
+# LEFT OUTER JOIN users ON users.id = posts.author_id
+# WHERE users.role = 'admin'</code></pre>
+          </div>
+          <p class="text-gray-700 leading-relaxed">
+            <strong>Use it when:</strong> you need to filter or sort by columns in the associated table <em>and</em> use the association in Ruby afterward. <code class="bg-gray-100 px-2 py-1 rounded">LEFT OUTER JOIN</code> means parents without children still appear in the result.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-semibold text-gray-900 mb-3"><code class="bg-gray-100 px-2 py-1 rounded text-2xl">includes</code> — The smart one</h3>
+          <p class="text-gray-700 leading-relaxed">
+            <code class="bg-gray-100 px-2 py-1 rounded">includes</code> is a chameleon. It starts as a <code class="bg-gray-100 px-2 py-1 rounded">preload</code>, but if Rails detects you're filtering or sorting by the associated table, it silently upgrades to <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code>.
+          </p>
+          <div class="bg-gray-900 text-green-200 font-mono rounded-lg p-6 overflow-x-auto">
+            <pre><code># Behaves like preload (two queries):
+Post.includes(:author).limit(50)
+
+# Behaves like eager_load (one JOIN query),
+# because we reference the users table in WHERE:
+Post.includes(:author).where("users.role = ?", "admin")</code></pre>
+          </div>
+          <p class="text-gray-700 leading-relaxed">
+            That auto-upgrade is convenient — and a common source of senior-level confusion. If Rails references the joined table from a string condition, it works. If you reference it through a complex SQL fragment that Rails can't introspect, the upgrade fails silently and the query errors with <em>"missing FROM-clause entry for table"</em>. The fix is to use <code class="bg-gray-100 px-2 py-1 rounded">references(:author)</code> explicitly, or just call <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> directly.
+          </p>
+          <p class="text-gray-700 leading-relaxed">
+            <strong>Use it when:</strong> you want Rails to make the choice and the conditions are simple enough that it can. Otherwise, be explicit.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-semibold text-gray-900 mb-3"><code class="bg-gray-100 px-2 py-1 rounded text-2xl">joins</code> — The filter, not a loader</h3>
+          <p class="text-gray-700 leading-relaxed">
+            <code class="bg-gray-100 px-2 py-1 rounded">joins</code> is the one that catches intermediate developers. It uses a <code class="bg-gray-100 px-2 py-1 rounded">INNER JOIN</code>, but it does <strong>not</strong> select the associated columns. The association is used to filter the parent records — nothing more.
+          </p>
+          <div class="bg-gray-900 text-green-200 font-mono rounded-lg p-6 overflow-x-auto">
+            <pre><code>Post.joins(:author).where(users: &#123; role: "admin" &#125;)
+# SELECT posts.* FROM posts
+# INNER JOIN users ON users.id = posts.author_id
+# WHERE users.role = 'admin'
+
+# Now: post.author.name still triggers a separate query,
+# because we joined but didn't load.</code></pre>
+          </div>
+          <p class="text-gray-700 leading-relaxed">
+            <strong>Use it when:</strong> you want to filter by the association but don't need its data. Example: "give me posts where the author is an admin" — but you only render <code class="bg-gray-100 px-2 py-1 rounded">post.title</code>, never <code class="bg-gray-100 px-2 py-1 rounded">post.author.something</code>.
+          </p>
+          <p class="text-gray-700 leading-relaxed">
+            <strong>Common mistake:</strong> using <code class="bg-gray-100 px-2 py-1 rounded">joins</code> and then accessing the association in the view. You filtered out half the rows but still hit N+1 on the half that remains.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Decision Tree</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Here is the rule a senior keeps in their head. Walk it top to bottom.
+      </p>
+      <div class="bg-gray-900 text-green-200 font-mono rounded-lg p-6 overflow-x-auto">
+        <pre><code>Do you need the association data in Ruby
+(rendering it, iterating it, calling methods on it)?
+
+├── No  →  Are you filtering or sorting by the
+│         association's columns?
+│         ├── Yes →  joins
+│         └── No  →  You don't need any of these.
+│
+└── Yes →  Are you also filtering or sorting by the
+          association's columns?
+          ├── No  →  preload
+          └── Yes →  eager_load
+                    (or includes + references)</code></pre>
+      </div>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Analogy:</strong> Think of these methods like ways of inviting friends to a dinner party. <code class="bg-gray-100 px-2 py-1 rounded">preload</code> is calling each friend separately and asking what they want to eat. <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> is sending one group text to everyone at once and getting all the answers in one round. <code class="bg-gray-100 px-2 py-1 rounded">joins</code> is asking only "who's bringing wine?" — you don't actually invite anyone, you just filter for wine-bringers. <code class="bg-gray-100 px-2 py-1 rounded">includes</code> is your assistant who picks the right method for you, most of the time.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When <code class="bg-gray-100 px-2 py-1 rounded text-2xl">preload</code> Beats <code class="bg-gray-100 px-2 py-1 rounded text-2xl">eager_load</code></h2>
+      <p class="text-gray-700 leading-relaxed">
+        Most intermediate developers default to <code class="bg-gray-100 px-2 py-1 rounded">includes</code>. Most senior developers reach for <code class="bg-gray-100 px-2 py-1 rounded">preload</code> when they don't need filtering. Why?
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Predictability.</strong> <code class="bg-gray-100 px-2 py-1 rounded">preload</code> always issues two queries. You know exactly what hits the database.</li>
+        <li><strong>No accidental Cartesian explosion.</strong> A LEFT OUTER JOIN with multiple <code class="bg-gray-100 px-2 py-1 rounded">has_many</code> associations multiplies rows. Postgres returns more data; Active Record dedupes it; everyone wonders why a 50-row query is slow.</li>
+        <li><strong>Better use of indexes.</strong> Two simple queries with <code class="bg-gray-100 px-2 py-1 rounded">id IN (...)</code> often outperform one big JOIN, especially when the parent and child tables are large.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Run <code class="bg-gray-100 px-2 py-1 rounded">EXPLAIN ANALYZE</code> on both versions when the page is slow. The answer is in the execution plan, not in the Ruby.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Reading the Generated SQL</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The single most useful skill in this lesson is reading the SQL Active Record produces. In a Rails console:
+      </p>
+      <div class="bg-gray-900 text-green-200 font-mono rounded-lg p-6 overflow-x-auto">
+        <pre><code>puts Post.includes(:author).where(published: true).to_sql
+
+# In tests:
+ActiveRecord::Base.logger = Logger.new($stdout)
+
+# In development, watch the rails server log
+# while you click around the page.</code></pre>
+      </div>
+      <p class="text-gray-700 leading-relaxed">
+        If you can't tell at a glance whether your query is firing one round trip or fifty, you're guessing. Always confirm with the log.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Going Deeper: Nested and Multiple Associations</h2>
+      <p class="text-gray-700 leading-relaxed">
+        All four methods accept the same syntax for nested and multiple associations:
+      </p>
+      <div class="bg-gray-900 text-green-200 font-mono rounded-lg p-6 overflow-x-auto">
+        <pre><code># Nested: load each post's author and each post's comments,
+# and for each comment, its replies.
+Post.preload(:author, comments: :replies)
+
+# Mixed: filter by tag (joins) but render comment counts (preload).
+Post.joins(:tags).where(tags: &#123; slug: "rails" &#125;).preload(:comments)</code></pre>
+      </div>
+      <p class="text-gray-700 leading-relaxed">
+        Mixing <code class="bg-gray-100 px-2 py-1 rounded">joins</code> with <code class="bg-gray-100 px-2 py-1 rounded">preload</code> on the same query is one of the most powerful patterns in Rails: you filter on one association without paying the JOIN cost on the others.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">A Tool for Catching N+1 in Development</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The <a href="https://github.com/flyerhzm/bullet" class="text-ruby hover:underline">Bullet gem</a> watches your queries in development and tells you when an N+1 fires, when an eager-load was unnecessary, and when an unused association was preloaded. Add it to the development group of your Gemfile and trust it more than your own eyes.
+      </p>
+      <div class="bg-gray-900 text-green-200 font-mono rounded-lg p-6 overflow-x-auto">
+        <pre><code># Gemfile
+group :development do
+  gem "bullet"
+end
+
+# config/environments/development.rb
+config.after_initialize do
+  Bullet.enable        = true
+  Bullet.bullet_logger = true
+  Bullet.alert         = true
+end</code></pre>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice Exercise</h3>
+      <p class="text-gray-700 leading-relaxed">
+        Open the Rails console of any project you have. Pick a model with at least one <code class="bg-gray-100 px-2 py-1 rounded">belongs_to</code> and one <code class="bg-gray-100 px-2 py-1 rounded">has_many</code> association.
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">Model.preload(:assoc).to_sql</code> and read the SQL. Notice it's <em>only</em> the parent query — the second query is hidden until you actually iterate.</li>
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">Model.eager_load(:assoc).to_sql</code> and notice the <code class="bg-gray-100 px-2 py-1 rounded">LEFT OUTER JOIN</code> with the prefixed column aliases.</li>
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">Model.joins(:assoc).to_sql</code> and notice the <code class="bg-gray-100 px-2 py-1 rounded">INNER JOIN</code> — and that <code class="bg-gray-100 px-2 py-1 rounded">SELECT</code> is still only the parent's columns.</li>
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">Model.includes(:assoc).where(assoc_table: &#123; col: x &#125;).to_sql</code> and notice it switches to a JOIN on its own.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed text-sm">
+        <strong>Teaching Tip:</strong> Once the SQL each method produces is in your hands, the decision tree is no longer a memorized rule — it's a tool you reach for. The four methods stop being interchangeable Ruby calls and start being four different shapes of database round trip, each with a place where it wins.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Summary</h2>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><code class="bg-gray-100 px-2 py-1 rounded">preload</code> — two queries, no JOIN. Default for "I just need the data."</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> — one query, LEFT OUTER JOIN. Use when you also filter or sort by the association.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">includes</code> — Rails picks one of the above. Convenient; occasionally surprising.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">joins</code> — INNER JOIN as a filter. Doesn't load anything. Don't use the association after.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Read the SQL. Confirm with the log. Reach for <code class="bg-gray-100 px-2 py-1 rounded">preload</code> by default, and only upgrade when you have a reason.
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">Senior Track · Lesson 1</span>
+    </div>
+  </article>
+</Layout>

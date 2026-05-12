@@ -1,0 +1,185 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="LSP 1 of 2 — Duck Typing as Liskov in Real Rails Code" description="Where the Liskov Substitution Principle comes from, why Ruby's duck typing is its native idiom, and how Rails' ActiveRecord::Relation can substitute for an Array because they expose the same protocol.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">LSP Series · 1 of 2</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🪞</span>
+        <h1 class="text-4xl font-bold text-gray-900">Duck Typing as Liskov</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the Liskov Substitution Principle comes from, why Ruby's duck typing is its native idiom, and how Rails' <code class="text-lg">ActiveRecord::Relation</code> can substitute for an <code class="text-lg">Array</code> because they expose the same protocol.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The Liskov Substitution Principle is the L in SOLID.</strong> The original statement is from Barbara Liskov's 1987 keynote at a conference of programming-language theorists. Her formulation was dense and mathematical, but the working version every programmer remembers is: <strong>if S is a subtype of T, then objects of type T may be replaced with objects of type S without breaking the program</strong>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        That is a statement about contracts. <strong>The subtype is allowed to do more, but it cannot do less.</strong> If callers expect a <code class="bg-gray-100 px-2 py-1 rounded">Bird#fly</code> method that takes no arguments and returns a flight log, a <code class="bg-gray-100 px-2 py-1 rounded">Penguin</code> subclass that raises <code class="bg-gray-100 px-2 py-1 rounded">CannotFlyError</code> from its <code class="bg-gray-100 px-2 py-1 rounded">#fly</code> method is a Liskov violation. The penguin is technically a bird, but it cannot be substituted for one in code that depends on flight.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In statically typed languages like Java, this rule is partly enforced by the compiler — you cannot remove a method from a subclass, and method signatures must match. In Ruby, the language refuses to help. <strong>There is no compiler to check that an object honors a contract; the responsibility falls entirely on the developer.</strong> The Ruby community has a name for the discipline this requires: <strong>duck typing</strong>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The slogan, attributed to James Whitcomb Riley by way of the Python community, is: <strong>"If it walks like a duck and quacks like a duck, it is a duck."</strong> An object that responds to the same methods as another object, in the same way, can substitute for it. The relationship is not inheritance; it is <strong>shared protocol</strong>. Two unrelated classes can be substitutable as long as both honor the same set of method calls.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Liskov, in a Ruby context, becomes a duck-typing rule: <strong>any object that responds to the methods callers expect, with the same return shape, can stand in for the type the caller was originally thinking about.</strong> The senior move is to write callers in terms of the protocol, not the class.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app where a service tallies up some statistics. The team wrote it assuming an Array of records:
+      </p>
+      <CodeBlock code={`class RevenueReport
+  def initialize(orders)
+    raise ArgumentError unless orders.is_a?(Array)
+    @orders = orders
+  end
+
+  def total
+    @orders.sum(&:total_cents)
+  end
+
+  def by_currency
+    @orders.group_by(&:currency)
+  end
+
+  def average
+    return 0 if @orders.empty?
+    total / @orders.length
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The <code class="bg-gray-100 px-2 py-1 rounded">is_a?(Array)</code> check is the bug.</strong> A caller that wants to compute a revenue report from a database query — the natural Rails move — has to materialize the entire query into an Array first: <code class="bg-gray-100 px-2 py-1 rounded">RevenueReport.new(Order.recent.to_a)</code>. For 100 orders, that is fine. For 100,000 orders, the report loads every row into memory before computing anything. <strong>The class works in unit tests with three orders and falls over in production.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Worse, every other place that wants to use the report has the same problem. A controller that scopes by current_user has to call <code class="bg-gray-100 px-2 py-1 rounded">.to_a</code>. A job that processes orders in batches has to call <code class="bg-gray-100 px-2 py-1 rounded">.to_a</code>. The type check pushed the burden onto every caller.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Rails solves it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        ActiveRecord's design assumes Liskov as a baseline. <strong><code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::Relation</code> is not a subclass of Array</strong> (the inheritance chain goes through <code class="bg-gray-100 px-2 py-1 rounded">Object</code>), but it responds to most of Array's interface: <code class="bg-gray-100 px-2 py-1 rounded">each</code>, <code class="bg-gray-100 px-2 py-1 rounded">map</code>, <code class="bg-gray-100 px-2 py-1 rounded">select</code>, <code class="bg-gray-100 px-2 py-1 rounded">sum</code>, <code class="bg-gray-100 px-2 py-1 rounded">group_by</code>, <code class="bg-gray-100 px-2 py-1 rounded">first</code>, <code class="bg-gray-100 px-2 py-1 rounded">empty?</code>, <code class="bg-gray-100 px-2 py-1 rounded">length</code>. It can stand in for an Array in any code that uses those methods.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        It also adds methods Array does not have: <code class="bg-gray-100 px-2 py-1 rounded">where</code>, <code class="bg-gray-100 px-2 py-1 rounded">includes</code>, <code class="bg-gray-100 px-2 py-1 rounded">order</code>, <code class="bg-gray-100 px-2 py-1 rounded">limit</code>. <strong>The subtype is allowed to do more.</strong> What Liskov forbids is doing less, and Relation never does that. Anywhere an Array works, a Relation works — but the Relation can also lazy-load, push computation to the database, and stream results.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fix to the revenue report is to delete the type check:
+      </p>
+      <CodeBlock code={`class RevenueReport
+  def initialize(orders)
+    @orders = orders
+  end
+
+  def total
+    @orders.sum(&:total_cents)
+  end
+
+  def by_currency
+    @orders.group_by(&:currency)
+  end
+
+  def average
+    return 0 if @orders.empty?
+    total / @orders.length
+  end
+end
+
+# Now callable with either:
+RevenueReport.new(Order.recent)                  # ActiveRecord::Relation
+RevenueReport.new(Order.recent.to_a)             # Array
+RevenueReport.new([build(:order), build(:order)]) # Array of in-memory objects
+RevenueReport.new(orders_from_csv_import)        # custom Enumerable`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The class accepts anything that responds to the same protocol.</strong> A Relation. An Array. A custom Enumerable wrapping a CSV stream. The class does not care which one; it asks the questions, and any duck that quacks the same way gives a correct answer.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where Rails relies on this constantly</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Once you know to look, Liskov-via-duck-typing is everywhere in Rails:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Form helpers accept anything ActiveModel-shaped.</strong> <code class="bg-gray-100 px-2 py-1 rounded">form_with(model: @thing)</code> works whether <code class="bg-gray-100 px-2 py-1 rounded">@thing</code> is an ActiveRecord model, a form object that includes <code class="bg-gray-100 px-2 py-1 rounded">ActiveModel::Model</code>, or a plain Ruby class that defines <code class="bg-gray-100 px-2 py-1 rounded">model_name</code>, <code class="bg-gray-100 px-2 py-1 rounded">to_partial_path</code>, and <code class="bg-gray-100 px-2 py-1 rounded">persisted?</code>. <strong>The form helpers do not check class; they check protocol.</strong></li>
+        <li><strong>The router accepts any controller.</strong> An <code class="bg-gray-100 px-2 py-1 rounded">ActionController::Base</code>, an <code class="bg-gray-100 px-2 py-1 rounded">ActionController::API</code>, or even a bare Rack app — anything that responds to <code class="bg-gray-100 px-2 py-1 rounded">#call(env)</code> and returns a triple — can be mounted at a route.</li>
+        <li><strong>Active Job adapters substitute for each other.</strong> Code that calls <code class="bg-gray-100 px-2 py-1 rounded">SomeJob.perform_later</code> does not know whether the queue behind the scenes is Sidekiq, Solid Queue, or a test adapter. The contract is the substitutable interface.</li>
+        <li><strong>Enumerable-including objects are interchangeable.</strong> Any class that defines <code class="bg-gray-100 px-2 py-1 rounded">each</code> and includes <code class="bg-gray-100 px-2 py-1 rounded">Enumerable</code> gets <code class="bg-gray-100 px-2 py-1 rounded">map</code>, <code class="bg-gray-100 px-2 py-1 rounded">select</code>, <code class="bg-gray-100 px-2 py-1 rounded">reduce</code>, and 30 more methods for free — and can substitute for an Array in callers that use those methods.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Mastodon's <code class="bg-gray-100 px-2 py-1 rounded">Trends::Query</code> from the SRP series is a textbook example: <strong>it includes Enumerable, and that single line makes it substitutable for any collection</strong> in any caller that iterates.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design wins in Ruby specifically</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Statically typed languages tie Liskov to inheritance.</strong> If you want a method to accept "either an Array or my own class," you have to either make your class inherit from a common abstract type, or write a wrapper that satisfies the type system. Both add ceremony.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Ruby's duck typing removes the ceremony.</strong> Any class that responds to the same methods can substitute. The relationship is captured at the call site, not in the class hierarchy. A class that wants to be Array-substitutable needs only to define <code class="bg-gray-100 px-2 py-1 rounded">each</code> and include Enumerable. A class that wants to be model-substitutable needs only to define the handful of methods Rails form helpers call.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The senior move is to write callers in terms of "what does this thing need to do?" not "what is this thing?"</strong> A caller that types-checks for Array forecloses every other substitutable shape. A caller that calls <code class="bg-gray-100 px-2 py-1 rounded">each</code> and <code class="bg-gray-100 px-2 py-1 rounded">map</code> works with anything that walks like an Array, including future things that did not exist when the caller was written.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Tradeoffs worth naming</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Duck typing's freedom has a cost. <strong>The contract is implicit.</strong> A class that quacks like an Array is acceptable until a caller invents a new method that only Arrays have. Then the substitution silently breaks, often in production, often weeks later.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Two senior habits keep this in check:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Name the protocol.</strong> When a caller depends on "anything that responds to <code class="bg-gray-100 px-2 py-1 rounded">each</code>," say so in a comment or a docstring. The next person to add a method has a fighting chance of remembering the contract.</li>
+        <li><strong>Test the duck.</strong> If your code expects an Enumerable, write tests that pass in something other than the obvious Array. The day a future change forgets that, the test will catch it.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>The shortcut that breaks Liskov in Ruby is <code class="bg-gray-100 px-2 py-1 rounded">is_a?</code> and <code class="bg-gray-100 px-2 py-1 rounded">kind_of?</code> checks.</strong> Every one of them turns a duck-typed caller into a class-typed caller, and forecloses substitutions that would have worked. If you find yourself reaching for one, ask whether <code class="bg-gray-100 px-2 py-1 rounded">respond_to?</code> would do, or whether the check is necessary at all.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>Liskov's original formulation was about subtypes. <strong>Ruby's contribution is to relax "subtype" into "anything with the same protocol"</strong>, regardless of the inheritance tree. A class that responds to the methods a caller uses, with the same return shape, can stand in for the type the caller was originally thinking about. No common parent class required.</p>
+        <p>The deeper move is captured in the slogan: <strong>program to interfaces, not to implementations</strong>. The caller's contract is a list of method calls. Any object that satisfies those method calls satisfies the contract. The class is incidental.</p>
+        <p>In Rails terms, the principle is what lets ActiveRecord::Relation pretend to be an Array, what lets ActiveModel-including classes pretend to be ActiveRecord models, and what lets Sidekiq pretend to be Solid Queue. <strong>The framework's flexibility — the thing that allows swapping backends, add new adapters, and stub for tests — is duck typing in action.</strong></p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "is_a?\\(\\|kind_of?\\(" app/</code> in your codebase. <strong>Each match is a Liskov-violating check.</strong> Read each one and ask whether <code class="bg-gray-100 px-2 py-1 rounded">respond_to?</code> would do, or whether the check is necessary at all.</li>
+        <li>For each match that gates a method call, replace it with a <code class="bg-gray-100 px-2 py-1 rounded">respond_to?</code> check (or remove it entirely). Notice that this also opens the method to ducks you have not imagined yet.</li>
+        <li>Open your largest service class. Look at the arguments it expects. <strong>For each argument, ask: am I checking what the object is, or am I asking what it can do?</strong> Calls to <code class="bg-gray-100 px-2 py-1 rounded">.class</code>, <code class="bg-gray-100 px-2 py-1 rounded">.is_a?</code>, or <code class="bg-gray-100 px-2 py-1 rounded">.kind_of?</code> are the first kind. Method calls are the second.</li>
+        <li>Bonus: pick a class that takes a collection argument. Write a second test that passes in an <code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::Relation</code>, a custom <code class="bg-gray-100 px-2 py-1 rounded">Enumerable</code>, and an array of fixtures. <strong>If any of them fail, the class is class-typed where it should be duck-typed.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Course Home</a>
+      <a href="/lessons/senior-lsp-contract-breaking" class="text-ruby hover:text-ruby-dark transition-colors">LSP 2 — When Inheritance Breaks the Contract →</a>
+    </div>
+  </article>
+</Layout>

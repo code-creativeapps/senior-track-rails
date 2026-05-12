@@ -1,0 +1,136 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Models that don't know their own rules" description="Why an Order model that's just a data bag duplicates business logic across every caller.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> All lessons
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 16 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Models that don't know their own rules</h1>
+      <p class="text-xl text-gray-600">Why an Order model that's just data bag ends up with the same business rules duplicated in every caller.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class Order < ApplicationRecord
+  belongs_to :user
+  has_many :line_items
+end
+
+class CheckoutController < ApplicationController
+  def update
+    order = Order.find(params[:id])
+
+    if order.line_items.empty?
+      render json: { error: "Order is empty" }, status: 422
+      return
+    end
+    if order.user.suspended?
+      render json: { error: "Account suspended" }, status: 403
+      return
+    end
+    if order.total_cents > order.user.credit_limit_cents
+      render json: { error: "Over limit" }, status: 422
+      return
+    end
+
+    order.update!(status: "submitted", submitted_at: Time.current)
+  end
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed">The Order model is just an object that holds data. <strong>All the rules about "can this order be submitted" live in the controller.</strong> The admin panel that lets support submit orders on behalf of customers has its own copy of those rules. So does the API. So does the rake task that recovers stuck orders. Forget one rule in one place and that path will let through orders that violate the business invariants.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, ask yourself where the rules really belong. If you wanted to make the rules impossible to forget, where would they live?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4"><strong>Move the rules into the Order class itself.</strong> The order knows what makes it valid, so it should be the one running the checks. Every caller (controller, admin panel, rake task) ends up calling the same <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">submit!</code> method, which has the rules baked into it.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>The rules live in one place</li>
+            <li>Every caller goes through the same gate</li>
+            <li>The model documents what a valid submission means</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`class Order < ApplicationRecord
+  class OrderError < StandardError; end
+
+  def submit!
+    raise OrderError, "Order is empty" if line_items.empty?
+    raise OrderError, "Account suspended" if user.suspended?
+    raise OrderError, "Over credit limit" if total_cents > user.credit_limit_cents
+
+    update!(status: "submitted", submitted_at: Time.current)
+  end
+end
+
+class CheckoutController < ApplicationController
+  def update
+    Order.find(params[:id]).submit!
+    head :ok
+  rescue Order::OrderError => e
+    render json: { error: e.message }, status: 422
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Models own their own rules
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>Martin Fowler called this the "anemic domain model" anti-pattern. A model is anemic when it has data and almost no behavior — just attribute accessors and maybe some validations. All the actual rules about what the data <em>means</em> and what you can <em>do</em> with it live somewhere else, usually scattered across controllers and services.</p>
+            <p><strong>The cost is that every caller has to know the rules</strong>, and every new caller is a new place where someone might forget one. The model doesn't enforce its own invariants; it just hopes everyone using it remembers to do the right thing. Which works fine until the codebase grows past one developer's head.</p>
+            <p>Putting the behavior on the model isn't about making the model bigger for its own sake. It's about giving the rules a single home, so that every caller has to go through the same gate. The controller's job becomes "translate the request into a method call on the model" — not "remember every business rule and check them in the right order."</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-callback-bypass" class="text-ruby hover:text-ruby-dark transition-colors">← Card 15</a>
+      <a href="/lessons/tax-value-objects" class="text-ruby hover:text-ruby-dark transition-colors">Card 17 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

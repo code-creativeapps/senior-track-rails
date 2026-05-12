@@ -1,0 +1,286 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Lesson 2.2 — Open/Closed in Practice: Discount Strategies" description="A second walkthrough of the Open/Closed Principle, this time using a discount engine in an e-commerce cart. Original examples, same shape as lesson 2.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Lesson 2.2 — Open/Closed in Practice: Discount Strategies</h1>
+      <p class="text-xl text-gray-600">A second walkthrough of the Open/Closed Principle. Same teaching shape as lesson 2, but built around a discount engine in an e-commerce cart instead of payouts.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Setup</h2>
+      <p class="text-gray-700 leading-relaxed">
+        You are working on the cart in an e-commerce Rails app. The first version of discount logic was simple: a single percentage code that took 10% off the subtotal. Then marketing wanted a flat-amount discount. Then a free-shipping promo. Now they are asking for buy-one-get-one. Each new request lands as a hotfix, and the cart total method has been growing every week.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        This is the same shape of problem as the payout processors in lesson 2. The fix is the same shape too: a small registry, a uniform interface, and one class per discount strategy. Let's walk through it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Anti-Pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Here is the version of the cart that grew out of one hotfix at a time. It works. It is also the file that nobody on the team wants to touch.
+      </p>
+      <CodeBlock code={`class Cart
+  def total
+    subtotal = items.sum(&:line_total)
+    return subtotal unless coupon
+
+    case coupon.kind
+    when "percentage"
+      subtotal -= (subtotal * coupon.value / 100.0)
+    when "fixed"
+      subtotal -= coupon.value
+    when "free_shipping"
+      subtotal -= shipping_cost
+    when "bogo"
+      eligible = items.select { |i| i.product_id == coupon.eligible_product_id }
+      free_count = eligible.size / 2
+      subtotal -= eligible.first(free_count).sum(&:line_total)
+    end
+
+    [subtotal, 0].max
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The same <code class="bg-gray-100 px-2 py-1 rounded">case coupon.kind</code> branching appears in several other places: the order receipt email, the admin "discount usage" report, the analytics CSV export that breaks down savings by coupon type, and the thank-you page that shows the customer "You saved $X with coupon Y."
+      </p>
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Note:</strong> Every time marketing adds a new coupon kind, the developer hunts for every <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">case coupon.kind</code> in the codebase and adds a new <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">when</code> branch. Miss one and the receipt email shows the wrong savings amount.
+        </p>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">A Better Approach: One Class Per Strategy</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Each discount kind becomes its own small class. Every class exposes the same public interface: a constructor that takes the cart and the coupon, and an <code class="bg-gray-100 px-2 py-1 rounded">amount_off</code> method that returns the dollar value to subtract.
+      </p>
+      <CodeBlock code={`module Discounts
+  class PercentageDiscount
+    def initialize(cart:, coupon:)
+      @cart = cart
+      @coupon = coupon
+    end
+
+    def amount_off
+      @cart.subtotal * @coupon.value / 100.0
+    end
+  end
+
+  class FixedDiscount
+    def initialize(cart:, coupon:)
+      @cart = cart
+      @coupon = coupon
+    end
+
+    def amount_off
+      [@coupon.value, @cart.subtotal].min
+    end
+  end
+
+  class FreeShippingDiscount
+    def initialize(cart:, coupon:)
+      @cart = cart
+      @coupon = coupon
+    end
+
+    def amount_off
+      @cart.shipping_cost
+    end
+  end
+
+  class BogoDiscount
+    def initialize(cart:, coupon:)
+      @cart = cart
+      @coupon = coupon
+    end
+
+    def amount_off
+      eligible = @cart.items.select { |i| i.product_id == @coupon.eligible_product_id }
+      free_count = eligible.size / 2
+      eligible.first(free_count).sum(&:line_total)
+    end
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Each class is small. Each one knows how to compute the discount for its own kind, and nothing else. The <code class="bg-gray-100 px-2 py-1 rounded">PercentageDiscount</code> never has to think about shipping. The <code class="bg-gray-100 px-2 py-1 rounded">BogoDiscount</code> never has to think about percentages.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Registry</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Now wire the strategies up through a small registry module. The string identifier from the database column maps to the class that implements that kind of discount.
+      </p>
+      <CodeBlock code={`module DiscountKind
+  PERCENTAGE = "PERCENTAGE"
+  FIXED = "FIXED"
+  FREE_SHIPPING = "FREE_SHIPPING"
+  BOGO = "BOGO"
+
+  ALL = {
+    PERCENTAGE    => Discounts::PercentageDiscount,
+    FIXED         => Discounts::FixedDiscount,
+    FREE_SHIPPING => Discounts::FreeShippingDiscount,
+    BOGO          => Discounts::BogoDiscount
+  }.freeze
+  private_constant :ALL
+
+  def self.get(kind)
+    ALL[kind]
+  end
+
+  def self.all
+    ALL.keys
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The cart total method becomes one line, just like the payout worker did in lesson 2:
+      </p>
+      <CodeBlock code={`class Cart
+  def total
+    discount = DiscountKind.get(coupon.kind).new(cart: self, coupon: coupon).amount_off
+    [subtotal - discount, 0].max
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        No <code class="bg-gray-100 px-2 py-1 rounded">case</code>. The cart does not know what BOGO means. It asks the registry for the right strategy and trusts the answer.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Uniform Interface</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Every discount strategy has the same public surface: it takes a cart and a coupon in the constructor, and exposes a single <code class="bg-gray-100 px-2 py-1 rounded">amount_off</code> method. Inside, the implementations are wildly different. <code class="bg-gray-100 px-2 py-1 rounded">PercentageDiscount</code> does a multiplication. <code class="bg-gray-100 px-2 py-1 rounded">BogoDiscount</code> filters and slices the cart's line items. The contract is the same, the behavior is not.
+      </p>
+      <CodeBlock code={`# Every strategy honors this contract:
+class SomeDiscount
+  def initialize(cart:, coupon:); end
+  def amount_off; end
+end`} language="ruby" />
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Important:</strong> If one of these strategies returned a different shape (a hash, a string, a negative number), the cart's <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">total</code> method would suddenly need branching logic again. Keeping the return type and meaning of <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">amount_off</code> identical across strategies is the discipline that keeps the cart simple.
+        </p>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Adding a New Strategy</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Marketing wants a "spend $50, get $10 off" tiered threshold discount. In the original case-statement version, this would mean editing the cart total method, the receipt mailer, the discount usage report, the analytics CSV export, and the thank-you page. In the registry version, you do two things:
+      </p>
+      <CodeBlock code={`# 1. Create the new strategy class.
+module Discounts
+  class ThresholdDiscount
+    def initialize(cart:, coupon:)
+      @cart = cart
+      @coupon = coupon
+    end
+
+    def amount_off
+      return 0 if @cart.subtotal < @coupon.threshold_cents
+      @coupon.value
+    end
+  end
+end
+
+# 2. Add one line to the registry.
+THRESHOLD = "THRESHOLD"
+
+ALL = {
+  PERCENTAGE    => Discounts::PercentageDiscount,
+  FIXED         => Discounts::FixedDiscount,
+  FREE_SHIPPING => Discounts::FreeShippingDiscount,
+  BOGO          => Discounts::BogoDiscount,
+  THRESHOLD     => Discounts::ThresholdDiscount
+}.freeze`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        That is the entire change. The cart total method does not change. The receipt mailer does not change. The CSV export does not change. New behavior comes from a new file and a new line in the registry. The existing code is closed for modification.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Supporting Principles</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The same two SOLID principles support open/closed in this design.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Liskov Substitution.</strong> Any class returned from <code class="bg-gray-100 px-2 py-1 rounded">DiscountKind.get(...)</code> must be safely usable in place of any other. The cart calls <code class="bg-gray-100 px-2 py-1 rounded">amount_off</code> and expects a number. If a new strategy returned <code class="bg-gray-100 px-2 py-1 rounded">nil</code>, every caller would break. The discipline is on the implementer to honor the shape of the contract, not just the method names.
+      </p>
+      <CodeBlock code={`# A Liskov violation in the discount engine:
+class BrokenDiscount
+  def initialize(cart:, coupon:); end
+
+  # Returns nil when the cart is empty — silently breaks subtraction.
+  def amount_off
+    return nil if @cart.items.empty?
+    @cart.subtotal * 0.05
+  end
+end
+
+# Caller assumes a number:
+[Cart.subtotal - discount.amount_off, 0].max
+# NoMethodError: undefined method '-' for nil`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Dependency Inversion.</strong> The <code class="bg-gray-100 px-2 py-1 rounded">Cart</code> class does not depend on <code class="bg-gray-100 px-2 py-1 rounded">PercentageDiscount</code> or any other concrete strategy. It depends on the registry's contract. This makes testing far easier — you can swap in a fake strategy without touching the cart's code.
+      </p>
+      <CodeBlock code={`# In a test, replace the registry's lookup for one example:
+class FakeDiscount
+  def initialize(cart:, coupon:); end
+  def amount_off; 1234; end
+end
+
+allow(DiscountKind).to receive(:get).and_return(FakeDiscount)
+
+cart = Cart.new(items: [Item.new(price: 5000)], coupon: any_coupon)
+expect(cart.total).to eq(5000 - 1234)`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When to Apply It</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The cost of this design is indirection. A junior reading the code asks "where does the actual percentage math happen?" and has to follow the registry to find <code class="bg-gray-100 px-2 py-1 rounded">PercentageDiscount</code>. That cost is worth paying when you have multiple variants today or one is genuinely on the roadmap.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        With one discount kind, do not build the registry. With two trivially different kinds (a percentage off and a fixed amount off, both one-line calculations), an <code class="bg-gray-100 px-2 py-1 rounded">if/else</code> in the cart total method is fine. The pattern earns its weight when the strategies have substantially different internals (BOGO and threshold discounts are nothing like a percentage discount) and when the kind identifier is referenced in many places.
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Important:</strong> A common mistake is building the registry for a single class. The abstraction has nothing to abstract over. Wait until the second variant is real and on the roadmap before introducing the structure.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice Exercise</h3>
+      <p class="text-gray-700 leading-relaxed">
+        Pick a Rails project of yours and look for a feature that grew through hotfixes (discount logic, notification channels, report exporters, integration types, role permissions). Try the following:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Find one method that has more than three branches in a <code class="bg-gray-100 px-2 py-1 rounded">case</code> or <code class="bg-gray-100 px-2 py-1 rounded">if/elsif</code> chain. Note which file it is in.</li>
+        <li>Search for the same field across the codebase: <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "field_name" app/</code>. Count how many other branches you find.</li>
+        <li>Sketch the strategy classes. What is the shared contract? Two arguments in, what comes out, what type?</li>
+        <li>Sketch the registry. What are the constants? What does <code class="bg-gray-100 px-2 py-1 rounded">get</code> return?</li>
+        <li>Sketch what adding a new variant would look like in the new structure. Compare it to what adding a new variant looks like today.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed text-sm">
+        <strong>Tip:</strong> The point is not to refactor today. It is to recognize the pattern and decide if the cost of indirection is worth paying for this particular feature. Sometimes the answer is no, and that is also a senior decision.
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 2 (payouts)</a>
+      <a href="/lessons/senior-glossary" class="text-ruby hover:text-ruby-dark transition-colors">Glossary →</a>
+    </div>
+  </article>
+</Layout>

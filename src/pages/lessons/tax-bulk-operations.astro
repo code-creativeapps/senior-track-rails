@@ -1,0 +1,107 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title=":destroy runs in Ruby, :delete_all runs in SQL" description="Why deleting one user with 50,000 events can take minutes — and what to use instead.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 3 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4"><code class="bg-gray-100 px-2 py-1 rounded text-3xl">:destroy</code> runs in Ruby, <code class="bg-gray-100 px-2 py-1 rounded text-3xl">:delete_all</code> runs in SQL</h1>
+      <p class="text-xl text-gray-600">Why deleting one user with 50,000 events can take minutes, and how to pick the right cascade for the work.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class User < ApplicationRecord
+  has_many :events, dependent: :destroy
+  has_many :messages, dependent: :destroy
+  has_many :reactions, dependent: :destroy
+end
+
+# In the controller:
+def destroy
+  current_user.destroy
+  redirect_to root_path
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed">When you delete a user that has 50,000 events, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">dependent: :destroy</code> doesn't just delete the events. It loads each event into memory as a Ruby object, fires every destroy callback on that object, and then sends a separate DELETE statement for that one row. So <strong>a single <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user.destroy</code> ends up doing 50,000 of everything</strong>. What should be a fast operation takes minutes, sometimes times out halfway through, and leaves your data in a half-deleted state that's painful to clean up.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, think about how you'd actually delete a user with 50,000 events. What's the difference between deleting in Ruby and deleting in SQL, and when does each make sense?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4"><strong>Choose the cascade that matches the work you actually need to do</strong>. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:delete_all</code> sends a single DELETE statement to the database without ever loading the rows into Ruby, which is what you want most of the time. Use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:destroy</code> only when you genuinely need each child's destroy callbacks to fire — and when you do, run the deletion in a background job so a slow user doesn't take down your controller.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>Deletes happen at SQL speed</li>
+            <li>Memory stays bounded regardless of how many associated rows exist</li>
+            <li>For real <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:destroy</code> cases, the work can move to a job that you can monitor and retry</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`class User < ApplicationRecord
+  has_many :events, dependent: :delete_all
+  has_many :messages, dependent: :delete_all
+  has_many :reactions, dependent: :delete_all
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Bulk operations in SQL
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p><strong>SQL and Ruby operate at very different layers</strong>, and the difference becomes a big deal as soon as you're working with many rows at once. SQL runs inside the database, in a single round trip, with the query planner figuring out the most efficient way to do the work. Ruby runs inside your application, one object at a time, and each object carries the cost of being loaded, instantiated, and pushed through whatever callbacks are defined on it.</p>
+            <p>When you write <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">dependent: :destroy</code>, you're choosing the Ruby version. Rails loads every associated record, instantiates each one, fires its destroy callbacks, and only then runs the DELETE for that single row. So 50,000 records means 50,000 objects in memory and 50,000 separate DELETE statements. <strong><code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">dependent: :delete_all</code> is the SQL version: one statement, done in milliseconds</strong>, no Ruby objects involved.</p>
+            <p>They look like two flavors of the same operation, but <strong>they're really two completely different operations that happen to share a similar name</strong>. The decision between them comes down to whether you actually need callbacks on the children. Most of the time, the honest answer is that you don't, and the SQL version is what you want.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-transaction-scope" class="text-ruby hover:text-ruby-dark transition-colors">← Card 2</a>
+      <a href="/lessons/tax-indexable-storage" class="text-ruby hover:text-ruby-dark transition-colors">Card 4 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

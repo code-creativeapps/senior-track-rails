@@ -1,0 +1,210 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="OCP 2 of 5 — The Adapter Pattern in Real Rails Code" description="Where the adapter pattern comes from, why backends change for reasons unrelated to the feature, and how Rails' ActiveStorage swaps Disk/S3/GCS/Azure storage without the app knowing which one is in use.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">OCP Series · 2 of 5</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🔌</span>
+        <h1 class="text-4xl font-bold text-gray-900">The Adapter Pattern</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the adapter pattern comes from, why backends change for reasons unrelated to the feature, and how Rails' <code class="text-lg">ActiveStorage</code> swaps Disk, S3, GCS, and Azure storage without the app knowing which one is in use.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The registry pattern from the previous lesson dispatches between variants at runtime, based on data stored on a record. <strong>The adapter pattern is the same idea, applied to a different kind of variation: backends chosen at boot time by configuration.</strong> The app does not pick the storage backend on a per-record basis. It picks one for the whole environment — Disk in development, S3 in production, a fake one in tests — and treats it identically everywhere.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The pattern's name is older than Rails by decades. <strong>The Gang of Four book in 1994 defined Adapter as "convert the interface of a class into another interface clients expect."</strong> The original framing was about reconciling a legacy class with a new client. In modern Rails, the framing has shifted to be about <strong>swapping concrete backends behind a stable interface</strong>, which is a slightly different use of the pattern with the same name.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Rails has been built around this idea since its earliest days. ActiveRecord has database adapters: PostgreSQL, MySQL, SQLite all implement the same query interface but talk to different databases. ActionMailer has delivery adapters: SMTP, sendmail, a test adapter that captures messages instead of sending them. ActiveJob has queue adapters: Sidekiq, Solid Queue, Resque, and a test adapter. <strong>The pattern is so deeply embedded in Rails that most developers use it daily without noticing.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The OCP move the adapter pattern enforces is this: <strong>your application code should not know which backend is in use</strong>. It calls the same methods regardless of whether the file is in S3 or on a local disk, whether the queue is Sidekiq or Solid Queue, whether the email is going to SMTP or to a test inbox. Swapping backends is a configuration change, not a code change. The application stays closed; the system stays open to new backends.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app where file uploads were added before ActiveStorage existed. The team used the S3 SDK directly. The upload code lives in a model:
+      </p>
+      <CodeBlock code={`class Avatar < ApplicationRecord
+  def upload(file)
+    s3 = Aws::S3::Client.new(region: "us-east-1")
+    s3.put_object(
+      bucket: ENV["UPLOAD_BUCKET"],
+      key:    "avatars/#{id}/#{file.original_filename}",
+      body:   file.read
+    )
+    update!(url: "https://#{ENV["UPLOAD_BUCKET"]}.s3.amazonaws.com/avatars/#{id}/#{file.original_filename}")
+  end
+
+  def download
+    s3 = Aws::S3::Client.new(region: "us-east-1")
+    response = s3.get_object(bucket: ENV["UPLOAD_BUCKET"], key: key_from_url)
+    response.body.read
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>This works.</strong> The problem appears six months later when development gets painful. Every developer needs S3 credentials to upload an avatar locally. The test suite uploads real files to a real bucket every CI run. <strong>The team wants to use local disk in development and a fake adapter in tests, but the S3 SDK calls are written directly into the model.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Worse, the same pattern is now in twelve files. Profile pictures use S3 calls in <code class="bg-gray-100 px-2 py-1 rounded">Avatar</code>. Product images use S3 calls in <code class="bg-gray-100 px-2 py-1 rounded">Product</code>. Invoice PDFs use S3 calls in <code class="bg-gray-100 px-2 py-1 rounded">Invoice</code>. <strong>Each one re-implements the same upload logic, with slightly different bucket-name conventions and slightly different error handling.</strong> When the team decides to migrate from S3 to GCS for cost reasons, twelve files need to change at once.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Rails solves it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        ActiveStorage's design is the OCP move applied to file storage. The framework defines a single interface that every storage backend implements:
+      </p>
+      <CodeBlock code={`# rails/activestorage/lib/active_storage/service.rb (the abstract base)
+# License: MIT
+
+class ActiveStorage::Service
+  def upload(key, io, checksum: nil, **)
+    raise NotImplementedError
+  end
+
+  def download(key, &block)
+    raise NotImplementedError
+  end
+
+  def delete(key)
+    raise NotImplementedError
+  end
+
+  def exist?(key)
+    raise NotImplementedError
+  end
+
+  def url(key, expires_in:, filename:, content_type:, disposition:)
+    raise NotImplementedError
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The base class is the contract.</strong> Every adapter raises <code class="bg-gray-100 px-2 py-1 rounded">NotImplementedError</code> for any method it does not override, so the contract is enforced at runtime. Rails ships four concrete adapters under the same directory:
+      </p>
+      <CodeBlock code={`# rails/activestorage/lib/active_storage/service/disk_service.rb
+class ActiveStorage::Service::DiskService < ActiveStorage::Service
+  def upload(key, io, checksum: nil, **)
+    instrument :upload, key: key, checksum: checksum do
+      File.open(make_path_for(key), "wb") { |f| f.write(io.read) }
+    end
+  end
+  # ... downloads from the filesystem, builds local URLs
+end
+
+# rails/activestorage/lib/active_storage/service/s3_service.rb
+class ActiveStorage::Service::S3Service < ActiveStorage::Service
+  def upload(key, io, checksum: nil, content_type: nil, **)
+    instrument :upload, key: key, checksum: checksum do
+      bucket.object(key).put(body: io, ...)
+    end
+  end
+  # ... downloads from S3, signs S3 URLs
+end
+
+# Same shape: ActiveStorage::Service::GCSService, AzureStorageService,
+# MirrorService, plus the test adapter`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Each adapter implements the same public methods.</strong> The internals differ wildly: DiskService talks to the filesystem, S3Service talks to the AWS SDK, GCSService talks to the Google Cloud SDK. <strong>The application code does not know which one is loaded.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The adapter is picked by configuration:
+      </p>
+      <CodeBlock code={`# config/storage.yml
+local:
+  service: Disk
+  root: <%= Rails.root.join("storage") %>
+
+amazon:
+  service: S3
+  access_key_id: <%= Rails.application.credentials.dig(:aws, :access_key_id) %>
+  secret_access_key: <%= Rails.application.credentials.dig(:aws, :secret_access_key) %>
+  bucket: my-app-uploads
+  region: us-east-1
+
+# config/environments/development.rb
+config.active_storage.service = :local
+
+# config/environments/production.rb
+config.active_storage.service = :amazon
+
+# config/environments/test.rb
+config.active_storage.service = :test  # in-memory adapter`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The application code is identical across all three environments.</strong> <code class="bg-gray-100 px-2 py-1 rounded">user.avatar.attach(io)</code> calls <code class="bg-gray-100 px-2 py-1 rounded">upload</code> on whatever service is configured. The model has no knowledge of S3, of the filesystem, or of test fakes. <strong>The storage decision is a configuration change, not a code change.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four benefits, each one solving a specific failure mode of the SDK-in-the-model version.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Development is local, tests are in-memory, production is real.</strong> A developer writes feature code on their laptop with the Disk adapter, runs the test suite with the Test adapter that captures uploads in memory, and ships to production where the S3 adapter takes over. <strong>No credentials needed for local dev, no real network calls during tests, no code change between environments.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Switching backends is a one-line change.</strong> When the team decides to migrate from S3 to GCS, the change is <code class="bg-gray-100 px-2 py-1 rounded">config.active_storage.service = :google</code>. The twelve models that upload files do not change. <strong>The backend is replaceable because the application never depended on it.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>New backends are additive.</strong> When a new storage service appears that Rails does not ship a built-in adapter for, a third-party gem can implement the contract and register it. The gem is a new file; nothing in Rails needs to change. <strong>The framework is open to extension, closed to modification.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The contract is the documentation.</strong> An engineer who wants to know "what does Rails expect from a storage adapter?" opens <code class="bg-gray-100 px-2 py-1 rounded">active_storage/service.rb</code> and reads thirty lines. <strong>The abstract base class is the spec.</strong> Every adapter implementation is checked against it, so writing a new adapter is a matter of going method by method.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Registry vs Adapter</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The previous lesson covered registries; this one covers adapters. The two patterns look similar — both substitute one class for another behind a stable interface — but they are used at different boundaries.
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Registry</strong> — variant is chosen at runtime, based on data stored on a record. <code class="bg-gray-100 px-2 py-1 rounded">payment.processor</code> is "stripe" for this row, "paypal" for the next. The application has both processors loaded; it dispatches per request.</li>
+        <li><strong>Adapter</strong> — variant is chosen at boot, based on configuration. The application loads <em>one</em> storage adapter for its entire lifetime. Switching means restarting.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Use a registry when the variation lives in your data.</strong> Use an adapter when the variation lives in your environment. The contract-and-substitution machinery is the same; the dispatching boundary differs.
+      </p>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>The Open/Closed Principle is doing real work here. <strong>The reason the team would change a storage backend has nothing to do with the reason they would change a User model.</strong> Cost, compliance, vendor lock-in, latency — none of those are reasons to edit <code class="bg-gray-100 px-2 py-1 rounded">User</code>. By separating the "what does the model want to do" from "which backend physically does it," each side can change without disturbing the other.</p>
+        <p>The deeper move is one the Unix tradition has been making since the 1970s: <strong>program to an interface, not to an implementation</strong>. Every Unix tool reads from "standard input" and writes to "standard output" — abstract handles that the operating system maps to files, pipes, terminals, or sockets at the user's discretion. ActiveStorage is the Rails version of the same idea. The application reads and writes from a Service; the operating environment decides what Service that actually means.</p>
+        <p>The pattern's pragmatic value in Rails is that <strong>backends are exactly the thing that changes for reasons unrelated to the feature</strong>. The feature ("attach a file to a user") is stable. The backend ("store it on S3") changes because of pricing or regulation or vendor stability. Putting the backend in a swappable adapter means those two timelines no longer collide.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Grep your app for direct SDK calls in models: <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "Aws::\\|Google::Cloud\\|Stripe::" app/models</code>. <strong>Every match is a model coupled to a specific vendor.</strong></li>
+        <li>For each match, ask: what would happen if you switched vendors next quarter? Count the files that would need to change.</li>
+        <li>Pick one example. Sketch the contract — what methods would your application call regardless of vendor? Three to six methods is usually enough. Draw the abstract base class, then sketch two concrete adapter classes that implement it.</li>
+        <li>Bonus: look at how your test suite handles these vendor calls today. <strong>Test fakes that mock individual SDK calls are a smell that the vendor abstraction is missing.</strong> An adapter would let the test environment swap in a real fake adapter, not stub method calls.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-ocp-registry" class="text-ruby hover:text-ruby-dark transition-colors">← OCP 1 — Registry</a>
+      <a href="/lessons/senior-ocp-middleware" class="text-ruby hover:text-ruby-dark transition-colors">OCP 3 — Middleware →</a>
+    </div>
+  </article>
+</Layout>

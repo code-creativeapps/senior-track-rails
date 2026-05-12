@@ -1,0 +1,198 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="SRP 5 of 7 — Decorators in Real Rails Code" description="Where decorators come from, why display logic keeps creeping into models, and how Forem uses OrganizationDecorator to keep view concerns out of its data layer.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">SRP Series · 5 of 7</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🎨</span>
+        <h1 class="text-4xl font-bold text-gray-900">Decorators</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the pattern comes from, why display logic keeps creeping into models, and how Forem uses <code class="text-lg">OrganizationDecorator</code> to keep view concerns out of its data layer.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The Decorator pattern predates Rails by a couple of decades. <strong>It is one of the original 23 patterns in the 1994 Gang of Four book</strong>, <em>Design Patterns: Elements of Reusable Object-Oriented Software</em>. The original framing was generic: wrap an object to add behavior to it dynamically, without changing the class it belongs to. The classic example in the book is a graphical window that can be wrapped in a "with scroll bars" decorator or a "with border" decorator.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The Rails community adopted the pattern in 2011 with <strong>Draper</strong>, a gem by Jeff Casimir that gave decorators a specific job: <strong>handle display logic about a model, without putting it on the model itself</strong>. Around the same time, <code class="bg-gray-100 px-2 py-1 rounded">active_decorator</code> and a few similar gems appeared, all converging on the same shape. The community had recognized a recurring failure mode: <strong>display methods like <code class="bg-gray-100 px-2 py-1 rounded">user.formatted_name</code> or <code class="bg-gray-100 px-2 py-1 rounded">order.status_badge_color</code> kept landing on models, even though they had nothing to do with the database</strong>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The underlying rule the decorator pattern enforces, in Rails terms: <strong>"what is this thing" and "how do we display this thing" are different responsibilities.</strong> The Organization model knows the columns, the associations, the validations, the domain logic. A decorator knows the colors, the formatted name, the fallback avatar URL, the way the trademark symbol gets appended for corporations. They use the same data, but they answer different questions, asked by different parts of the system.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>If you let display logic stay on the model, every redesign becomes a model edit.</strong> The day the design team wants the listing card to use a slightly different shade of blue, you open a file used by Sidekiq workers, importers, the API, and the admin tool. That is the wrong file to be touching for a CSS-adjacent decision.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app where the Organization model has grown over the years. The marketing team wanted color-coded org cards. The branding team wanted a darker version for hover states. The design team wanted a trademark symbol on certain orgs. Each request landed as a method on the model, because that was the path of least resistance.
+      </p>
+      <CodeBlock code={`class Organization < ApplicationRecord
+  # ... 200 lines of normal Organization logic ...
+
+  # display logic that crept in over the years
+  def bg_color_for_display
+    bg_color_hex.presence || "#0a0a0a"
+  end
+
+  def text_color_for_display
+    text_color_hex.presence || "#ffffff"
+  end
+
+  def darker_bg(adjustment = 0.88)
+    Color::CompareHex.new(
+      [bg_color_for_display, text_color_for_display]
+    ).brightness(adjustment)
+  end
+
+  def display_name
+    "#{name}#{trademark? ? "™" : ""}"
+  end
+
+  def avatar_url_or_fallback
+    avatar.present? ? avatar.url : ActionController::Base.helpers.image_path("default-org.svg")
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Two specific problems are buried in this code, and both are signs the responsibilities have gotten tangled.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>First, the Organization model is reaching into <code class="bg-gray-100 px-2 py-1 rounded">ActionController::Base.helpers</code> to compute an asset path.</strong> Models do not belong in the controller layer; they should not even know that controllers exist. The moment a model imports a view helper, the layering of the app is broken. A Sidekiq job that loads an Organization should never need the controller stack on the load path, but here it does.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Second, every redesign now touches the model.</strong> When the design team rebrands the listing card next quarter, the new "darker bg" formula or the new fallback color or the new trademark rule all land in <code class="bg-gray-100 px-2 py-1 rounded">organization.rb</code>. The diff in the PR mixes database concerns with CSS concerns. <strong>The risk of the model edit accidentally breaking something unrelated (a callback, a validation, an association) goes up every time the design team needs to ship something.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Forem solves it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Forem uses Draper plus a custom <code class="bg-gray-100 px-2 py-1 rounded">ApplicationDecorator</code> base class. Every model that has non-trivial display logic gets a parallel file under <code class="bg-gray-100 px-2 py-1 rounded">app/decorators/</code>. The Organization one looks like this:
+      </p>
+      <CodeBlock code={`# forem/app/decorators/organization_decorator.rb · @9eb974c4
+# License: AGPL-3.0
+
+class OrganizationDecorator < ApplicationDecorator
+  def darker_color(adjustment = 0.88)
+    Color::CompareHex.new(
+      [enriched_colors[:bg], enriched_colors[:text]]
+    ).brightness(adjustment)
+  end
+
+  def enriched_colors
+    if bg_color_hex.blank?
+      { bg: assigned_color[:bg],
+        text: assigned_color[:text] }
+    else
+      { bg: bg_color_hex,
+        text: text_color_hex.presence || assigned_color[:text] }
+    end
+  end
+
+  def assigned_color
+    { bg: "#0a0a0a", text: "#ffffff" }
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Three design choices are doing the work here:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The decorator transparently delegates to the model.</strong> Inside <code class="bg-gray-100 px-2 py-1 rounded">enriched_colors</code>, the calls to <code class="bg-gray-100 px-2 py-1 rounded">bg_color_hex</code> and <code class="bg-gray-100 px-2 py-1 rounded">text_color_hex</code> are not method definitions on the decorator. <strong>They are calls to the underlying Organization, automatically forwarded by Draper.</strong> Wrapping a model in a decorator gives you the model's full public interface plus the decorator's display methods, all on one object.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Nothing in the decorator changes the database.</strong> No callbacks, no validations, no <code class="bg-gray-100 px-2 py-1 rounded">save</code>. The class only answers questions about presentation. <strong>That makes it impossible for a misplaced display method to accidentally trigger a write</strong>, which is one of the failure modes the model version was vulnerable to.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The default colors live as constants inside the decorator</strong>, not in the model. The Organization table does not have a "what color do we use if the org did not pick one" concept; that is a UI-side decision. Keeping the default in the decorator is the SRP-correct place for it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The view side uses the decorated object instead of the raw model:
+      </p>
+      <CodeBlock code={`# In a controller
+def show
+  @organization = Organization.find(params[:id]).decorate
+end
+
+# In the view (.html.erb)
+<div style="background: <%= @organization.enriched_colors[:bg] %>;
+            color: <%= @organization.darker_color %>;">
+  <%= @organization.name %>
+</div>`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The view never asks the model for display logic.</strong> The model never knows what hex shade was picked for hover. Each class has one reason to change: schema migrations touch the model, design-system changes touch the decorator, layout changes touch the view.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four benefits, each one a fix for a specific failure of the fat-Organization version.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Models stay about data.</strong> The schema, the validations, the associations, and the genuine domain methods. No CSS-adjacent code, no view helpers smuggled in via <code class="bg-gray-100 px-2 py-1 rounded">ActionController::Base.helpers</code>, no formatting logic. The model file shrinks, and what remains in it is unambiguously model-shaped.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Views stay declarative.</strong> No inline ternaries computing the right hex code or the right pluralized phrase. The view reads like markup with a few values plugged in, not like a logic-heavy template doing real work.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Display logic gets unit-tested.</strong> A decorator spec looks like <code class="bg-gray-100 px-2 py-1 rounded">OrganizationDecorator.new(build_stubbed(:organization)).darker_color</code>. No view rendering, no controller cycle, no factory cascade. <strong>The same coverage runs in milliseconds and takes a few lines</strong>, which means display logic actually gets tested instead of being assumed to work.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>One source of truth across multiple views.</strong> If the listing card, the profile header, and the email digest all need to show "the right shade of org color," they all use the decorator. The rebrand only changes one file. <strong>The bug class where two views render the same data differently disappears, because there is only one place the display rule lives.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Helpers vs decorators</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails ships with helpers (<code class="bg-gray-100 px-2 py-1 rounded">app/helpers/</code>) for view-layer utilities. <strong>Helpers and decorators overlap, and the choice between them matters.</strong> The rule of thumb:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Helper</strong> — for view-layer utilities that do not center on a specific model. Formatting a money amount, rendering a flash message, building a navigation list, generating a CSS class from a status string.</li>
+        <li><strong>Decorator</strong> — for display logic <em>about a specific record</em>. Anything that would otherwise have been a method on the model named <code class="bg-gray-100 px-2 py-1 rounded">&#123;model&#125;.formatted_x_for_view</code> or <code class="bg-gray-100 px-2 py-1 rounded">&#123;model&#125;.display_y</code>.</li>
+      </ul>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>A decorator is not a wrapper for arbitrary behavior.</strong> If a method on the decorator changes the world (sends an email, fires a job, updates a counter), it does not belong in a decorator. Decorators answer the question "how does this thing look?" and nothing else. <strong>The discipline is what keeps the responsibility from drifting.</strong>
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p><strong>The model owns the data; the view owns the layout; the decorator owns the rules that turn data into presentation.</strong> Each of those three has a different change driver. Schema migrations move the model. Layout redesigns move the view. Design-system tweaks move the decorator. Keeping the three responsibilities in three classes means each change touches the file that actually owns the decision.</p>
+        <p>The deeper move, the one the Gang of Four were pointing at in 1994, is that <strong>you can add behavior to an object without modifying the object itself</strong>. The Organization model never had to know it would one day need a "darker color for hover" method. The decorator was added later, in a separate file, and the model is unaware. <strong>Each new piece of behavior is additive, not invasive.</strong></p>
+        <p>The Rails-specific lesson, two decades later: <strong>view-layer concerns try to drift downward into the model</strong> because models are conveniently passed to views and "putting a method on the user" feels easier than creating a new class. The drift is usually invisible until the first big redesign, at which point every CSS change becomes a database-model change, and the friction makes the team afraid to redesign. Decorators are the small upfront investment that keeps redesigns cheap.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Open your largest model. Search for methods that exist only to be called from a view: anything ending in <code class="bg-gray-100 px-2 py-1 rounded">_for_display</code>, <code class="bg-gray-100 px-2 py-1 rounded">_html</code>, <code class="bg-gray-100 px-2 py-1 rounded">_text</code>, <code class="bg-gray-100 px-2 py-1 rounded">formatted_*</code>, <code class="bg-gray-100 px-2 py-1 rounded">display_*</code>, or that return HTML-safe strings.</li>
+        <li>For each one, ask the question: <strong>"Would I ever call this from a Sidekiq job, a Rake task, or an importer?"</strong> If the answer is no, it is display logic and it belongs in a decorator.</li>
+        <li>Sketch the decorator. Common name pattern: <code class="bg-gray-100 px-2 py-1 rounded">&#123;Model&#125;Decorator</code>. List the methods that move over. <strong>Visualize the model file with those methods gone — that is the version of the model you actually want.</strong></li>
+        <li>Bonus: open <code class="bg-gray-100 px-2 py-1 rounded">app/views/</code> and look for ternary expressions, inline hex colors, or <code class="bg-gray-100 px-2 py-1 rounded">if/else</code> branches choosing what to display. <strong>Each of those is presentation logic that escaped into the markup.</strong> Decorators are usually the better home.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-srp-policy-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 4 — Policy Objects</a>
+      <a href="/lessons/senior-srp-concerns" class="text-ruby hover:text-ruby-dark transition-colors">SRP 6 — Concerns →</a>
+    </div>
+  </article>
+</Layout>

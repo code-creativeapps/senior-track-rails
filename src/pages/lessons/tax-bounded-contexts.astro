@@ -1,0 +1,134 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="One model class serving four teams" description="Why a single Order model used by checkout, fulfillment, support, and analytics becomes the file no one wants to touch.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> All lessons
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 18 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">One model class serving four teams</h1>
+      <p class="text-xl text-gray-600">Why a single <code class="bg-gray-100 px-2 py-1 rounded text-base">Order</code> model used by checkout, fulfillment, support, and analytics becomes the file no one wants to touch.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class Order < ApplicationRecord
+  # Used by checkout (cart, totals)
+  has_many :line_items
+  scope :pending, -> { where(status: "pending") }
+
+  # Used by fulfillment (warehouse picks)
+  has_many :shipments
+  scope :ready_to_ship, -> { where(status: "submitted").where.not(warehouse_id: nil) }
+
+  # Used by support (refund flow)
+  has_many :refund_requests
+  scope :refundable, -> { where(status: "fulfilled").where("created_at > ?", 30.days.ago) }
+
+  # Used by analytics (cohort reports)
+  scope :by_cohort, ->(month) { where(created_at: month.all_month) }
+
+  # 60 columns, 30 scopes, 200 lines of model code...
+end`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed">A single <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Order</code> class is shared between checkout, fulfillment, support, and analytics. <strong>A change driven by one team can break another</strong> — adding a new status value for refunds breaks a checkout query that didn't account for it. The word "submitted" means slightly different things to different parts of the app. Every team works with 60 columns even when they only care about 5. The file becomes the thing nobody wants to touch because nobody fully understands what depends on it.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, ask yourself whether sharing the same class across all those teams is actually what you want. What do they each need from "an order"?
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4"><strong>Split the model by context.</strong> Sharing a database table doesn't mean sharing a class. Each context gets its own class that points at the same table but exposes only the columns and methods that context cares about. Teams can then evolve their part without coordinating with everyone else.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>A change for fulfillment can't break checkout</li>
+            <li>Each class shows only what one team actually uses</li>
+            <li>Teams can evolve their part without coordinating with the others</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`module Checkout
+  class Order < ApplicationRecord
+    self.table_name = "orders"
+    has_many :line_items, class_name: "Checkout::LineItem"
+
+    def submit!
+      # checkout-specific submission logic
+    end
+  end
+end
+
+module Fulfillment
+  class Order < ApplicationRecord
+    self.table_name = "orders"
+    has_many :shipments
+
+    def assign_warehouse(warehouse)
+      # fulfillment-specific logic
+    end
+  end
+end
+
+# Each part of the app uses the model from its context:
+Checkout::Order.find(id).submit!
+Fulfillment::Order.find(id).assign_warehouse(wh)`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Bounded contexts
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>Domain-driven design has a name for this: bounded contexts. The same word — "order", "user", "product" — can mean meaningfully different things in different parts of the business. <strong>An "order" in checkout isn't the same thing as an "order" in fulfillment.</strong> Checkout cares about whether the cart is valid and the total is right. Fulfillment cares about which warehouse, which shipment, what's been picked. They overlap, but they're not the same model.</p>
+            <p>Trying to model both with one class makes both of them worse. The class accumulates everything that any team needs, the file balloons, and every change risks affecting parts of the codebase the author didn't know existed.</p>
+            <p>Splitting by context is one of those refactors that feels expensive up front and pays off slowly. The first time you split a god model into per-context classes, you'll feel like you're duplicating things. The first time a fulfillment change ships without anyone needing to think about checkout, you'll see why.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-value-objects" class="text-ruby hover:text-ruby-dark transition-colors">← Card 17</a>
+      <a href="/lessons/tax-domain-events" class="text-ruby hover:text-ruby-dark transition-colors">Card 19 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

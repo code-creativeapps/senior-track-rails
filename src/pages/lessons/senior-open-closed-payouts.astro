@@ -1,0 +1,210 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Lesson 2 — The Open/Closed Principle in Real Rails Code" description="Learn how to design Rails code that handles new variants without rewriting existing files, illustrated by the payout system in Gumroad's open-source codebase.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Lesson 2 — The Open/Closed Principle in Real Rails Code</h1>
+      <p class="text-xl text-gray-600">Learn how to design Rails code that handles new variants without rewriting existing files, illustrated by the payout system in Gumroad's open-source codebase.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What Is the Open/Closed Principle?</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Open/Closed is one of the five SOLID design principles. It was named by Bertrand Meyer in his 1988 book <em>Object-Oriented Software Construction</em>. The idea is that software entities (classes, modules) should be <strong>open for extension but closed for modification</strong>. You should be able to add new behavior without changing the code that already works.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In a Rails application, this principle shows up whenever you have multiple variants of the same concept: payment processors, notification channels, report formats, integration types. When you organize the code well, adding a new variant is cheap and the existing code doesn't need to change.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        We are going to study how Gumroad applies the principle to their payout system, which supports both Stripe and PayPal.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Anti-Pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Before looking at the good design, here is the version of the code most Rails apps have when no one has thought about extension. A worker processes a payout and uses a <code class="bg-gray-100 px-2 py-1 rounded">case</code> statement to branch on the processor type:
+      </p>
+      <CodeBlock code={`class ProcessPaymentWorker
+  def perform(payment_id)
+    payment = Payment.find(payment_id)
+
+    case payment.processor
+    when "stripe"
+      # 40 lines of Stripe-specific code
+    when "paypal"
+      # 35 lines of PayPal-specific code
+    end
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        This works. The problem is that the same <code class="bg-gray-100 px-2 py-1 rounded">case payment.processor</code> statement tends to appear in many places: the worker, the user model, the admin dashboard, the mailer that sends payout receipts, the CSV export. Every time you add a processor, every one of these files needs a new <code class="bg-gray-100 px-2 py-1 rounded">when</code> branch.
+      </p>
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Note:</strong> This pattern has a name. Martin Fowler calls it <em>shotgun surgery</em>: one logical change scattered across many files. It is a strong signal that the code structure does not match the shape of the problem.
+        </p>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">A Better Approach: The Registry</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Gumroad's payout system uses a small Ruby module called <code class="bg-gray-100 px-2 py-1 rounded">PayoutProcessorType</code>. The module maps each processor's string identifier to the class that handles it.
+      </p>
+      <CodeBlock code={`# app/business/payments/payouts/payout_processor_type.rb
+module PayoutProcessorType
+  PAYPAL = "PAYPAL"
+  STRIPE = "STRIPE"
+
+  ALL = {
+    PAYPAL => PaypalPayoutProcessor,
+    STRIPE => StripePayoutProcessor
+  }.freeze
+  private_constant :ALL
+
+  def self.get(payout_processor_type)
+    ALL[payout_processor_type]
+  end
+
+  def self.all
+    ALL.keys
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The module has two string constants (one per processor), a private hash that maps each constant to the class that implements it, and two class methods. <code class="bg-gray-100 px-2 py-1 rounded">get</code> returns the class for a given type, and <code class="bg-gray-100 px-2 py-1 rounded">all</code> returns the list of types.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Now look at how the worker dispatches a payment using the registry:
+      </p>
+      <CodeBlock code={`# app/sidekiq/process_payment_worker.rb
+class ProcessPaymentWorker
+  def perform(payment_id)
+    payment = Payment.find(payment_id)
+    PayoutProcessorType.get(payment.processor).process_payments([payment])
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The worker does not know which processor it is calling. It asks the registry for the right class and tells that class to do the work. There is no <code class="bg-gray-100 px-2 py-1 rounded">case</code> statement.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Uniform Interface</h2>
+      <p class="text-gray-700 leading-relaxed">
+        For this design to work, both processor classes must expose the same public methods with the same signatures. Here is a simplified view of both classes:
+      </p>
+      <CodeBlock code={`class StripePayoutProcessor
+  def self.is_user_payable(user, amount_cents, ...)
+  def self.has_valid_payout_info?(user)
+  def self.is_balance_payable(balance)
+  def self.prepare_payment_and_set_amount(payment, balances)
+  def self.process_payments(payments)
+end
+
+class PaypalPayoutProcessor
+  def self.is_user_payable(user, amount_cents, ...)
+  def self.has_valid_payout_info?(user)
+  def self.is_balance_payable(balance)
+  def self.prepare_payment_and_set_amount(payment, balances)
+  def self.process_payments(payments)
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The internal code in each class is completely different. <code class="bg-gray-100 px-2 py-1 rounded">StripePayoutProcessor#is_user_payable</code> checks for a connected Stripe account and a valid bank account. <code class="bg-gray-100 px-2 py-1 rounded">PaypalPayoutProcessor#is_user_payable</code> checks for a valid PayPal email address and compliance information. The implementations have nothing to do with each other. The contract, meaning the public methods and what they are supposed to do, is the same.
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Important:</strong> The shared contract is what makes the registry work. If <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">process_payments</code> failed on PayPal but worked on Stripe, the worker would need processor-specific code again. Keeping the public surface uniform is the discipline that holds the design together.
+        </p>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Adding a New Processor</h2>
+      <p class="text-gray-700 leading-relaxed">
+        This is where the payoff shows up. Imagine your team needs to add a third payout processor, like Wise, for international creators.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In the anti-pattern version, you would grep for <code class="bg-gray-100 px-2 py-1 rounded">case payment.processor</code>, find six different files, and add a new <code class="bg-gray-100 px-2 py-1 rounded">when "wise"</code> branch in each one. Miss one, and a payment might get the wrong status email or skip a notification.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In Gumroad's design, you do two things:
+      </p>
+      <CodeBlock code={`# 1. Create a new file with the same public interface as the others:
+# app/business/payments/payouts/processor/wise/wise_payout_processor.rb
+class WisePayoutProcessor
+  def self.is_user_payable(user, amount_cents, ...) ... end
+  def self.has_valid_payout_info?(user) ... end
+  # ... and the rest of the public interface
+end
+
+# 2. Add one line to the registry:
+WISE = "WISE"
+
+ALL = {
+  PAYPAL => PaypalPayoutProcessor,
+  STRIPE => StripePayoutProcessor,
+  WISE   => WisePayoutProcessor,
+}.freeze`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        That is the entire change. The worker, the user model, the mailer, and the CSV export all stay exactly as they are. New behavior comes from a new file. The existing code is closed for modification.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Supporting Principles</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Two other SOLID principles support Open/Closed in this design.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The first is <strong>Liskov Substitution</strong>. Any class returned from <code class="bg-gray-100 px-2 py-1 rounded">PayoutProcessorType.get(...)</code> must be usable in place of any other. The caller does not know which one it got, and does not need to. Ruby has no compiler to enforce this, so the discipline is on the developer to keep the public surface consistent. The test suite is what catches mistakes.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The second is <strong>Dependency Inversion</strong>. The worker does not depend on <code class="bg-gray-100 px-2 py-1 rounded">StripePayoutProcessor</code> or <code class="bg-gray-100 px-2 py-1 rounded">PaypalPayoutProcessor</code> directly. It depends on the registry's contract: a class that responds to <code class="bg-gray-100 px-2 py-1 rounded">process_payments</code>. High-level code (workers, models, mailers) depends on the registry, not on the specific payment APIs. This makes mocking easier in tests and makes adding new processors cheap.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When to Apply It</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Open/Closed has a cost. The registry adds a layer of indirection that someone reading the code has to follow. For one variant, that cost is not worth paying. Build a registry only when you have at least two variants in the codebase or when a second one is genuinely on the roadmap.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        If the differences between variants are small (a few lines of <code class="bg-gray-100 px-2 py-1 rounded">if</code> logic), keep the simple version. The pattern earns its weight when the variants have substantially different internals and when the type identifier appears in many places.
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>Important:</strong> A common mistake in the other direction is building a registry for a single class. The abstraction is empty until the second variant exists. Wait until the second variant is real before introducing the structure.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice Exercise</h3>
+      <p class="text-gray-700 leading-relaxed">
+        Open the source code of any Rails project you have access to (yours or an open-source app like Mastodon or Discourse) and complete the following:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "case " app/</code> and look at the results.</li>
+        <li>Pick one <code class="bg-gray-100 px-2 py-1 rounded">case</code> statement that switches on a string field (like <code class="bg-gray-100 px-2 py-1 rounded">kind</code>, <code class="bg-gray-100 px-2 py-1 rounded">type</code>, <code class="bg-gray-100 px-2 py-1 rounded">status</code>, or <code class="bg-gray-100 px-2 py-1 rounded">processor</code>). Note which file it is in.</li>
+        <li>Search for the same field in other places: <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "field_name"</code>. Look for other <code class="bg-gray-100 px-2 py-1 rounded">case</code> or <code class="bg-gray-100 px-2 py-1 rounded">if/elsif</code> branches that switch on it.</li>
+        <li>Count the files. If the answer is one, the code is fine. If it is three or more, there is a registry-shaped opportunity to refactor.</li>
+        <li>Sketch what the registry would look like. What would the constants be? What public methods would every variant need to implement? Could every existing variant honor that contract?</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed text-sm">
+        <strong>Tip:</strong> The point of this exercise is not to refactor real code right now. It is to train your eye to recognize the pattern. The earlier you can see a <code class="bg-gray-100 px-2 py-1 rounded">case</code>-on-string-field that is about to grow into a problem, the more often you will catch it before it becomes a 30-file pull request.
+      </p>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-eager-loading" class="text-ruby hover:text-ruby-dark transition-colors">← Lesson 1</a>
+      <a href="/lessons/senior-srp-service-objects" class="text-ruby hover:text-ruby-dark transition-colors">Next: SRP Series →</a>
+    </div>
+  </article>
+</Layout>

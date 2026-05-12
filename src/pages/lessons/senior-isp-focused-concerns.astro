@@ -1,0 +1,282 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="ISP 1 of 2 — Focused Concerns Over Fat Mixins" description="Where the Interface Segregation Principle comes from, why fat shared modules force classes to pay for behavior they do not use, and how Mastodon keeps its concerns small and focused.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">ISP Series · 1 of 2</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">✂️</span>
+        <h1 class="text-4xl font-bold text-gray-900">Focused Concerns Over Fat Mixins</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where the Interface Segregation Principle comes from, why fat shared modules force classes to pay for behavior they do not use, and how Mastodon keeps its concerns small and focused.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The Interface Segregation Principle is the I in SOLID.</strong> Robert Martin coined the rule in the late 1990s while consulting at Xerox on a printer driver project that had become unmaintainable. The original problem was a single "Printer" interface so wide that every concrete printer driver had to implement dozens of methods, even when most of them did not apply. Adding a fax machine that could not staple still required a <code class="bg-gray-100 px-2 py-1 rounded">staple</code> method on the fax driver — usually a no-op or a raise.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Martin's rule, in its one-line form: <strong>clients should not be forced to depend on interfaces they do not use</strong>. If a class only needs to print, it should not have to know about stapling. If it only needs to scan, it should not have to know about printing. <strong>The fix is to split a fat interface into several small, focused ones, and let each client depend only on what it actually uses.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Ruby does not have formal interfaces, but it has concerns — modules that are mixed into classes via <code class="bg-gray-100 px-2 py-1 rounded">include</code>. <strong>A concern is the Ruby analog of an interface, and ISP applies directly.</strong> When a concern grows to 200 lines covering authentication, search, soft-delete, and audit logging, every class that includes it pays for behavior it does not use. The methods clutter the class's public surface; the database columns the concern assumes exist become required on every including model; the callbacks fire on every save.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior move in Rails, anchored by ISP, is to <strong>keep concerns small and focused on a single capability</strong>. One concern per capability. A class that needs three capabilities includes three small concerns, not one big one. <strong>The cost is more files; the payoff is that classes pay only for what they use.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails app where the team noticed several models needed "soft delete, audit logging, search indexing, and full-text snippets." Someone wrote a single <code class="bg-gray-100 px-2 py-1 rounded">AuditableSearchable</code> concern and included it in five models:
+      </p>
+      <CodeBlock code={`module AuditableSearchable
+  extend ActiveSupport::Concern
+
+  included do
+    # Soft delete
+    scope :active, -> { where(deleted_at: nil) }
+    scope :archived, -> { where.not(deleted_at: nil) }
+
+    # Audit logging
+    has_many :audit_logs, as: :auditable, dependent: :destroy
+    after_create  :log_creation
+    after_update  :log_update
+    after_destroy :log_destruction
+
+    # Search
+    after_commit :reindex
+    after_destroy :remove_from_index
+
+    # Snippet generation
+    before_save :generate_snippet, if: :content_changed?
+  end
+
+  def soft_delete!
+    update!(deleted_at: Time.current)
+  end
+
+  def restore!
+    update!(deleted_at: nil)
+  end
+
+  def deleted?
+    deleted_at.present?
+  end
+
+  # ... 20 more methods covering search, audit retrieval, snippet rendering
+
+  private
+
+  def log_creation; end
+  def log_update; end
+  # ... and so on
+end
+
+class Article < ApplicationRecord
+  include AuditableSearchable
+end
+
+class Comment < ApplicationRecord
+  include AuditableSearchable
+end
+
+class User < ApplicationRecord
+  include AuditableSearchable
+end
+
+class Tag < ApplicationRecord
+  include AuditableSearchable
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Tag does not need a search index.</strong> Comments do not need snippets. User definitely should not have a soft-delete column with audit logs, because users have their own delete-account flow. <strong>Every class that includes <code class="bg-gray-100 px-2 py-1 rounded">AuditableSearchable</code> gets all four capabilities whether it needs them or not.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The hidden costs accumulate quietly:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Database columns become implicit requirements.</strong> Every model that includes the concern needs <code class="bg-gray-100 px-2 py-1 rounded">deleted_at</code>, even if it never gets soft-deleted. Migrations get noisier; schemas get sparser.</li>
+        <li><strong>Callbacks fire even when meaningless.</strong> Tag triggers reindex on every save, even though there is no search index for tags.</li>
+        <li><strong>The public surface bloats.</strong> An Article responds to <code class="bg-gray-100 px-2 py-1 rounded">soft_delete!</code>, <code class="bg-gray-100 px-2 py-1 rounded">audit_logs</code>, <code class="bg-gray-100 px-2 py-1 rounded">snippet</code>, and <code class="bg-gray-100 px-2 py-1 rounded">reindex</code>, plus another 15 methods. Reading the Article's interface in a console (<code class="bg-gray-100 px-2 py-1 rounded">article.public_methods</code>) returns a wall of noise.</li>
+        <li><strong>Test setup gets heavier.</strong> Every test that creates an Article triggers the audit-log machinery, the search reindex, the snippet generation. The team adds stubs and skips to make tests fast, accumulating coupling between tests and the concern.</li>
+        <li><strong>Adding a fifth capability is an ugly choice.</strong> Either grow the concern further, or split it now and update every including class.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How Mastodon does this well</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Mastodon has dozens of concerns under <code class="bg-gray-100 px-2 py-1 rounded">app/models/concerns/</code>, and most of them are tiny. Each one captures exactly one capability. The names announce the boundary: <code class="bg-gray-100 px-2 py-1 rounded">Expireable</code>, <code class="bg-gray-100 px-2 py-1 rounded">Reviewable</code>, <code class="bg-gray-100 px-2 py-1 rounded">Lockable</code>, <code class="bg-gray-100 px-2 py-1 rounded">RateLimitable</code>, <code class="bg-gray-100 px-2 py-1 rounded">Paginable</code>, <code class="bg-gray-100 px-2 py-1 rounded">DomainMaterializable</code>. <strong>Every model includes exactly the concerns it needs, and no more.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The Expireable concern we looked at in the SRP series is 20 lines and depends on exactly two columns (<code class="bg-gray-100 px-2 py-1 rounded">expires_at</code>, <code class="bg-gray-100 px-2 py-1 rounded">created_at</code>). RateLimitable depends on a different column and a different lifecycle. A model that needs both includes both; a model that needs only one includes only one.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Here is RateLimitable in full — same shape, smaller surface:
+      </p>
+      <CodeBlock code={`# mastodon/app/models/concerns/rate_limitable.rb · @bdad4f78
+# License: AGPL-3.0
+
+module RateLimitable
+  extend ActiveSupport::Concern
+
+  included do
+    attribute :rate_limit, :boolean, default: false
+  end
+
+  def rate_limiter(by, options = {})
+    return @rate_limiter if defined?(@rate_limiter)
+    @rate_limiter = RateLimiter.new(by, options)
+  end
+
+  class_methods do
+    def rate_limit(options = {})
+      after_create do
+        by = public_send(options[:by])
+        if rate_limit? && by&.local?
+          rate_limiter(by, options).record!
+        end
+      end
+    end
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Twenty-five lines, one capability, opt-in via an explicit DSL call.</strong> A model that wants rate limiting includes RateLimitable and calls <code class="bg-gray-100 px-2 py-1 rounded">rate_limit(by: :account)</code>. A model that does not is unaffected. <strong>The cost of including the concern is paid only by classes that actually use it.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior move: split until each concern names one capability</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The fat <code class="bg-gray-100 px-2 py-1 rounded">AuditableSearchable</code> concern is four concerns in a trench coat. The ISP-correct version splits it:
+      </p>
+      <CodeBlock code={`module SoftDeletable
+  extend ActiveSupport::Concern
+  included do
+    scope :active, -> { where(deleted_at: nil) }
+    scope :archived, -> { where.not(deleted_at: nil) }
+  end
+  def soft_delete!; update!(deleted_at: Time.current); end
+  def restore!;     update!(deleted_at: nil); end
+  def deleted?;     deleted_at.present?; end
+end
+
+module Auditable
+  extend ActiveSupport::Concern
+  included do
+    has_many :audit_logs, as: :auditable, dependent: :destroy
+    after_create  :log_creation
+    after_update  :log_update
+    after_destroy :log_destruction
+  end
+  # ... audit-only methods
+end
+
+module Searchable
+  extend ActiveSupport::Concern
+  included do
+    after_commit :reindex
+    after_destroy :remove_from_index
+  end
+  # ... search-only methods
+end
+
+module Snippetable
+  extend ActiveSupport::Concern
+  included do
+    before_save :generate_snippet, if: :content_changed?
+  end
+  # ... snippet-only methods
+end
+
+# Now each model declares exactly its needs:
+class Article < ApplicationRecord
+  include SoftDeletable, Auditable, Searchable, Snippetable
+end
+
+class Comment < ApplicationRecord
+  include SoftDeletable, Auditable  # no search, no snippet
+end
+
+class Tag < ApplicationRecord
+  include Searchable  # tags are not soft-deleted; no audit log
+end
+
+class User < ApplicationRecord
+  include Auditable  # users have their own archive flow; no soft delete here
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Each <code class="bg-gray-100 px-2 py-1 rounded">include</code> line is a declaration of intent.</strong> Reading the Comment model tells you the team thought about audit and soft-delete and decided yes, and thought about search and snippets and decided no. <strong>The model's public surface narrows to exactly what it actually uses.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Why this design holds up</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four wins come out of the split, each one solving a fat-concern failure mode.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Classes pay only for what they use.</strong> Tag's interface is small. The User's lifecycle is not muddled with a soft-delete column it should not have. <strong>Adding a new capability to one concern does not bloat unrelated classes.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Each concern can be tested in isolation.</strong> A SoftDeletable test creates a fake model with one column and calls <code class="bg-gray-100 px-2 py-1 rounded">soft_delete!</code>. No audit log machinery, no search index, no snippet rendering. <strong>The test scopes to one capability.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The include declarations are documentation.</strong> Reading a model's top section tells you what capabilities the team consciously added. <strong>The list of concerns is a short, scannable summary of the model's responsibilities</strong>, where a single fat concern was a black box.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Adding a fifth capability is a fifth file.</strong> No existing concerns change. No existing models change unless they want to opt in. <strong>The system is open to extension and closed to modification</strong> — the OCP series's framing applied to capabilities rather than implementations.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When NOT to split</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Splitting can go too far. Two capabilities that are always used together, with no class ever needing one without the other, do not benefit from being separate. <strong>The cost of an extra file is real (an extra navigation hop, an extra include line, an extra concept).</strong> Only split when at least one including class genuinely uses one capability without the other.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        A simple test: <strong>look at every including class. If every one of them includes the same combination of concerns, those concerns could be merged.</strong> If at least one class includes one but not the other, the split is paying for itself.
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>The ISP-equivalent test for concerns:</strong> for each method in the concern, ask "would every including class call this method, or even need to?" If the answer is no, the concern is wider than its callers need. Either split it, or move the unused method out.
+        </p>
+      </div>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>The Interface Segregation Principle is a statement about <strong>where coupling lives</strong>. A class that includes a fat module is coupled to every method that module provides, even if it uses only one. The coupling is invisible until something forces the issue — a refactor, a migration, a name conflict — at which point every including class is in the blast radius of a change to the shared module.</p>
+        <p>The deeper move is captured by the rule: <strong>a class should not be forced to know about things it does not need</strong>. The "things" here are methods, callbacks, scopes, database columns. Each one is a small coupling. A fat concern multiplies the coupling across every class that includes it.</p>
+        <p>Concerns carry their weight in Rails because Ruby's module system makes them quick to write. The discipline ISP imposes is <strong>not to make them so wide that the power becomes a tax</strong>. Each concern names one capability; each class includes exactly the capabilities it uses. The list of <code class="bg-gray-100 px-2 py-1 rounded">include</code> lines at the top of the model becomes a description of what the model does, instead of a single opaque mixin that does five things at once.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>List the concerns in your app: <code class="bg-gray-100 px-2 py-1 rounded">ls app/models/concerns/ app/controllers/concerns/</code>.</li>
+        <li>Open the largest concern. <strong>Count the distinct capabilities it provides.</strong> Hint: each capability tends to come with its own scopes, callbacks, methods, and assumed columns.</li>
+        <li>If the count is more than one, the concern is fat. Sketch the split: which methods, callbacks, and scopes go into each new focused concern?</li>
+        <li>Grep for <code class="bg-gray-100 px-2 py-1 rounded">include FatConcernName</code>. For each including class, ask: does this class use every capability the concern provides, or only some? <strong>Every "only some" is a signal that the split would help.</strong></li>
+        <li>Bonus: when you split, also check the database. Some concerns assume specific columns. <strong>If a class includes the concern but does not have the column, the include is lying.</strong> Either the class needs the column or it should not include the concern.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-lsp-contract-breaking" class="text-ruby hover:text-ruby-dark transition-colors">← LSP 2 — Contract Breaking</a>
+      <a href="/lessons/senior-isp-role-interfaces" class="text-ruby hover:text-ruby-dark transition-colors">ISP 2 — Role-Based Interfaces →</a>
+    </div>
+  </article>
+</Layout>

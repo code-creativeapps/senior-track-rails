@@ -1,0 +1,106 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="update_all is a SQL escape hatch — it skips your callbacks" description="Why a fast bulk update can leave 50,000 users with broken state.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/lessons/spot-the-tax" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> All lessons
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Spot the Tax · Card 15 of 20</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4"><code class="bg-gray-100 px-2 py-1 rounded text-3xl">update_all</code> is a SQL escape hatch</h1>
+      <p class="text-xl text-gray-600">Why a fast bulk update can quietly leave 50,000 users with broken state.</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="text-red-600">❌</span> The code
+        </h3>
+        <p class="text-gray-700 italic mb-3">What will this cost you in six months?</p>
+        <div class="border-2 border-red-200 rounded-lg p-4 bg-red-50/30">
+          <CodeBlock code={`class User < ApplicationRecord
+  before_save :extend_trial_if_needed
+
+  private
+
+  def extend_trial_if_needed
+    self.trial_ends_at = 14.days.from_now if role == "trial"
+  end
+end
+
+# In a rake task:
+User.where(role: "free").update_all(role: "trial")`} language="ruby" />
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">The problem</h3>
+        <p class="text-gray-700 leading-relaxed"><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">update_all</code> sends a single SQL <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">UPDATE</code> statement directly. It skips callbacks, validations, and even <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">updated_at</code>. That's the whole point of it — it's the fast path. But it also means the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_save</code> that sets <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">trial_ends_at</code> doesn't fire. <strong>50,000 users now have their role set to "trial" but a nil trial_ends_at</strong>, and three days later support starts getting tickets from people whose trial expired the moment they signed up.</p>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-7 my-2">
+        <p class="text-base text-gray-700 leading-relaxed">
+          <strong>Take a moment.</strong> Before revealing, think about what you'd use instead when callbacks need to fire — and how you'd make it obvious in the code when callbacks are deliberately being skipped.
+        </p>
+      </div>
+
+      <div class="flex gap-4 pt-4 border-t border-gray-200">
+        <button
+          id="show-solution-btn"
+          class="px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+        >
+          Reveal the solution and the principle
+        </button>
+      </div>
+
+      <div id="solution-section" class="hidden space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-green-600">✅</span> The solution
+          </h3>
+          <p class="text-gray-700 leading-relaxed mb-4">When the model has callbacks that need to fire (or validations you can't skip, or invariants the model is responsible for), <strong>iterate explicitly with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">find_each</code> and call <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">update!</code> on each record</strong>. It's slower than the SQL escape hatch, but it preserves everything Active Record was doing for you.</p>
+          <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+            <li>Callbacks fire, invariants stay intact</li>
+            <li>If you do choose to use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">update_all</code>, leave a comment that says callbacks are deliberately skipped</li>
+            <li>The next reader can tell whether the choice was considered or accidental</li>
+          </ul>
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+            <CodeBlock code={`User.where(role: "free").find_each do |user|
+  user.update!(role: "trial")
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span>💡</span> The principle at play — Performance shortcuts skip the framework
+          </h3>
+          <div class="space-y-3 text-gray-700 leading-relaxed">
+            <p>Active Record gives you a lot of behavior for free: validations, callbacks, timestamps, dirty tracking, association management. <strong>The price of that is overhead</strong>, and Rails gives you escape hatches like <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">update_all</code>, <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">delete_all</code>, and <code class="bg-blue-100 px-1.5 py-0.5 rounded text-sm">insert_all</code> for the cases where you don't need any of it and want raw SQL speed.</p>
+            <p>The thing to remember is that those escape hatches don't just skip the overhead — <strong>they skip every guarantee the framework was providing</strong>. The validations that protect your data, the callbacks that keep related state in sync, the timestamps that tell you when a row last changed: all of them silently disappear. That's fine when you've thought about it. It's painful when you haven't.</p>
+            <p>The discipline is to be deliberate. If you're using a bulk SQL operation, ask "what is this skipping, and am I OK with that?" before you ship it. And leave a one-line comment so the next developer doesn't have to re-derive the answer.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/tax-batched-iteration" class="text-ruby hover:text-ruby-dark transition-colors">← Card 14</a>
+      <a href="/lessons/tax-anemic-models" class="text-ruby hover:text-ruby-dark transition-colors">Card 16 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const section = document.getElementById('solution-section');
+    if (btn && section) {
+      btn.addEventListener('click', () => {
+        section.classList.remove('hidden');
+        btn.classList.add('hidden');
+      });
+    }
+  </script>
+</Layout>

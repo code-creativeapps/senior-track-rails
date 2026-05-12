@@ -1,0 +1,42 @@
+---
+import { codeToHtml } from 'shiki';
+
+interface Props {
+  code: string;
+  language?: string;
+  theme?: string;
+}
+
+const { code, language = 'ruby', theme = 'github-dark' } = Astro.props;
+
+// Decode HTML entities back to original characters for Shiki
+const decodedCode = code
+  .replace(/&#60;/g, '<')
+  .replace(/&#62;/g, '>')
+  .replace(/&#123;/g, '{')
+  .replace(/&#125;/g, '}')
+  .replace(/&amp;/g, '&');
+
+const html = await codeToHtml(decodedCode, {
+  lang: language,
+  theme: theme,
+});
+---
+
+<Fragment set:html={html} />
+
+<style>
+  :global(pre.shiki) {
+    margin: 0;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    background: #0d1117 !important;
+  }
+  
+  :global(.shiki) {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 0.9em;
+    line-height: 1.6;
+  }
+</style>
