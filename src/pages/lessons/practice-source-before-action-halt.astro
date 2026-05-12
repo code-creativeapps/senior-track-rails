@@ -1,0 +1,130 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Why is the unauthorized user still hitting your action?" description="Practice card. A before_action that looks like it should block, but doesn't. Drills the halting rule.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Reading the Source · Card 4</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Why is the unauthorized user still hitting your action?</h1>
+      <p class="text-xl text-gray-600">A <code class="bg-gray-100 px-2 py-1 rounded text-base">before_action</code> that reads like it should block non-admins. It doesn't. The bug is one missing call.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The code
+          </h3>
+          <p class="text-gray-700 italic mb-3">A non-admin can call <code>destroy</code>. The before_action runs, but doesn't stop them.</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class PostsController < ApplicationController
+  before_action :require_admin, only: [:destroy]
+
+  def destroy
+    @post = Post.find(params[:id])
+    @post.destroy
+    redirect_to posts_path
+  end
+
+  private
+
+  def require_admin
+    flash[:alert] = "Admins only" unless current_user.admin?
+  end
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">A regular user calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">DELETE /posts/42</code>. The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">require_admin</code> callback runs. The post still gets destroyed. <strong>What rule did this controller break?</strong></p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Rails halts the callback chain when a specific condition is met. Setting <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">flash[:alert]</code> isn't that condition. What is?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the answer →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The answer
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-4"><strong>The callback never set a response, so Rails ran the action anyway.</strong> Rails halts the chain only when a before_action calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">render</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">redirect_to</code>, or throws <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:abort</code>. Setting <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">flash[:alert]</code> mutates the session, but doesn't tell Rails "stop the chain." The fix:</p>
+            <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+              <CodeBlock code={`def require_admin
+  unless current_user.admin?
+    flash[:alert] = "Admins only"
+    redirect_to root_path   # <-- this is what halts the chain
+  end
+end
+
+# Now:
+#   non-admin hits DELETE /posts/42
+#   require_admin runs → redirect_to root_path
+#   Rails sees response is set → chain halts
+#   destroy action is SKIPPED
+#   user lands on root_path with the flash`} language="ruby" />
+            </div>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> The halting rule
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>Rails checks one thing between callbacks: <strong>has a response been set?</strong> If yes, the chain halts and the action is skipped. If no, the chain keeps going. That's the entire rule.</p>
+              <p>Calling <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">render</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">redirect_to</code> sets the response. Setting <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">flash</code>, mutating instance variables, logging, or returning <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">false</code> from the callback does not. This is the most common authorization bug shape in Rails: a callback that "looks" like it blocks, but only mutates state.</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the full walkthrough of <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_action</code> chains and halting, read <a href="/lessons/source-before-action" class="text-ruby hover:text-ruby-dark font-medium">Card 6 of Reading the Source</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-source-require-vs-bracket" class="text-ruby hover:text-ruby-dark transition-colors">← Card 3</a>
+      <a href="/lessons/practice-source-raw-form-missing" class="text-ruby hover:text-ruby-dark transition-colors">Card 5 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>

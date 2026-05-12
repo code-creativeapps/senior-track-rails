@@ -1,0 +1,126 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="What's missing from this hand-written form?" description="Practice card. A raw HTML form that looks complete. Three things Rails would add are missing. Drills form_with's assembly.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Practice · Reading the Source · Card 5</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">What's missing from this hand-written form?</h1>
+      <p class="text-xl text-gray-600">A developer reaches for raw HTML instead of <code class="bg-gray-100 px-2 py-1 rounded text-base">form_with</code>. The form posts, but it doesn't work. Three things Rails would have inserted automatically are missing.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The form
+          </h3>
+          <p class="text-gray-700 italic mb-3">For an existing Post (id: 42). The intent is "update the title and body". What goes wrong?</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`<form action="/posts/42" method="post">
+  <label>Title</label>
+  <input type="text" name="title">
+
+  <label>Body</label>
+  <textarea name="body"></textarea>
+
+  <input type="submit" value="Update Post">
+</form>`} language="html" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">The question</h3>
+          <p class="text-gray-700 leading-relaxed">When the user clicks Update, three things go wrong. Name them. Hint: one is about the HTTP verb, one is about Rails rejecting the request, and one is about <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params</code> in the controller.</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> What does <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">form_with model: @post</code> put into the rendered HTML that a hand-written form forgets?
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal the answer →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> The three things missing
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-4">Each one is a single hidden field or a naming change. All three matter for the request to reach <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">PostsController#update</code> the way you expect.</p>
+            <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+              <CodeBlock code={`<form action="/posts/42" method="post">
+
+  <!-- 1. Method override: HTML forms can't natively do PATCH -->
+  <input type="hidden" name="_method" value="patch">
+
+  <!-- 2. CSRF token: required for Rails to accept the POST -->
+  <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+
+  <!-- 3. Field names should be namespaced under the model -->
+  <input type="text" name="post[title]">
+  <textarea name="post[body]"></textarea>
+
+  <input type="submit" value="Update Post">
+</form>`} language="html" />
+            </div>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>💡</span> What each one does
+            </h3>
+            <ul class="space-y-3 text-gray-700 leading-relaxed list-disc list-inside ml-4">
+              <li><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">_method=patch</code></strong> — without it, the browser sends a POST and the router matches the create route, not the update route. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Rack::MethodOverride</code> middleware reads this field and swaps the verb to PATCH before routing.</li>
+              <li><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">authenticity_token</code></strong> — without it, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">protect_from_forgery</code> rejects the request with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">InvalidAuthenticityToken</code> before your action runs.</li>
+              <li><strong><code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">name="post[title]"</code></strong> — without the namespace, the controller sees <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params[:title]</code> instead of <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params[:post][:title]</code>. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params.require(:post)</code> raises ParameterMissing.</li>
+            </ul>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📚</span> Theory
+            </h3>
+            <p class="text-gray-700 leading-relaxed">For the full walkthrough of how <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">form_with</code> assembles a form, read <a href="/lessons/source-form-with" class="text-ruby hover:text-ruby-dark font-medium">Card 7 of Reading the Source</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/practice-source-before-action-halt" class="text-ruby hover:text-ruby-dark transition-colors">← Card 4</a>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">Back to Course →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>
