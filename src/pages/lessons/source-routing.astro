@@ -1,0 +1,166 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="How Rails turns get '/posts' into a controller call" description="A plain-language walkthrough of what Rails actually does with your routes file at boot time and at request time. File paths into the Rails source.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source · Card 2</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">How Rails turns <code class="bg-gray-100 px-2 py-1 rounded text-3xl">get "/posts"</code> into a controller call</h1>
+      <p class="text-xl text-gray-600">You write one line in <code class="bg-gray-100 px-2 py-1 rounded text-base">config/routes.rb</code>. Rails does five things with it when your app starts up, then four more every time a browser sends a request. Once you've seen each step, routing stops feeling like magic.</p>
+    </div>
+
+    <!-- Steps -->
+    <div class="space-y-6">
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">1. The line you wrote is a method call.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">config/routes.rb</code> looks like a config file, but it's normal Ruby code. It runs one time, when your app starts. The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">draw do ... end</code> block is a method call on a Ruby object Rails owns, and the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">get</code> inside is another method call. Once your app has finished booting, the routes file is done and won't run again. None of it runs when a request arrives.
+        </p>
+        <CodeBlock code={`# config/routes.rb
+
+Rails.application.routes.draw do
+  get "/posts", to: "posts#index"
+end
+
+# Read out loud, this is:
+#
+#   "Call \`draw\` on the application's routes object,
+#    and inside that block, call \`get\` with these arguments."
+#
+# Both are method calls. The whole file is Ruby.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_dispatch/routing/route_set.rb</code>, the <code>draw</code> method</p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">2. Each line becomes a small Route object.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          When the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">get</code> method runs, Rails creates a small Ruby object called a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Route</code> and adds it to a list. <strong>That list, in the order you wrote the lines, is your whole routing table.</strong>
+        </p>
+        <CodeBlock code={`# Roughly, here's what Rails stores for one route line:
+
+Route.new(
+  name:      "posts",
+  path:      "/posts",
+  verb:      "GET",
+  endpoint:  PostsController.action(:index),
+  defaults:  { controller: "posts", action: "index" }
+)
+
+# Every line in routes.rb makes one of these.
+# They live in a list, kept in the order they were declared.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_dispatch/journey/route.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">3. The path becomes a regex.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          A path like <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/posts/:id</code> doesn't stay as a string. Rails turns it into a regular expression where <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:id</code> becomes a named group that captures whatever the user typed. When a request comes in, Rails matches the URL against that regex, and the captured value becomes <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">params[:id]</code>.
+        </p>
+        <CodeBlock code={`# The path "/posts/:id" becomes (roughly) this regex:
+
+%r{\\A/posts/(?<id>[^/.?]+)\\Z}
+
+# When a request comes in for "/posts/42":
+
+match = path_regex.match("/posts/42")
+match[:id]  # => "42"
+
+# That captured value is how params[:id] ends up filled in.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_dispatch/journey/parser.rb</code> and <code>compiler.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">4. Lookup is fast because Rails builds a map.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          On the first request, Rails takes all those Route objects and builds a structure called a state machine. Think of it like a tree of paths. To match a URL, Rails walks down the tree one piece at a time, and the matching route falls out at the end. The walk takes about as long as the URL itself, no matter how many routes you have. <strong>Adding hundreds of routes makes your app boot a little slower, but each request stays fast.</strong>
+        </p>
+        <CodeBlock code={`# Imagine these three routes:
+#
+#   get "/posts"
+#   get "/posts/:id"
+#   get "/users/:id/posts"
+#
+# Rails arranges them into a tree:
+#
+#                    start
+#                   /     \\
+#                  /       \\
+#              "posts"    "users"
+#               /  \\         |
+#              /    \\        |
+#         (done)   :id      :id
+#                            |
+#                          "posts"
+#                             |
+#                          (done)
+#
+# To match "/posts/42", Rails follows: start → "posts" → :id → done.
+# Three small steps, and the matching route is found.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_dispatch/journey/gtg/transition_table.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">5. Rails finds the controller and calls your action.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Once the URL matches, Rails reads the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">"posts#index"</code> string and turns it into a real class (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">PostsController</code>) and a symbol (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">:index</code>). Then it asks the controller class for a callable. The callable is what actually creates a controller instance, runs your <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">before_action</code>s, calls your action method, and gives back the response.
+        </p>
+        <CodeBlock code={`# At the end of a match, Rails does roughly this:
+
+PostsController.action(:index).call(env)
+# => [200, { "Content-Type" => "text/html" }, ["<html>...</html>"]]
+
+# .action(:index) returns a small Rack app. When called, it:
+#   1. creates a new PostsController instance
+#   2. sets up @request and @response on it
+#   3. runs your before_action callbacks
+#   4. calls the index method
+#   5. returns the response triple
+
+# That's the bridge from "the routes file" to "your action method."`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_controller/metal.rb</code>, the <code>action</code> class method</p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">6. What your app holds in memory after boot.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Once the routes file finishes running, your app is holding four things:
+        </p>
+        <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4 mb-4">
+          <li>One routes object (the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">RouteSet</code>).</li>
+          <li>A list of Route objects inside it, one per line you wrote.</li>
+          <li>A state-machine map, built the first time a request arrives.</li>
+          <li>A set of helper methods for your named routes (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">posts_path</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post_url</code>, etc.), mixed into your views and controllers.</li>
+        </ul>
+        <p class="text-gray-700 leading-relaxed">
+          When a request comes in, Rails walks the map, finds the route, and calls your controller. The routes file itself never runs again.
+        </p>
+      </section>
+
+    </div>
+
+    <!-- Why this matters -->
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-8 space-y-3">
+      <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span>🎯</span> Why this is worth knowing
+      </h3>
+      <p class="text-gray-700 leading-relaxed">Plenty of Rails developers ship features for years without knowing any of this. What changes once you do know it:</p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Weird routing bugs become readable.</strong> A custom <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">constraints:</code> block that seems to do nothing makes sense once you know constraints get checked during the map walk, and a custom constraint object needs a <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">matches?(request)</code> method.</li>
+        <li><strong>The <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">rails routes</code> command makes more sense.</strong> The output is a printout of the list of Route objects your app is holding in memory. Inspecting it is inspecting state.</li>
+        <li><strong>One line like <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">resources :posts</code> stops being mysterious.</strong> It generates seven Route objects, plus URL helpers for each, the same way <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> generates a family of methods behind one declaration.</li>
+        <li><strong>When routing breaks in production, you know where to look.</strong> Path matched but the action 404s? Step 5. Path doesn't match at all? Steps 3 and 4. A helper like <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post_path</code> isn't defined? Step 6.</li>
+      </ul>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/source-belongs-to" class="text-ruby hover:text-ruby-dark transition-colors">← Card 1</a>
+      <a href="/lessons/source-activerecord-query" class="text-ruby hover:text-ruby-dark transition-colors">Card 3 →</a>
+    </div>
+  </article>
+</Layout>

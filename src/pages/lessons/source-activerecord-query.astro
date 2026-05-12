@@ -1,0 +1,182 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="How User.where(...) becomes SQL" description="A plain-language walkthrough of what Rails actually does when you chain ActiveRecord query methods, and when the SQL actually runs.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source · Card 3</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">How <code class="bg-gray-100 px-2 py-1 rounded text-3xl">User.where(...)</code> becomes SQL</h1>
+      <p class="text-xl text-gray-600">You write <code class="bg-gray-100 px-2 py-1 rounded text-base">User.where(active: true).order(:created_at).limit(10)</code> and somehow you get back ten users. No SQL ran when you typed it. Then later, when you started iterating, suddenly the query fired. Here's what's happening, step by step.</p>
+    </div>
+
+    <!-- Steps -->
+    <div class="space-y-6">
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">1. <code class="bg-gray-100 px-2 py-1 rounded text-lg">User.where(...)</code> returns an object, not rows.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          When you call <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User.where(active: true)</code>, Rails does <em>not</em> talk to the database. It returns a Ruby object called an <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ActiveRecord::Relation</code>. The Relation holds a little spec of what you want: the model class, a list of where-conditions, a list of order clauses, a limit, and so on. It's a description of a query, sitting in memory.
+        </p>
+        <CodeBlock code={`relation = User.where(active: true)
+
+relation.class
+# => User::ActiveRecord_Relation
+
+# No SQL ran yet. The Relation is just a Ruby object holding:
+#   - klass:     User
+#   - where_clause: [active = true]
+#   - order_values: []
+#   - limit_value:  nil
+#   - ...and a few more fields`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>activerecord/lib/active_record/relation.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">2. Each chained call adds to the spec.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          When you chain <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.order(:created_at)</code> onto the relation, Rails makes a new Relation that copies the previous one and adds the order. Same for <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.limit(10)</code>. The original Relation isn't changed. You end up with a small chain of Relation objects, each one a more specific version of the last.
+        </p>
+        <CodeBlock code={`step1 = User.where(active: true)
+step2 = step1.order(:created_at)
+step3 = step2.limit(10)
+
+# step3's spec now looks like:
+#   where_clause: [active = true]
+#   order_values: [:created_at]
+#   limit_value:  10
+#
+# Still no SQL. Still a Ruby object describing the query.
+
+# This is why you can build queries up over many lines:
+posts = Post.all
+posts = posts.where(published: true) if filter_published
+posts = posts.where("title ILIKE ?", "%#{q}%") if q.present?
+posts = posts.order(:created_at).limit(20)
+# All of the above adds to the spec. None of it hits the database.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>activerecord/lib/active_record/relation/query_methods.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">3. The SQL runs when someone needs the data.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The Relation waits until you do something that actually needs the rows. Calling <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.each</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.to_a</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.first</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.count</code>, or interpolating the Relation into a view all force the query to run. Until then, the SQL stays in your imagination.
+        </p>
+        <CodeBlock code={`relation = User.where(active: true).order(:created_at).limit(10)
+# No SQL.
+
+relation.to_a
+# Now Rails runs:
+#   SELECT "users".* FROM "users"
+#   WHERE "users"."active" = TRUE
+#   ORDER BY "users"."created_at" ASC
+#   LIMIT 10
+
+# After this, the loaded results are cached on the relation:
+relation.to_a  # second call: no new SQL, uses the cached array
+
+# But this is a DIFFERENT relation (chained again):
+relation.where(role: "admin").to_a  # runs SQL again`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>activerecord/lib/active_record/relation.rb</code>, the <code>load</code> and <code>exec_queries</code> methods</p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">4. Rails builds the SQL through a tree, not string-concatenation.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          When it's time to make the SQL string, Rails doesn't glue together strings like <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">"SELECT * FROM " + table</code>. It uses a small library called <strong>Arel</strong>, which builds a tree (an AST) representing the query, then asks the database adapter to turn the tree into the SQL dialect for your database (Postgres, MySQL, SQLite, etc.). This is why the same Ruby code produces slightly different SQL depending on which database you're on.
+        </p>
+        <CodeBlock code={`# A query like User.where(active: true).order(:created_at)
+# becomes, roughly, an Arel tree:
+
+SelectManager
+  ├─ projections: [users.*]
+  ├─ from:        users
+  ├─ wheres:      [Eq(users.active, true)]
+  └─ orders:      [Asc(users.created_at)]
+
+# The Postgres adapter walks this tree and produces:
+#   SELECT "users".* FROM "users"
+#   WHERE "users"."active" = TRUE
+#   ORDER BY "users"."created_at" ASC
+
+# The MySQL adapter walks the same tree and produces:
+#   SELECT \`users\`.* FROM \`users\`
+#   WHERE \`users\`.\`active\` = TRUE
+#   ORDER BY \`users\`.\`created_at\` ASC
+
+# Same tree. Different SQL strings. Same Ruby code worked for both.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>activerecord/lib/arel/</code> and <code>activerecord/lib/active_record/connection_adapters/</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">5. The database returns rows. Rails turns them into model objects.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The database adapter sends the SQL over the connection, gets back a result set, and hands Rails an array of hashes (one per row). Rails then walks that array and builds a Ruby <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">User</code> instance for each row, setting up the attribute values from the row data. The cached array on the Relation is now a list of real User objects, ready to use.
+        </p>
+        <CodeBlock code={`# Database returns:
+#   [
+#     { "id" => 1, "name" => "Karim", "active" => true, ... },
+#     { "id" => 2, "name" => "Sara",  "active" => true, ... },
+#     ...
+#   ]
+
+# Rails creates one User instance per row:
+users = rows.map { |row| User.allocate.init_with_attributes(row) }
+
+# Now relation.to_a returns [#<User id: 1, name: "Karim", ...>, ...].
+# Each user has typed attributes (Integer id, String name, Boolean active)
+# because ActiveRecord casts the raw column data using the column types.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>activerecord/lib/active_record/persistence.rb</code> and <code>connection_adapters/postgresql/database_statements.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">6. The query cache. The thing that surprises everyone.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          During a single web request, Rails wraps your code in a query cache. If you run the exact same SQL twice in the same request, Rails returns the cached result the second time, without hitting the database. This is helpful, but it has a sharp edge: the cache only matches on the SQL string. If you build "the same query" two different ways and end up with different SQL, you get two database calls. If you write to the table, the cache is cleared.
+        </p>
+        <CodeBlock code={`# Inside one web request:
+
+User.where(active: true).to_a  # SQL runs once
+User.where(active: true).to_a  # cache hit, no SQL
+
+# But this misses the cache:
+User.where(active: true).to_a
+User.where("active = ?", true).to_a  # different SQL string → new query
+
+# And writing busts it:
+User.where(active: true).to_a   # SQL runs
+User.create!(active: true)      # write happens, cache cleared
+User.where(active: true).to_a   # SQL runs AGAIN
+
+# The cache only exists for the duration of one request,
+# and only inside ActiveRecord::Base.cache do ... end blocks
+# (which Rails wraps your request in automatically).`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>activerecord/lib/active_record/connection_adapters/abstract/query_cache.rb</code></p>
+      </section>
+
+    </div>
+
+    <!-- Why this matters -->
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-8 space-y-3">
+      <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span>🎯</span> Why this is worth knowing
+      </h3>
+      <p class="text-gray-700 leading-relaxed">Knowing the difference between "a Relation exists" and "the SQL ran" changes how you debug and how you write queries:</p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>You stop being surprised by N+1 queries.</strong> A method that returns <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">@posts</code> (a Relation) and then iterates inside a view to fetch each post's user fires one query per post. The fix, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.includes(:user)</code>, adds to the spec before the SQL runs.</li>
+        <li><strong>You write scopes with confidence.</strong> A scope is a chunk of the spec, ready to be combined with other chunks. Knowing the spec is in memory until something forces the SQL means you can chain scopes anywhere.</li>
+        <li><strong>You debug "why did this query run twice?" faster.</strong> If the SQL string isn't byte-identical, the cache won't match. Often the fix is to chain the same way both places.</li>
+        <li><strong>You read <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">to_sql</code> output as the source of truth.</strong> Calling <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">relation.to_sql</code> shows the actual SQL Rails will run, without running it. It's the fastest way to check whether your scope chain is what you think it is.</li>
+      </ul>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/source-routing" class="text-ruby hover:text-ruby-dark transition-colors">← Card 2</a>
+      <a href="/lessons/source-view-rendering" class="text-ruby hover:text-ruby-dark transition-colors">Card 4 →</a>
+    </div>
+  </article>
+</Layout>

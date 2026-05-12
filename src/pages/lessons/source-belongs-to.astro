@@ -1,0 +1,125 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="What belongs_to :user actually adds to your model" description="One line of declaration. Eight generated methods, a reflection, a validation, and dirty tracking. Knowing the surface changes how you read every Rails model.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source · Card 1</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">What <code class="bg-gray-100 px-2 py-1 rounded text-3xl">belongs_to :user</code> actually adds to your model</h1>
+      <p class="text-xl text-gray-600">One short line. Behind it: a handful of methods on the model, some extra info Rails stores about the class, a validation, and a little dirty-tracking. Knowing what shows up changes how you read every Rails model.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <!-- Left column: the familiar line -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="text-gray-500">🔍</span> The familiar line
+          </h3>
+          <p class="text-gray-700 italic mb-3">You've written this dozens of times. What does it actually generate?</p>
+          <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50/40">
+            <CodeBlock code={`class Post < ApplicationRecord
+  belongs_to :user
+end`} language="ruby" />
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">What's visible at the API surface</h3>
+          <p class="text-gray-700 leading-relaxed">A Post is now connected to a User. You can call <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.user</code> and assign with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.user = some_user</code>, and most developers stop there. Everything else Rails wires up from that one line stays invisible: builder methods, dirty-tracking helpers, a reflection on the class, a presence validation. <strong>When a method appears in someone else's model and isn't defined anywhere in the file, it almost always came from a declaration like this one.</strong></p>
+        </div>
+      </div>
+
+      <!-- Right column: prompt → solution -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 space-y-6 lg:sticky lg:top-6">
+        <div id="prompt-section" class="space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-7">
+            <p class="text-base text-gray-700 leading-relaxed">
+              <strong>Take a moment.</strong> Without peeking at docs or a Rails console, name every method <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to :user</code> adds to a Post. Most people get to two. There are actually about eight on the instance, plus a few more things on the class.
+            </p>
+          </div>
+
+          <div class="pt-2">
+            <button
+              id="show-solution-btn"
+              class="w-full px-6 py-3 bg-ruby text-white rounded-lg hover:bg-ruby-dark transition-colors font-medium"
+            >
+              Reveal what Rails actually generates →
+            </button>
+          </div>
+        </div>
+
+        <div id="solution-section" class="hidden space-y-6">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span class="text-green-600">✅</span> What Rails generates
+            </h3>
+            <p class="text-gray-700 leading-relaxed mb-4">On every Post object, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to :user</code> adds these methods:</p>
+            <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50/30">
+              <CodeBlock code={`post.user                       # read the associated User
+post.user = other_user          # assign
+post.build_user(name: "Karim")  # build an unsaved User
+post.create_user(name: "Karim") # build + save
+post.create_user!(...)          # raises if save fails
+post.reload_user                # bypass the cached instance
+post.user_changed?              # dirty tracking on the association
+post.user_previously_changed?   # dirty tracking, after save`} language="ruby" />
+            </div>
+            <p class="text-gray-700 leading-relaxed mt-4 mb-3">On the Post class itself, the same one line also sets up:</p>
+            <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+              <li>A bit of info Rails keeps about the association, reachable as <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Post.reflect_on_association(:user)</code>. Other parts of Rails read this when they need to know that Post has a user (for example, the form builder and eager loading).</li>
+              <li>A validation that requires the user to be set when you save a Post. (This is on by default in Rails 5+. Pass <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">optional: true</code> to turn it off.)</li>
+              <li>If you pass <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">touch: true</code>, a callback that bumps <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">users.updated_at</code> every time the post is saved.</li>
+              <li>If you pass <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">counter_cache: true</code>, callbacks that keep a counter column on the User up to date as posts get added and removed.</li>
+            </ul>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>📂</span> Where this happens in Rails
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>The starting point is the <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code> class method, defined in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/associations.rb</code>. It hands the work off to a helper class called <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Associations::Builder::BelongsTo</code> in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">activerecord/lib/active_record/associations/builder/belongs_to.rb</code>. That helper is what actually adds the methods to your model, stores the reflection, and sets up callbacks if you passed <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">touch:</code> or <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">counter_cache:</code>.</p>
+              <p>The validation that requires the user to be present is added by the same builder. It's controlled by a global setting called <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to_required_by_default</code>, which flipped to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">true</code> in Rails 5. That's why some apps upgrading from Rails 4 suddenly see <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">"User must exist"</code> errors without changing any model code.</p>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <span>🎯</span> Why this is worth knowing
+            </h3>
+            <div class="space-y-3 text-gray-700 leading-relaxed">
+              <p>Memorizing the exact list isn't the goal. The point is to get used to a pattern: every Rails declaration like this one adds a small family of methods, stores some info about the class, and sometimes plugs in a validation or a callback. Once that pattern is familiar, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">post.build_user</code> in someone else's code reads as "oh, that came from <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">belongs_to</code>" instead of "where is this method defined?"</p>
+              <p>The same pattern shows up in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">has_many</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">enum</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">has_secure_password</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">attribute</code>, and <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">delegated_type</code>. Each line is a declaration, and each declaration adds methods plus a bit of class-level info behind the scenes. Once you start noticing it, looking up what a new declaration actually generates becomes a habit, instead of something you only do when stuck.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <a href="/lessons/source-routing" class="text-ruby hover:text-ruby-dark transition-colors">Card 2 →</a>
+    </div>
+  </article>
+
+  <script>
+    const btn = document.getElementById('show-solution-btn');
+    const prompt = document.getElementById('prompt-section');
+    const solution = document.getElementById('solution-section');
+    if (btn && prompt && solution) {
+      btn.addEventListener('click', () => {
+        prompt.classList.add('hidden');
+        solution.classList.remove('hidden');
+        if (window.innerWidth < 1024) {
+          solution.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  </script>
+</Layout>

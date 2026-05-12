@@ -1,0 +1,197 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="How a view gets rendered after your action" description="A plain-language walkthrough of what Rails does between your action method ending and an HTML page going back to the browser.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-6">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Reading the Source · Card 4</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">How a view gets rendered after your action</h1>
+      <p class="text-xl text-gray-600">Your <code class="bg-gray-100 px-2 py-1 rounded text-base">index</code> action ends, and a few milliseconds later the browser is looking at HTML. You never wrote a line that said "render". Here's what Rails actually did between those two moments.</p>
+    </div>
+
+    <!-- Steps -->
+    <div class="space-y-6">
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">1. If you didn't call render, Rails calls it for you.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          When your action method returns, Rails checks whether you already rendered or redirected. If you didn't, Rails fills in a default <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">render</code> call using the controller name and the action name. That's why a bare action method still produces a page.
+        </p>
+        <CodeBlock code={`class PostsController < ApplicationController
+  def index
+    @posts = Post.all
+  end
+end
+
+# After this action method returns, Rails effectively does:
+#
+#   render :index
+#
+# Which is shorthand for:
+#
+#   render template: "posts/index"
+#
+# Where does "posts/index" come from?
+#   - "posts"  comes from PostsController → :posts
+#   - "index"  comes from the action name
+#
+# If you DID call render or redirect_to in the action, Rails
+# notices that and skips the default render.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionpack/lib/action_controller/metal/implicit_render.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">2. Rails looks for the template file.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Rails has a list of folders to search for templates, called the view paths. By default the list has one entry: <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">app/views</code>. Rails walks the list looking for a file that matches the name (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">posts/index</code>), the request format (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">html</code>), and an extension Rails knows how to render (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.erb</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.haml</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.jbuilder</code>, etc.). The first match wins.
+        </p>
+        <CodeBlock code={`# Looking for: posts/index, format: html
+
+# Rails checks, in order:
+#
+#   app/views/posts/index.html.erb        ← if this exists, stop here
+#   app/views/posts/index.html.haml
+#   app/views/posts/index.html.builder
+#   ...
+#
+# If gems have added their own view paths (Devise, Active Admin, etc.),
+# those get checked too, in the order they were added.
+
+# This is also why partials work:
+#   render "shared/header"
+#
+# Rails looks for app/views/shared/_header.html.erb (note the underscore).`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionview/lib/action_view/path_set.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">3. The file gets matched with a handler.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          Different file extensions are rendered by different handlers. <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.erb</code> files go through the ERB handler, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">.jbuilder</code> files go through the Jbuilder handler, and so on. The handler's job is to turn the template source into Ruby code that, when run, produces the output string.
+        </p>
+        <CodeBlock code={`# Rails keeps a registry of handlers, roughly:
+
+ActionView::Template.handler_for_extension("erb")
+# => ActionView::Template::Handlers::ERB
+
+ActionView::Template.handler_for_extension("jbuilder")
+# => Jbuilder::Handler
+
+# So app/views/posts/index.html.erb gets matched with the ERB handler.
+# The handler reads the file's source and turns it into Ruby:
+
+# Template:
+#   <h1>Posts</h1>
+#   <% @posts.each do |post| %>
+#     <p><%= post.title %></p>
+#   <% end %>
+
+# Becomes (roughly) Ruby code like:
+#   _output = +""
+#   _output << "<h1>Posts</h1>\\n"
+#   @posts.each do |post|
+#     _output << "  <p>"
+#     _output << post.title.to_s
+#     _output << "</p>\\n"
+#   end
+#   _output`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionview/lib/action_view/template/handlers/erb.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">4. The compiled Ruby gets evaluated in a view context.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The compiled Ruby code from the template doesn't run in a vacuum. Rails creates a special object called the view context, copies all your controller's instance variables onto it (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">@posts</code>, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">@user</code>, etc.), and runs the compiled template as a method on that object. That's why view templates can read <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">@posts</code>, call helper methods, and use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">link_to</code>.
+        </p>
+        <CodeBlock code={`# Conceptually:
+
+view_context = ActionView::Base.new(view_paths, {}, controller)
+
+# Copy controller's instance variables onto the view context:
+controller.instance_variables.each do |name|
+  value = controller.instance_variable_get(name)
+  view_context.instance_variable_set(name, value)
+end
+
+# Define the compiled template as a method on the view context, then call it:
+view_context.send(:_run_index_html_erb)
+# => "<h1>Posts</h1>\\n  <p>First post</p>\\n  <p>Second post</p>\\n"
+
+# This is why @posts is visible inside the template: it's the same
+# instance variable, copied over from the controller.
+# It's also why view helpers (link_to, form_with, your own helpers)
+# work: they're methods mixed into the view context's class.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionview/lib/action_view/base.rb</code> and <code>renderer/template_renderer.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">5. Layouts wrap the rendered template.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The first render produces just the action's HTML. Rails then renders the layout the same way, and where the layout calls <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">yield</code>, Rails inserts the action's HTML. The layout file follows the same lookup rules as a template, with a default of <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">app/views/layouts/application.html.erb</code>.
+        </p>
+        <CodeBlock code={`# app/views/layouts/application.html.erb:
+#
+#   <html>
+#     <body>
+#       <%= yield %>
+#     </body>
+#   </html>
+
+# Rendering happens in two passes:
+
+inner = render_template("posts/index")
+# => "<h1>Posts</h1>\\n<p>First post</p>"
+
+layout_html = render_template("layouts/application")
+# At yield, Rails substitutes \`inner\`:
+# => "<html>\\n  <body>\\n    <h1>Posts</h1>\\n<p>First post</p>\\n  </body>\\n</html>"
+
+# That final string becomes the response body.`} language="ruby" />
+        <p class="text-sm text-gray-500 mt-4 font-mono">📂 <code>actionview/lib/action_view/renderer/template_renderer.rb</code></p>
+      </section>
+
+      <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-3">6. The HTML becomes the response body.</h3>
+        <p class="text-gray-700 leading-relaxed mb-4">
+          The rendered string gets set as the body of the controller's response. Rails sets the right Content-Type header for the format (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">text/html</code> for HTML, <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">application/json</code> for JSON, etc.) and a status (200 by default). The response then walks back up through the middleware stack and out to the browser.
+        </p>
+        <CodeBlock code={`# At this point, the controller's response object looks like:
+
+response.status  # => 200
+response.headers # => { "Content-Type" => "text/html; charset=utf-8", ... }
+response.body    # => "<html>\\n  <body>\\n    <h1>Posts</h1>..."
+
+# This becomes the Rack response triple:
+#   [200, headers_hash, [body_string]]
+#
+# Which travels back through every middleware in reverse order
+# (Rack::Cors, ActionDispatch::Cookies, etc.) and finally to the browser.`} language="ruby" />
+      </section>
+
+    </div>
+
+    <!-- Why this matters -->
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-8 space-y-3">
+      <h3 class="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span>🎯</span> Why this is worth knowing
+      </h3>
+      <p class="text-gray-700 leading-relaxed">Knowing the lookup → handler → context flow turns a lot of rendering surprises into routine debugging:</p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"Missing template" errors read clearly.</strong> The error tells you exactly which paths Rails searched and which format and handler it was looking for. The fix is almost always to add the missing file or change the format.</li>
+        <li><strong>You understand why partials need an underscore.</strong> The template lookup specifically searches for <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">_partial_name</code> when you call <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">render "partial_name"</code>. That's the file-naming rule, applied at lookup time.</li>
+        <li><strong>You can override Devise/Active Admin/etc. views with confidence.</strong> View paths are an ordered list. Putting your own file in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">app/views/devise/...</code> wins because <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">app/views</code> is earlier in the list than the gem's.</li>
+        <li><strong>You see why instance variables work in views but local variables don't.</strong> Rails copies instance variables over to the view context. Local variables in your action are gone by the time the template runs. To pass a local, use <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">render partial: "x", locals: &#123; foo: bar &#125;</code>.</li>
+      </ul>
+    </div>
+
+    <div class="flex justify-between items-center pt-4">
+      <a href="/lessons/source-activerecord-query" class="text-ruby hover:text-ruby-dark transition-colors">← Card 3</a>
+      <span class="text-gray-400">More Reading the Source coming</span>
+    </div>
+  </article>
+</Layout>
