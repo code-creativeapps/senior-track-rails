@@ -1,0 +1,212 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Scaling 1 of 8 — Diagnose Before You Scale" description="Where 'we need to scale!' goes wrong, why the bottleneck is almost never what an intermediate developer thinks it is, and the tools senior engineers actually open first.">
+  <article class="max-w-4xl mx-auto px-6 py-12 space-y-10">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Scaling Series · 1 of 8</p>
+      <div class="flex items-center gap-4 mb-4">
+        <span class="text-5xl" aria-hidden="true">🩺</span>
+        <h1 class="text-4xl font-bold text-gray-900">Diagnose Before You Scale</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where "we need to scale!" goes wrong, why the bottleneck is almost never what an intermediate developer thinks it is, and the tools senior engineers actually open first.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Donald Knuth wrote the line every engineer eventually quotes in 1974: <strong>"Premature optimization is the root of all evil."</strong> The full sentence matters more than the famous truncation: <em>"We should forget about small efficiencies, say about 97% of the time: premature optimization is the root of all evil. Yet we should not pass up our opportunities in that critical 3%."</em> The 3% is real. The trouble is finding it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Brendan Gregg, the performance engineer behind Netflix's observability work, formalized the discipline into a single rule in 2012, the <strong>USE Method</strong>: for every resource (CPU, memory, network, disk, database connections), check three things — <strong>Utilization, Saturation, Errors</strong>. The point of the method is not the acronym; it is that you check resources before you change code. <strong>If you do not know which resource is saturated, no code change you make will reliably help.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The Rails community arrived at the same rule through painful experience. Most "we need to scale!" pull requests in Rails history have one common shape: <strong>somebody guessed, somebody added infrastructure, the symptom moved.</strong> Adding Redis without measuring. Sharding a database that was fine. Switching to microservices to "scale the team" while the actual bottleneck was a missing index.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The first rule of senior scaling work, then, is: <strong>do not start.</strong> Do not change architecture, do not add infrastructure, do not refactor for performance until you know exactly which resource is saturated, on which request, at which percentile, on which path. The senior move that separates intermediates from seniors here is mostly <em>not doing things</em> until the diagnosis is in.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Picture a Rails team three years into product-market fit. Traffic has grown 10x in eighteen months. Pages feel slower. Sentry has more timeout reports than it used to. The team Slack lights up with "we need to scale." Within a week, someone has proposed:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"Let's add Redis caching everywhere."</strong></li>
+        <li><strong>"Let's move the heavy stuff to Sidekiq."</strong></li>
+        <li><strong>"Let's switch to PostgreSQL connection pooling with PgBouncer."</strong></li>
+        <li><strong>"Let's evaluate sharding the orders table."</strong></li>
+        <li><strong>"Let's extract the billing service into its own monolith."</strong></li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Each of these is a real technique. Each of them might be the right answer. <strong>None of them are knowable as the right answer without diagnostics.</strong> The team that adopts any of them blindly has a 1-in-5 chance of helping the symptom, and a 4-in-5 chance of moving the problem somewhere else, often somewhere worse.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The deeper anti-pattern is that <strong>"scaling" is being used as a single word for at least three completely different problems</strong>:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Latency</strong> — one request is slow. Fix: faster queries, better caching, fewer round trips.</li>
+        <li><strong>Throughput</strong> — the server cannot handle the number of concurrent requests. Fix: more concurrency, better connection pooling, more dynos.</li>
+        <li><strong>Data growth</strong> — a query that used to be fast is no longer fast because the table grew. Fix: indexes, pagination, partitioning, archival.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>A senior knows which one they have before they reach for tools.</strong> "We need to scale" is the question, not the answer. The answer is one of these three, with a specific resource named.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior diagnostic flow</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three layers of tooling, used in this order:
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. The APM dashboard.</strong> Whatever your team pays for — Datadog, New Relic, Skylight, Honeycomb, AppSignal, Scout, Sentry's transaction view. Every one of these answers the same first question in roughly thirty seconds: <strong>which endpoints are slow at p95, and where are they spending their time?</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The APM dashboard breaks every request into a <strong>flame chart of segments</strong>: time spent in the database, time spent in external HTTP calls, time spent in view rendering, time spent in Ruby itself. <strong>One look at the chart tells you which resource is saturated.</strong> If 90% of the time is in the database, you have a query problem. If 80% is in an external HTTP call, you have a synchronous-IO problem. If the chart is mostly Ruby with no segments, you have a CPU or allocation problem.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>If you do not have an APM tool, install one before you do anything else.</strong> The single biggest factor in how fast a Rails team can diagnose performance issues is whether they can see flame charts of real production traffic. Skylight has a free tier for small apps; Honeycomb has free seats; Sentry's transaction view is included with most plans. <strong>The cost of running blind is much higher than the cost of any of these.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code></strong>. If the APM points at the database, the next stop is the Postgres extension that records every query the database has run, sorted by total time. It tells you in one query which SQL statements are eating the most cumulative database time across all requests:
+      </p>
+      <CodeBlock code={`-- in psql, against your production replica (read-only is fine)
+SELECT query, calls, total_exec_time, mean_exec_time, rows
+FROM pg_stat_statements
+ORDER BY total_exec_time DESC
+LIMIT 20;
+
+-- the column to watch is total_exec_time:
+-- a query called 1,000,000 times at 2ms each costs more than
+-- a query called 100 times at 200ms each.`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The top ten rows in that query are almost always your scaling backlog.</strong> Each one is either missing an index, doing an N+1, returning too many rows, or running on a request path where it should not be running at all.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. <code class="bg-gray-100 px-2 py-1 rounded">rack-mini-profiler</code> in development.</strong> When you have isolated a specific endpoint, add <code class="bg-gray-100 px-2 py-1 rounded">rack-mini-profiler</code> to your Gemfile in development. It puts a little speed badge in the top-left of every page, showing per-request SQL count, total SQL time, Ruby time, and view rendering time. <strong>It catches N+1s before they ship</strong>, because most N+1s are obvious from the SQL count: 200 queries on a page that should run 4.
+      </p>
+      <CodeBlock code={`# Gemfile (development group)
+gem "rack-mini-profiler"
+gem "memory_profiler"   # optional: deeper allocation profiles
+gem "stackprof"          # optional: flame graphs of CPU time
+
+# config/initializers/mini_profiler.rb (development only)
+if Rails.env.development?
+  Rack::MiniProfiler.config.position = "top-left"
+  Rack::MiniProfiler.config.start_hidden = false
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        These three tools, in this order, will diagnose 90% of Rails performance issues. <strong>The remaining 10% need flame graphs (<code class="bg-gray-100 px-2 py-1 rounded">stackprof</code>), allocation profiles (<code class="bg-gray-100 px-2 py-1 rounded">memory_profiler</code>), or heap dumps</strong>, which are the next layer down. For an intermediate developer leveling up to senior, the three above are the discipline to learn first.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where the bottleneck actually lives (in order of likelihood)</h2>
+      <p class="text-gray-700 leading-relaxed">
+        After diagnosing dozens of production Rails apps, performance engineers converge on the same prioritized list. <strong>The bottleneck is almost always one of these six, in roughly this frequency order:</strong>
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-3 ml-4">
+        <li><strong>A single missing index.</strong> One specific query, run thousands of times per minute, doing a sequential scan on a table that grew past 100k rows. The fix is a one-line migration that adds an index. <strong>This is the #1 most common scaling problem in Rails apps.</strong></li>
+        <li><strong>An N+1 query.</strong> A page that lists 50 records and runs 51 queries (one for the list, 50 for the associations). The fix is <code class="bg-gray-100 px-2 py-1 rounded">.includes(:association)</code> or its variants. Bullet detects most of these in development.</li>
+        <li><strong>A synchronous external HTTP call.</strong> A controller action that calls Stripe / Mailchimp / Slack in-line, where the request waits for the round-trip. Fix: move to a background job, or pre-compute the result.</li>
+        <li><strong>Memory bloat from loading too many records.</strong> A report that calls <code class="bg-gray-100 px-2 py-1 rounded">Order.all.each</code> and loads 500,000 rows into Ruby objects. Fix: <code class="bg-gray-100 px-2 py-1 rounded">find_each</code> with a sensible batch size, or aggregate in SQL.</li>
+        <li><strong>Hot-row contention.</strong> Multiple processes updating the same counter cache or the same row at the same time, with last-writer-wins semantics or unnecessary serialization. Fix: atomic SQL increments, or denormalized counter strategies.</li>
+        <li><strong>Connection pool exhaustion.</strong> The Puma threads or Sidekiq workers outnumber the available database connections, and requests queue up waiting for one. Fix: tune the connection pool size or scale Puma/Sidekiq differently.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed">
+        Notice what is <em>not</em> on this list: Redis. Sharding. Microservices. Read replicas. Those are real techniques, but they belong further down — typically only after the six items above have been ruled out. <strong>The senior heuristic: if a query plan or an index does not fix it, ask whether you are looking at the right bottleneck before reaching for infrastructure.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What real teams have written publicly</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The Rails engineering blogs at scale share a common pattern: <strong>almost every public "how we scaled" post starts with a diagnostic discovery, not an architectural decision.</strong>
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Shopify Engineering</strong> publishes regularly on Rails performance at the scale of millions of requests per minute. Their posts on identifying slow queries with <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code>, on Ruby memory profiling with jemalloc, and on the Identity Cache pattern (which is a hot-row solution) all open with measurement, not architecture.</li>
+        <li><strong>GitHub Engineering</strong> wrote extensively about their migration to Vitess for database sharding — a famously large architectural move. <strong>The most important sentence in those posts is that they ran on a single MySQL primary until they had measured exactly why a single primary was no longer enough.</strong> The architecture was the last resort, not the first one.</li>
+        <li><strong>Artsy Engineering</strong> has a long-running blog with multiple posts on Rails N+1 fixes, slow query diagnosis, and migrating individual endpoints to GraphQL for selective optimization. Their posts on <em>finding</em> the slow code consistently include screenshots of New Relic or Skylight — measurement first, fix second.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The pattern across all three is the same.</strong> The teams that ship reliable scaling work measure first, fix the specific thing the measurement pointed at, ship, and measure again. The teams that try to "scale" without measuring usually generate a year of architecture work that does not move the needle.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The moving bottleneck</h2>
+      <p class="text-gray-700 leading-relaxed">
+        One more thing worth understanding before any of the other lessons in this series make sense. <strong>Scaling is not a state your app reaches. It is a series of bottlenecks, each one revealed when the previous one is removed.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        A typical Rails app's lifetime of scaling work looks like:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>Year 1: a missing index. Add the index, latency drops 10x.</li>
+        <li>Year 1.5: an N+1 on the dashboard. Add <code class="bg-gray-100 px-2 py-1 rounded">.includes</code>, latency drops 4x.</li>
+        <li>Year 2: a synchronous Stripe call in a critical request. Move to a background job, p99 drops.</li>
+        <li>Year 2.5: connection pool exhaustion at 11 AM EST (newsletter spike). Tune the pool, traffic drains.</li>
+        <li>Year 3: hot-row contention on a counter cache. Switch to atomic SQL increments, lock waits disappear.</li>
+        <li>Year 3.5: a memory leak in a specific background job. Find it with <code class="bg-gray-100 px-2 py-1 rounded">memory_profiler</code>, restart workers no longer needed.</li>
+        <li>Year 4: the bottleneck is now read traffic on the primary. Introduce a read replica.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Each one of those is a different fix, found by measuring the symptom at the time.</strong> A team that had jumped to "introduce a read replica" in year 1 would have wasted twelve months and still had the underlying missing-index problem in year 3. The order matters. The order is dictated by what is actually saturated, not by what you read about in the latest engineering blog post.
+      </p>
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p class="text-gray-700 text-sm">
+          <strong>The senior heuristic:</strong> the bottleneck you are trying to fix today is not the bottleneck you will be fixing in a year. <strong>Build the muscle of diagnosis, not the muscle of any specific fix.</strong> The diagnostic skill transfers across every layer; the fix-specific knowledge has a much shorter half-life.
+        </p>
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When you can skip the measurement</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Two cases where "measure first" is overkill:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Adding an index when you wrote the slow query yourself.</strong> If a senior reviewer reads your PR and says "you need an index on <code class="bg-gray-100 px-2 py-1 rounded">orders.user_id</code>" because they read the SQL, the measurement is the SQL itself. Ship the index.</li>
+        <li><strong>Obvious correctness fixes that happen to be fast.</strong> Replacing <code class="bg-gray-100 px-2 py-1 rounded">Order.all.each</code> with <code class="bg-gray-100 px-2 py-1 rounded">find_each</code> does not need a benchmark; the second form is unambiguously better at any scale where it matters.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The rule of thumb: <strong>measurement is mandatory before infrastructure changes, before architectural changes, before introducing new dependencies</strong>. For one-line correctness fixes that are also faster, you do not need a benchmark to justify them.
+      </p>
+    </section>
+
+    <section class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <span aria-hidden="true">💡</span> The principle at play
+      </h3>
+      <div class="space-y-3 text-gray-700 leading-relaxed">
+        <p>Engineering has a famous bias: <strong>action is more rewarding than inaction</strong>. Adding caching feels like progress. Sharding feels like progress. Discovering that the actual problem was a missing index feels almost embarrassing — there was nothing to architect, nothing to talk about at the next meetup. <strong>That asymmetry is where most wasted scaling work comes from.</strong></p>
+        <p>The deeper move is one Brendan Gregg has been writing about for a decade: <strong>your intuition about where the bottleneck is, in a system with millions of moving parts, is almost always wrong</strong>. The intuition was formed in apps of a different size, with a different shape, on a different stack. The system you are diagnosing today does not behave the way the system in your memory did. Only measurement is reliable; intuition is a starting hypothesis at best.</p>
+        <p>The pragmatic value of this lesson, the one that will save your team months of work over a year: <strong>when someone says "we need to scale," respond with "where is the bottleneck?" before agreeing to anything</strong>. If they cannot answer with a specific endpoint, a specific resource, a specific percentile, then the next step is to measure, not to plan. That single conversational reflex is one of the most reliable markers of a senior engineer in a Rails shop.</p>
+      </div>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Pick your app's slowest endpoint at p95. If you do not know which one it is, <strong>you have identified the most important thing to install: an APM</strong>. Skylight, Honeycomb, Sentry, or AppSignal all have free or cheap tiers.</li>
+        <li>Once you know the endpoint, open its flame chart in the APM. Look at the segment breakdown. <strong>Write down what percentage of the time is in: SQL, external HTTP, view rendering, Ruby itself.</strong> Those four numbers tell you which lesson in this series applies to your situation.</li>
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">SELECT query, calls, total_exec_time FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 10;</code> against your production database (read replica is fine). Read the top 10 queries. <strong>Each one is a candidate for a scaling lesson.</strong></li>
+        <li>Add <code class="bg-gray-100 px-2 py-1 rounded">rack-mini-profiler</code> to your development Gemfile. Browse your own app for fifteen minutes. <strong>Note every page where the SQL count is above 20 or the total time is above 200ms.</strong> Those are the pages with N+1s, missing indexes, or other fixable issues.</li>
+        <li>Bonus: read one post from the Shopify, GitHub, or Artsy engineering blogs about a real scaling diagnosis. <strong>Pay attention to how much of the post is measurement, and how much is fix.</strong> The ratio is usually 70/30 in favor of measurement, in real engineering work.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Course Home</a>
+      <a href="/lessons/senior-scaling-indexes" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 2 — Indexes &amp; EXPLAIN →</a>
+    </div>
+  </article>
+</Layout>
