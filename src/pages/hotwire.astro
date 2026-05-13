@@ -1,0 +1,107 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../layouts/Layout.astro';
+
+const lessons = [
+  {
+    slug:    'senior-hotwire-streams-vs-broadcasts',
+    icon:    'lucide:zap',
+    title:   'Turbo Streams vs Broadcasts',
+    summary: 'Hotwire has two transport channels. Most teams reach for ActionCable when an inline stream would do. The render-and-broadcast pattern keeps them from stepping on each other.',
+    ready:   true,
+  },
+  {
+    slug:    'senior-hotwire-lazy-frames',
+    icon:    'lucide:layers',
+    title:   'Lazy-loaded Turbo Frames',
+    summary: 'Frames with a src attribute load independently. The dashboard pattern: eight widgets, each in its own frame, slow ones never block fast ones.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-hotwire-optimistic-ui',
+    icon:    'lucide:zap-off',
+    title:   'Optimistic UI without state management',
+    summary: 'The like-button shape. Update the DOM client-side, fire the request, reconcile via stream. Where this works, where it does not, and why Hotwire users do not need Redux.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-hotwire-stimulus-boundary',
+    icon:    'lucide:scissors',
+    title:   'The Stimulus boundary',
+    summary: 'When a Stimulus controller is the right tool, when it is not. The rule of thumb: if state has to live somewhere other than the DOM, you are past Hotwire\'s sweet spot.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-hotwire-morphing',
+    icon:    'lucide:refresh-cw',
+    title:   'Turbo morphing in Rails 8',
+    summary: 'What changed with morph mode, when to morph vs replace, and the gotchas around focus, scroll position, and form state that catch teams on first contact.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-hotwire-when-not-to',
+    icon:    'lucide:square-x',
+    title:   'When NOT to reach for Hotwire',
+    summary: 'Rich text editors, drag-and-drop with persistent state, multiplayer collaboration, offline-first. Where you graduate to Inertia or a real framework. Knowing this is the most senior part.',
+    ready:   false,
+  },
+];
+---
+
+<Layout title="Hotwire in Real Rails Code" description="Where the senior-vs-mid gap lives in modern Rails frontends. Turbo Streams vs Broadcasts, lazy Frames, Stimulus boundaries, Rails 8 morphing, and the honest call on when to graduate to a real framework.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-8">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">rails/learn</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Hotwire in Real Rails Code</h1>
+      <p class="text-xl text-gray-600 leading-relaxed">Mid-level Rails devs know the Hotwire syntax. The senior gap is knowing where Hotwire stops working as a default and what to reach for next. Six lessons, anchored in shipping production code from Basecamp, HEY, and Mastodon.</p>
+    </div>
+
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        Read these in order if you are new to Hotwire. The first three (Streams, Frames, Optimistic UI) cover the patterns you reach for daily. The last three (Stimulus boundary, morphing, when not to reach for Hotwire) cover the calls that separate mid from senior.
+      </p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      {lessons.map((lesson, i) => (
+        lesson.ready ? (
+          <a href={`/lessons/${lesson.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
+            <div class="flex items-start gap-3">
+              <Icon name={lesson.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
+              <div class="flex-1">
+                <div class="flex items-baseline justify-between mb-1">
+                  <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Lesson {i + 1}</p>
+                  <p class="text-xs text-gray-400">Walkthrough</p>
+                </div>
+                <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug mb-2">{lesson.title}</h3>
+                <p class="text-sm text-gray-600 leading-relaxed">{lesson.summary}</p>
+              </div>
+            </div>
+          </a>
+        ) : (
+          <div class="block bg-gray-50 rounded-lg border border-gray-200 border-dashed p-5">
+            <div class="flex items-start gap-3">
+              <Icon name={lesson.icon} class="w-7 h-7 inline-block text-gray-400" aria-hidden="true" />
+              <div class="flex-1">
+                <div class="flex items-baseline justify-between mb-1">
+                  <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Lesson {i + 1}</p>
+                  <p class="text-xs text-gray-400">Drafting</p>
+                </div>
+                <h3 class="font-semibold text-gray-500 leading-snug mb-2">{lesson.title}</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">{lesson.summary}</p>
+              </div>
+            </div>
+          </div>
+        )
+      ))}
+    </div>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">rails/learn · Hotwire · 6 lessons</span>
+    </div>
+  </article>
+</Layout>

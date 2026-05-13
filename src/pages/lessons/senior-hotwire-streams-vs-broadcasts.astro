@@ -1,0 +1,178 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Turbo Streams vs Broadcasts in Real Rails Code" description="Where Hotwire's two transport channels come from, why most teams reach for ActionCable when they should be streaming inline, and the render-and-broadcast pattern that keeps CRUD responses and WebSocket pushes from stepping on each other.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Hotwire Series · 1 of 6</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:zap" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Turbo Streams vs Broadcasts</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where Hotwire's two transport channels come from, why most teams reach for ActionCable when they should be streaming inline, and the render-and-broadcast pattern that keeps the two from stepping on each other.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Hotwire shipped with Rails 7 in 2021. The framework moves HTML between the server and the browser through <strong>two transport channels</strong>, both producing the same wire format (Turbo Stream markup), and both consumed by the same Turbo client running on the page.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The first channel is the HTTP response. When a form is submitted, the controller renders a <code class="bg-gray-100 px-2 py-1 rounded">turbo_stream</code> action and the response carries the stream markup back to the same browser that made the request. Standard request/response cycle, no WebSocket involved.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The second channel is ActionCable. A model <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code> callback can broadcast Turbo Stream markup to a named subscription. Any browser holding an open WebSocket to that subscription receives the markup and Turbo applies it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        These two channels were designed to share one partial. The HTML for "a new comment appearing under a post" lives in one ERB file. Both channels render it. The Turbo team called this the <strong>render-and-broadcast pattern</strong> in the original release notes.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The problem most teams hit in month one is treating these channels as alternatives instead of as complementary. Either everything goes through ActionCable (and the broker pays for work it should not), or everything is rendered inline (and a second browser watching the same state never sees the update). <strong>The senior move is knowing which channel each piece of behavior belongs in.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: broadcast everything</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team learns about <code class="bg-gray-100 px-2 py-1 rounded">broadcasts_to</code> and reaches for it on every model. The Post model gains:
+      </p>
+      <CodeBlock code={`class Post < ApplicationRecord
+  belongs_to :user
+  has_many :comments
+
+  broadcasts_to ->(post) { [post.user, :feed] }, inserts_by: :prepend
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The intent reads as "when a post is created, push it to the user's feed." The actual sequence of events:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>The user creates the post via <code class="bg-gray-100 px-2 py-1 rounded">POST /posts</code>. The controller redirects to <code class="bg-gray-100 px-2 py-1 rounded">/feed</code>.</li>
+        <li>The <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code> runs. ActionCable serializes the markup and pushes it to every subscriber of <code class="bg-gray-100 px-2 py-1 rounded">[user, :feed]</code>.</li>
+        <li>The browser receives the redirect, navigates to <code class="bg-gray-100 px-2 py-1 rounded">/feed</code>, and the page renders with the new post already in the database.</li>
+        <li>A moment later, ActionCable delivers the broadcast. The browser receives a stream that tries to prepend a post that is already on the page.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed">
+        Depending on timing, the user sees the post twice, watches it flicker, or never notices the broadcast at all because the database read got there first. The request paid for an extra render and an extra ActionCable round-trip the originating browser did not need.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The cost compounds with subscribers. If a user has the page open in five tabs, ActionCable fans the broadcast out to all five connections, and each browser applies the prepend. Multiplied across a 10,000-user site, the broker does real work for updates the originating browser already had via HTTP.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The team's first instinct, when the duplicate render shows up in QA, is to skip the broadcast for the current actor with an <code class="bg-gray-100 px-2 py-1 rounded">if Current.user != post.user</code> check. That fixes the visible bug. Every other subscriber of <code class="bg-gray-100 px-2 py-1 rounded">[user, :feed]</code> still receives a push that, for most apps, has no real audience. <strong>Does the user's feed have viewers other than the user? Often, no.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The render-and-broadcast pattern</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The senior shape splits the two channels by purpose. CRUD responses use <strong>inline streams</strong>. Cross-user notifications use <strong>broadcasts</strong>. Same partial powers both.
+      </p>
+      <CodeBlock code={`class PostsController < ApplicationController
+  def create
+    @post = current_user.posts.create!(post_params)
+    respond_to do |format|
+      format.turbo_stream # renders create.turbo_stream.erb
+      format.html         { redirect_to feed_path }
+    end
+  end
+end`} language="ruby" />
+      <CodeBlock code={`<%# app/views/posts/create.turbo_stream.erb %>
+<%= turbo_stream.prepend "feed", partial: "posts/post", locals: { post: @post } %>
+<%= turbo_stream.replace "new_post_form", partial: "posts/form", locals: { post: Post.new } %>`} language="erb" />
+      <p class="text-gray-700 leading-relaxed">
+        The controller renders the stream inline. The browser that submitted the form receives the markup in the same HTTP response. The page updates without a navigation, the form resets, and the user sees their post in the same round-trip they were already paying for.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Broadcasts are reserved for browsers that did not trigger the change: a second user watching the same thread, a teammate's admin queue, a public status panel. The shape:
+      </p>
+      <CodeBlock code={`class Comment < ApplicationRecord
+  belongs_to :post
+
+  after_create_commit -> {
+    broadcast_append_later_to(
+      [post, :comments],
+      target:  dom_id(post, :comments),
+      partial: "comments/comment",
+      locals:  { comment: self }
+    )
+  }
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Two choices are doing the work here. <code class="bg-gray-100 px-2 py-1 rounded">after_create_commit</code> runs after the transaction commits, so a rolled-back create never broadcasts. <code class="bg-gray-100 px-2 py-1 rounded">broadcast_append_later_to</code> queues the render through Active Job, so the request thread does not block while rendering markup for N subscribers.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The author of the comment sees their own comment via the controller's <code class="bg-gray-100 px-2 py-1 rounded">respond_to</code> stream. Everyone else on the post sees it via the broadcast. The same partial powers both channels, so when the partial changes, both reflect the change on the next deploy.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When to broadcast, when to stream inline</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The decision rule is one sentence. <strong>Broadcasts are for browsers that did not make the request.</strong> If only the originating browser needs the update, render the stream inline. If other browsers need to see it (because they are watching shared state), broadcast.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Concrete cases from a working Rails app:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>A user edits their own profile name. Inline stream. No second observer needs to react.</li>
+        <li>A user publishes a blog post. Inline stream for their own dashboard, plus a broadcast to subscribers of the public feed.</li>
+        <li>An admin approves a flagged comment. Inline stream for the admin queue, plus a broadcast to the public comment thread.</li>
+        <li>A background job classifies a new email. Broadcast only. There is no user request to attach a stream to.</li>
+        <li>A long export finishes in Sidekiq. Broadcast only. Same reason.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The trap is the case that looks like it needs a broadcast but does not. A single-user feed where only the owner ever logs in needs no broadcast; an inline stream is enough. A status page that updates every minute via a background poller does need one (no user request triggered the change).
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The N+1 hiding in broadcasts</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The cost model is non-obvious. Each <code class="bg-gray-100 px-2 py-1 rounded">broadcast_*_to</code> call performs three operations: render the partial server-side, serialize the resulting HTML, and push it through ActionCable for the broker to fan out to every active subscription matching the stream name.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fan-out itself is cheap. The render is not. If one Post create triggers ten broadcasts (one per tagged subscriber, one per follower of the author, one per feed type), the request pays for ten partial renders before responding.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <code class="bg-gray-100 px-2 py-1 rounded">broadcast_*_later_to</code> moves the render into Active Job. The request returns immediately and the worker pool pays the cost. That is the right shape when the render is non-trivial, or when fan-out is large enough that doing N renders inline would stretch the response over a hundred milliseconds.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The other N+1 sneaks in through <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code> on bulk updates. If a service updates 500 Posts in a loop and each fires a broadcast, 500 jobs hit the queue at once. <strong>Wrap bulk operations in a flag that suppresses the callback</strong> (a thread-local switch around <code class="bg-gray-100 px-2 py-1 rounded">Post.skip_broadcasts do ... end</code> is the canonical pattern) so the bulk path bypasses per-record work.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Hotwire's design assumes the two channels run together, not as alternatives. The CRUD response is the user's own feedback loop, fast and low-latency because it rides the HTTP request the user already made. The broadcast is for everyone else, asynchronous because it has to traverse the WebSocket and re-render the partial server-side.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        When you find yourself reaching for a broadcast where an inline stream would do, the question to ask is whether a second observer of this state actually exists. If the answer is no, broadcasts add complexity (subscription management, render cost, ordering questions between the HTTP response and the WebSocket message) without buying anything. If the answer is yes, broadcasts are exactly the right tool and an inline stream is not a substitute.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The pattern shows up across the apps the Hotwire team itself ships. HEY broadcasts to a recipient's inbox when the email classifier updates a thread. Basecamp broadcasts chat messages to every reader of the thread. The actor's own browser, in both cases, gets the update through the HTTP response that triggered it. Same partial, two channels, no overlap.
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Open a Rails app you know that uses Hotwire. Grep for <code class="bg-gray-100 px-2 py-1 rounded">broadcasts_to</code> and <code class="bg-gray-100 px-2 py-1 rounded">broadcast_*_to</code>.</li>
+        <li>For each call, identify the audience. Is it "the actor's other tabs" or "other users entirely"? <strong>If the answer is the former, the broadcast can be replaced with an inline stream and a controller <code class="bg-gray-100 px-2 py-1 rounded">respond_to</code>.</strong></li>
+        <li>Find a controller action that currently redirects after a <code class="bg-gray-100 px-2 py-1 rounded">create!</code>. Add a <code class="bg-gray-100 px-2 py-1 rounded">format.turbo_stream</code> handler and a matching <code class="bg-gray-100 px-2 py-1 rounded">*.turbo_stream.erb</code>. Confirm the page updates without a full navigation.</li>
+        <li>Find a model with a high write rate (audit logs, view counts, soft-delete tombstones) that has a <code class="bg-gray-100 px-2 py-1 rounded">broadcasts_to</code>. Compare its write volume against the read volume of the broadcast destination. <strong>If reads are near zero, remove the broadcast.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/hotwire" class="text-ruby hover:text-ruby-dark transition-colors">← Hotwire</a>
+      <span class="text-gray-400 text-sm">Hotwire · 1 of 6</span>
+    </div>
+  </article>
+</Layout>
