@@ -50,7 +50,7 @@ Post.preload(:author).limit(50)
 # eager_load, single query with LEFT OUTER JOIN:
 Post.eager_load(:author).where("users.role = ?", "admin")`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        See <a href="/lessons/senior-eager-loading" class="text-ruby hover:underline">Lesson 1</a> for the full decision tree.
+        See <a href="/lessons/senior-eager-loading" class="text-ruby hover:underline">Eager Loading, includes, preload, eager_load, and joins</a> for the full decision tree.
       </p>
     </section>
 
@@ -149,7 +149,7 @@ posts.each { |post| puts post.author.name }
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Polymorphism</h2>
       <p class="text-gray-700 leading-relaxed">
-        Polymorphism is the property where multiple classes respond to the same message with different behavior. Calling code depends on the message, not on the class, so swapping one implementation for another does not require changes to the caller. Polymorphism is what makes the registry pattern in <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:underline">Lesson 2</a> work.
+        Polymorphism is the property where multiple classes respond to the same message with different behavior. Calling code depends on the message, not on the class, so swapping one implementation for another does not require changes to the caller. Polymorphism is what makes the registry pattern in <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:underline">Lesson 2 — The Open/Closed Principle in Real Rails Code</a> work.
       </p>
       <CodeBlock code={`class Stripe
   def process_payments(payments); end
@@ -205,7 +205,7 @@ end
 
 PayoutProcessorType.get("STRIPE").process_payments(payments)`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        Adding a new processor is one new file plus one new line in <code class="bg-gray-100 px-2 py-1 rounded">ALL</code>. See <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:underline">Lesson 2</a> for a full walkthrough.
+        Adding a new processor is one new file plus one new line in <code class="bg-gray-100 px-2 py-1 rounded">ALL</code>. See <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:underline">Lesson 2 — The Open/Closed Principle in Real Rails Code</a> for a full walkthrough.
       </p>
     </section>
 
