@@ -1,0 +1,164 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="MVCC, vacuum, and bloat in Postgres" description="What an UPDATE actually does, why a 10GB table can hold 200MB of live data, when autovacuum is enough, when to intervene, and the VACUUM FULL vs pg_repack call.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Databases in Production · 5 of 8</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:trash-2" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">MVCC, vacuum, and bloat</h1>
+      </div>
+      <p class="text-xl text-gray-600">What UPDATE actually does, why a 10GB table can hold 200MB of live data, when autovacuum is enough, when to intervene, and the VACUUM FULL vs pg_repack call that catches teams out.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres uses MVCC (Multi-Version Concurrency Control) to handle concurrent reads and writes. The core idea: instead of writers and readers locking each other out, every transaction sees a consistent snapshot of the data as of when it started. Writers do not block readers, readers do not block writers.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The mechanism is per-row versions. Every row carries a <code class="bg-gray-100 px-2 py-1 rounded">xmin</code> (the transaction that inserted it) and <code class="bg-gray-100 px-2 py-1 rounded">xmax</code> (the transaction that deleted or updated it, or null if still live). When you read a row, Postgres checks these against the snapshot's "what transactions count as visible" set. Old transactions see old versions; new transactions see new ones.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The consequence: <strong>UPDATE does not overwrite anything. It writes a new row and marks the old one dead</strong> (sets <code class="bg-gray-100 px-2 py-1 rounded">xmax</code>). DELETE does not free space either; it sets <code class="bg-gray-100 px-2 py-1 rounded">xmax</code> and moves on. Until no running transaction can still see the old version, the dead tuple sits in the table taking up disk space.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The cleanup process that eventually reclaims the space is <strong>vacuum</strong>. Autovacuum runs it in the background based on a threshold of changed rows. The rest of this lesson is about what happens when autovacuum keeps up, what happens when it does not, and how to fix the damage.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: "why is my SELECT slow on a table I freshly updated?"</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team runs a bulk update at 2 a.m. to populate a new column on a 5-million-row orders table. The migration finishes in 12 minutes. The next morning, queries against orders are slower than yesterday. Nothing about the queries or the indexes changed.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        What happened: the bulk update wrote 5 million new row versions and marked 5 million old ones dead. The table is now twice its previous size on disk. Every seq scan reads twice as many pages. Every index scan does twice as many heap fetches because the index points at old tuple locations that have to be checked against the visibility map.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fix is vacuum, but autovacuum will not get to it for hours. It is throttled by default and runs one table at a time. Until it does, the table is bloated and queries are slow.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior reflex on a freshly-updated table is to run a manual <code class="bg-gray-100 px-2 py-1 rounded">VACUUM ANALYZE orders;</code> immediately after the bulk update. That reclaims the dead-tuple space and refreshes the stats in one pass. Production speed comes back within minutes.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How autovacuum works</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Autovacuum is a worker pool that wakes up at intervals (default: every minute) and checks each table for two conditions:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Dead tuples</strong>: when <code class="bg-gray-100 px-2 py-1 rounded">n_dead_tup</code> exceeds <code class="bg-gray-100 px-2 py-1 rounded">autovacuum_vacuum_threshold + autovacuum_vacuum_scale_factor × n_live_tup</code> (default: 50 + 0.2 × live rows). On a million-row table, this means roughly 200,000 dead tuples before vacuum kicks in.</li>
+        <li><strong>Stale statistics</strong>: similar threshold for changed rows, triggering ANALYZE instead of VACUUM.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        When a worker starts, it scans the table, marks reusable space in the free space map, updates the visibility map, removes index entries pointing at dead tuples, and updates stats. <strong>It does not reduce the table's size on disk.</strong> Reclaimed space becomes available for new inserts within the existing pages; it does not return to the OS. Disk usage stays the same until the table grows into it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Autovacuum is throttled by default: <code class="bg-gray-100 px-2 py-1 rounded">autovacuum_vacuum_cost_limit</code> caps the IO it does per round, pausing when the cap is hit. This keeps it from disrupting live traffic. The downside is that on a high-write table, autovacuum can fall behind. n_dead_tup grows faster than autovacuum can clean it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Recognising bloat in production</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three signals show up in the catalogs.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. n_dead_tup vs n_live_tup in pg_stat_user_tables.</strong> A ratio over 0.2 means autovacuum has fallen behind. A ratio over 1.0 means there is more dead than live data. Query:
+      </p>
+      <CodeBlock code={`SELECT
+  schemaname,
+  relname,
+  n_live_tup,
+  n_dead_tup,
+  round(n_dead_tup::numeric / nullif(n_live_tup, 0), 2) AS dead_ratio,
+  last_autovacuum
+FROM pg_stat_user_tables
+WHERE n_live_tup > 10000
+ORDER BY dead_ratio DESC NULLS LAST
+LIMIT 20;`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Table size vs row count.</strong> Compare <code class="bg-gray-100 px-2 py-1 rounded">pg_total_relation_size(relname)</code> to <code class="bg-gray-100 px-2 py-1 rounded">n_live_tup × average_row_width</code>. If the disk size is much larger than the expected size, the table is bloated.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. pgstattuple for the exact picture.</strong> An extension that reads every page and reports live/dead/free space precisely. Expensive on a huge table, but the most accurate measure. Use sparingly during investigations.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When to intervene</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Most bloat resolves itself: autovacuum catches up overnight, queries speed back up by morning. Intervene when:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>The dead-tuple ratio is over 1.0 on a table that matters to live traffic, and autovacuum is visibly throttled (last_autovacuum hours ago, n_dead_tup still rising).</li>
+        <li>A bulk UPDATE or DELETE has finished. Run <code class="bg-gray-100 px-2 py-1 rounded">VACUUM ANALYZE table_name;</code> manually to skip the autovacuum lag.</li>
+        <li>Disk space is constrained and table size needs to actually shrink (not only become reusable). Manual VACUUM does not reclaim disk; VACUUM FULL or pg_repack does.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Tuning autovacuum aggressiveness per table is the long-term fix on high-write tables:
+      </p>
+      <CodeBlock code={`-- More aggressive autovacuum on a specific hot table
+ALTER TABLE events SET (
+  autovacuum_vacuum_scale_factor = 0.05,
+  autovacuum_vacuum_cost_limit   = 2000
+);`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        The first knob lowers the trigger threshold (vacuum when 5% of rows are dead, not 20%). The second raises the IO cap so the vacuum finishes faster. Both are per-table so they do not punish autovacuum on tables that are fine.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">VACUUM FULL vs pg_repack</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Regular VACUUM does not return disk to the OS. If a table actually needs to shrink (after a one-time big delete, or after years of bloat), the two options are VACUUM FULL and pg_repack.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>VACUUM FULL</strong> rewrites the table from scratch, removing dead tuples and packing the survivors into fewer pages. It takes an <code class="bg-gray-100 px-2 py-1 rounded">AccessExclusiveLock</code> on the table for the entire duration. <strong>Running VACUUM FULL on a 100GB production table will lock it for an hour or more.</strong> Every query that touches the table waits. Production effectively goes down.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The "we ran VACUUM FULL on the orders table during the maintenance window and it ran into business hours" story is one of the most consistent Postgres operational pains. The rule: <strong>VACUUM FULL is a maintenance-window-only tool, on tables you can afford to lock.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>pg_repack</strong> is the production-safe alternative. It is a Postgres extension that rebuilds the table online: creates a shadow table, copies live tuples while tracking ongoing changes via a trigger, swaps the new table in under a brief lock at the end. Total lock time is seconds, not hours. Disk usage temporarily doubles during the rebuild, which is the main constraint.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For a Rails app's regular bloat maintenance: pg_repack. For a one-time shrink during a planned downtime window: either, with VACUUM FULL being slightly faster and not requiring the extension. <strong>The senior call is never running VACUUM FULL unintentionally during business hours.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres trades disk space for concurrency. Every UPDATE writes a new row version; every DELETE leaves a tombstone. The trade pays off because reads and writes do not block each other and snapshots are consistent without coarse locking. The cost is ongoing cleanup work and the bloat that accumulates when cleanup falls behind.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior view is treating autovacuum as a workload to provision for, not a background detail that handles itself. High-write tables need tuning. Bulk migrations need manual VACUUM ANALYZE at the end. Disk-shrinking needs pg_repack, not VACUUM FULL. <strong>Recognising the bloat signal in pg_stat_user_tables before it shows up as user-visible slowness is the difference between a calm Monday and a 9 a.m. incident.</strong>
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run the pg_stat_user_tables bloat query above against production. Identify the top 5 bloated tables (highest dead-tuple ratio).</li>
+        <li>For each, check <code class="bg-gray-100 px-2 py-1 rounded">last_autovacuum</code>. If it is more than a few hours old on a hot table, tune autovacuum aggressiveness with the <code class="bg-gray-100 px-2 py-1 rounded">ALTER TABLE ... SET</code> pattern above. Re-check the next day.</li>
+        <li>The next time you ship a bulk UPDATE migration, add a <code class="bg-gray-100 px-2 py-1 rounded">VACUUM ANALYZE table_name;</code> at the end of the migration. Watch for the production read speed not regressing.</li>
+        <li>Install <code class="bg-gray-100 px-2 py-1 rounded">pg_repack</code> on a staging database. Repack a bloated table. Measure before and after. <strong>If you ever reach for VACUUM FULL in production, this is your alternative.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-db-window-and-cte" class="text-ruby hover:text-ruby-dark transition-colors">← Window functions and CTEs</a>
+      <a href="/lessons/senior-db-isolation-locking" class="text-ruby hover:text-ruby-dark transition-colors">Transaction isolation and locking →</a>
+    </div>
+  </article>
+</Layout>

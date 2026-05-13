@@ -1,0 +1,196 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Window functions and CTEs without the foot-gun" description="Running totals, top-N per group, gap detection, and the CTE materialization change in Postgres 12 that decides whether your query plan is great or terrible.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Databases in Production · 4 of 8</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:layers-3" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Window functions and CTEs without the foot-gun</h1>
+      </div>
+      <p class="text-xl text-gray-600">Running totals, top-N per group, gap detection, the cases where 50 lines of Ruby compress to 4 lines of SQL, and the CTE materialization change in Postgres 12 that decides whether your query plan is great or terrible.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Two SQL features cover most of the cases where Rails developers reach for Ruby loops over query results. <strong>Window functions</strong> compute values across a set of rows related to the current row, without collapsing the rows into a single aggregate. <strong>Common Table Expressions (CTEs)</strong> let a query reference a named sub-result, including recursive references for hierarchical data.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Both have been in Postgres since version 8.4 (2009). Neither is exotic. Both show up rarely in Rails codebases because Active Record's vocabulary points at scopes and joins, and the patterns these features enable require dropping into SQL. The shift seniors make is recognising when 50 lines of Ruby that fetch, iterate, and group rows are doing work the database could do in 4 lines.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The other thing that matters is what changed in Postgres 12. CTEs used to be an <em>optimization fence</em>: the planner could not push predicates through them. PG12 changed that, and the rule of when to reach for a CTE shifted with it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: ranking in Ruby</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team builds a leaderboard endpoint: "the top 3 posts per user, ordered by score." The Ruby-first approach:
+      </p>
+      <CodeBlock code={`# Fetches every post in the system, then ranks in Ruby
+top_three_per_user = Post.order(score: :desc).group_by(&:user_id).transform_values { |posts| posts.first(3) }`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        On a posts table with 5 million rows, this query reads all 5 million rows from the database, ships them to the Rails process, allocates 5 million Active Record objects, and throws 99% of them away. The wall-clock time is dominated by data transfer and Ruby memory allocation, not by the database itself.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The same problem solved with a window function:
+      </p>
+      <CodeBlock code={`Post.from(<<~SQL).where("rn <= 3")
+  (
+    SELECT
+      posts.*,
+      ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY score DESC) AS rn
+    FROM posts
+  ) ranked
+SQL`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The database ranks rows in-place, returns only the top 3 per user (a few thousand rows), and finishes in milliseconds. <strong>The right place to do per-group ranking is in the engine that already has the rows sorted in pages on disk</strong>, not in Ruby after a round-trip.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Window functions for "top N per group"</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A window function is a function called over a window of rows. The window is defined by <code class="bg-gray-100 px-2 py-1 rounded">OVER (PARTITION BY ... ORDER BY ...)</code>. PARTITION BY divides the rows into groups; ORDER BY sorts within each group. <code class="bg-gray-100 px-2 py-1 rounded">ROW_NUMBER()</code> assigns a sequential integer per row in each partition.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The full list of ranking functions:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><code class="bg-gray-100 px-2 py-1 rounded">ROW_NUMBER()</code>: 1, 2, 3, 4, ... (ties get arbitrary order)</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">RANK()</code>: 1, 2, 2, 4, ... (ties share a rank, next rank jumps)</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">DENSE_RANK()</code>: 1, 2, 2, 3, ... (ties share a rank, no gap)</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">NTILE(n)</code>: divides rows into n approximately equal buckets, returns the bucket number</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Most leaderboard and top-N-per-group queries use ROW_NUMBER. <strong>The senior reflex: when the question is "give me the top N rows per category," reach for a window function before reaching for a loop.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Running totals and gap detection</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Beyond ranking, window functions cover two other patterns that show up in product code: cumulative aggregates and adjacent-row comparisons.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Running totals</strong>: a balance column computed from a stream of transactions. The Ruby-first approach iterates, accumulates, writes back. The window function:
+      </p>
+      <CodeBlock code={`SELECT
+  id,
+  amount_cents,
+  SUM(amount_cents) OVER (PARTITION BY account_id ORDER BY created_at) AS running_balance
+FROM transactions
+ORDER BY account_id, created_at;`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        Postgres walks the partition in order, accumulating the sum. The result is the running balance at every row. No application-level iteration, no memory accumulation in Ruby.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Gap detection</strong>: <code class="bg-gray-100 px-2 py-1 rounded">LAG()</code> and <code class="bg-gray-100 px-2 py-1 rounded">LEAD()</code> let a row see the previous or next row's value. Finding logins more than 24 hours apart per user:
+      </p>
+      <CodeBlock code={`SELECT
+  user_id,
+  created_at,
+  created_at - LAG(created_at) OVER (PARTITION BY user_id ORDER BY created_at) AS gap
+FROM sessions
+WHERE created_at - LAG(created_at) OVER (PARTITION BY user_id ORDER BY created_at) > INTERVAL '24 hours';`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        Postgres compares each row to its predecessor in the same partition. This kind of query in Ruby would require iterating in chronological order, holding the previous row in memory, and computing the diff. In SQL it is one statement.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">CTEs and the materialization fence</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A CTE is a named subquery. The syntax:
+      </p>
+      <CodeBlock code={`WITH recent_orders AS (
+  SELECT * FROM orders WHERE created_at > NOW() - INTERVAL '30 days'
+)
+SELECT
+  customer_id,
+  COUNT(*) AS order_count,
+  SUM(amount_cents) AS total_cents
+FROM recent_orders
+GROUP BY customer_id;`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        Before Postgres 12, every CTE was <strong>materialized</strong>: Postgres computed the CTE's full result into a temporary set, then ran the outer query against it. Predicates from the outer query could not push down into the CTE, even when it would have helped. This is the "optimization fence" old Postgres docs reference.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fence had a use: forcing materialization when you wanted the planner to compute the CTE once and reuse the result. But the cost was that naive CTEs gave bad plans on large tables. Many Postgres teams in the 9.x era avoided CTEs entirely for that reason.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres 12 inverted the default. CTEs are <strong>inlined</strong> unless declared <code class="bg-gray-100 px-2 py-1 rounded">WITH ... AS MATERIALIZED</code> or referenced multiple times. The planner can now push predicates through, choose join orders that span the CTE boundary, and pick plans as if the CTE were a subquery. <strong>CTEs in PG12+ are safe to use for readability without paying a plan tax.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Forcing materialization is still useful in two cases. One: the CTE result is expensive and used multiple times in the outer query, so caching it explicitly pays back. Two: the CTE contains side effects (an INSERT, UPDATE, or DELETE returning rows), in which case materialization is required for correctness.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Recursive CTEs for hierarchical data</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Trees and graphs in a relational database are usually modelled with a self-referential foreign key: <code class="bg-gray-100 px-2 py-1 rounded">parent_id</code> on the same table. Walking the tree in Ruby (one query per level) is N+1 from hell. The right tool is a recursive CTE:
+      </p>
+      <CodeBlock code={`WITH RECURSIVE descendants AS (
+  SELECT id, parent_id, name, 0 AS depth
+  FROM categories
+  WHERE id = 42
+
+  UNION ALL
+
+  SELECT c.id, c.parent_id, c.name, d.depth + 1
+  FROM categories c
+  JOIN descendants d ON c.parent_id = d.id
+)
+SELECT * FROM descendants;`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        Postgres starts with the seed query (the row with id 42), then repeatedly joins the recursive query against the accumulated result until it returns no new rows. The output is the full subtree rooted at id 42, with depth annotation.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Comment threads, organisational charts, category hierarchies, dependency graphs: all of these are recursive CTE queries. The alternative in Active Record is fetching one level at a time or using a heavyweight extension like <code class="bg-gray-100 px-2 py-1 rounded">closure_tree</code>. For occasional traversals, the CTE is shorter and faster.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The database has already sorted, grouped, and indexed your data. Shipping rows to the application to do work the database could do is paying twice: once for the data transfer, once for the Ruby-side computation. The senior move is recognising the patterns that compress in SQL and using them.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Three signals that a Ruby loop should be a SQL query:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>The loop fetches more rows than it returns. (Filtering, top-N, deduplication.)</li>
+        <li>The loop computes something per group. (Running totals, per-group ranks, percentiles.)</li>
+        <li>The loop compares each row to its neighbours. (Gaps, deltas, sequences.)</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Each of these has a one-statement SQL form. Active Record's vocabulary does not reach them directly, but raw SQL inside a <code class="bg-gray-100 px-2 py-1 rounded">.from</code> or <code class="bg-gray-100 px-2 py-1 rounded">.find_by_sql</code> does. The cost of dropping into SQL is one block of inline SQL in the code; the benefit is two orders of magnitude on real workloads.
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Find a controller in your app that fetches a large collection, groups by a column in Ruby, and returns the top N per group. Time it under realistic data.</li>
+        <li>Rewrite it as a SQL query with <code class="bg-gray-100 px-2 py-1 rounded">ROW_NUMBER()</code>. Compare timings. <strong>On a 1M-row table, the difference is usually 5-50×.</strong></li>
+        <li>Find a place in the app that computes a running total or running aggregate in Ruby (a balance, a streak count, a cumulative score). Rewrite with <code class="bg-gray-100 px-2 py-1 rounded">SUM(...) OVER (...)</code>.</li>
+        <li>If your data has any tree shape (categories, comments, organisational hierarchy), write a recursive CTE that returns one subtree. Confirm the EXPLAIN plan is sane (does not do a seq scan per level).</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-db-indexing-beyond-btree" class="text-ruby hover:text-ruby-dark transition-colors">← Indexing beyond btree</a>
+      <a href="/lessons/senior-db-mvcc-vacuum-bloat" class="text-ruby hover:text-ruby-dark transition-colors">MVCC, vacuum, and bloat →</a>
+    </div>
+  </article>
+</Layout>

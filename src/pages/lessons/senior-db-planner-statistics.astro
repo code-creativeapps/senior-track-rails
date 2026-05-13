@@ -1,0 +1,174 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="The Postgres planner and its statistics" description="Why a query goes from 5ms to 800ms after a release without the SQL changing. Stats freshness, ANALYZE, extended statistics, and pg_stat_user_tables. The places seniors look first when a plan goes wrong.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Databases in Production · 2 of 8</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:chart-bar" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">The planner and its statistics</h1>
+      </div>
+      <p class="text-xl text-gray-600">Why a query goes from 5ms to 800ms after a release without the SQL changing. What the planner knows about your data, how it goes stale, and the places seniors look first when a plan goes wrong.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres is a cost-based planner. For every query, it enumerates candidate plans, estimates the cost of each, and picks the cheapest. The cost estimate depends on what the planner believes about the data: how many rows are in each table, how selective each predicate is, how the values are distributed.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        These beliefs live in two system catalogs. <code class="bg-gray-100 px-2 py-1 rounded">pg_class</code> holds per-table summaries: <code class="bg-gray-100 px-2 py-1 rounded">reltuples</code> (estimated row count), <code class="bg-gray-100 px-2 py-1 rounded">relpages</code> (8KB pages on disk). <code class="bg-gray-100 px-2 py-1 rounded">pg_stats</code> holds per-column distributions: most common values (MCVs), histograms, null fraction, average column width, number of distinct values.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The statistics are sampled, not exact. Postgres reads a sample of rows (default 300 × <code class="bg-gray-100 px-2 py-1 rounded">default_statistics_target</code> = 30,000 rows on a large table) and extrapolates. The sample is refreshed when autovacuum runs <code class="bg-gray-100 px-2 py-1 rounded">ANALYZE</code> on the table, which happens after about 10% of rows have changed by default.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The result: <strong>between autovacuum runs, the planner's view of your data can drift away from reality.</strong> A query that ran fine yesterday can run badly today because something changed about the data, not the query. Finding that drift is most of the senior's job during a slow-query investigation.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: blame the SQL</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team gets paged at 9 a.m. The dashboard endpoint that used to return in 80ms is taking 4 seconds. The team opens the controller, looks at the query, and starts rewriting. They add an index. They try a different scope. They check N+1. Nothing helps.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Two hours in, someone runs EXPLAIN ANALYZE and sees the planner is estimating 12 rows where 184,000 are actually returning. The query is fine. The plan is wrong. <code class="bg-gray-100 px-2 py-1 rounded">ANALYZE accounts;</code> takes 8 seconds. The query is back to 80ms. The actual cause was a backfill job that ran overnight, inserting 200,000 new rows, all matching the dashboard's predicate, before autovacuum had a chance to refresh stats.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The lesson is that the SQL was never the problem. The data underneath it changed in a way the planner did not know about. <strong>The senior reflex is "check the statistics freshness before you touch the query."</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How statistics drive plan choice</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The simplest example: a join. Postgres has three join algorithms, each best in a different regime.
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Nested loop</strong>: for each outer row, look up matching inner rows. Cheap when the outer side returns very few rows. Expensive when it returns many.</li>
+        <li><strong>Hash join</strong>: build an in-memory hash on the smaller side, probe with the larger. Cheap when both sides are reasonably sized. Memory-hungry if either side is huge.</li>
+        <li><strong>Merge join</strong>: both sides arrive sorted, walk through in parallel. Cheap when both sides are already ordered. Expensive when a Sort node has to feed it.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The planner picks among these based on the estimated row count from the outer side. If it expects 5 rows from the outer scan, it picks nested loop. If it expects 50,000, it picks hash join. If the estimate is 5 and the reality is 50,000, the nested loop runs 50,000 inner scans and the query is 10,000× slower than it could have been.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Selectivity estimation is the other half. Given a predicate like <code class="bg-gray-100 px-2 py-1 rounded">WHERE status = 'pending'</code>, Postgres looks up the MCV list for the status column. If 'pending' is one of the most common values, it knows the percentage exactly. Otherwise it falls back to the histogram. <strong>For unusual values not in the MCV list, the estimate is "fraction of rows not covered by MCVs divided by n_distinct," a flat guess.</strong> This is where most selectivity bugs live.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When statistics go stale</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Stats go wrong in four common patterns.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Bulk inserts between autovacuum runs.</strong> A backfill job adds 500,000 rows in 30 seconds. Autovacuum has not run yet. The planner believes the table is its previous size, picks plans based on the old selectivity, and gets every estimate wrong.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Deletes that change distribution.</strong> A cleanup job removes all soft-deleted rows. The remaining rows have a different distribution of values (different MCVs, different histograms) but Postgres has not re-sampled yet. Queries that filtered on the deleted values now hit a different shape than the planner expects.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Migrations that backfill columns.</strong> Adding a new column and populating it via a background job creates a brief window where the column exists but Postgres has no histogram for it. Predicates on the new column get the default "1 in 200" estimate, which is almost always wrong.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>4. Correlated columns the planner thinks are independent.</strong> By default, Postgres assumes columns are statistically independent. A predicate like <code class="bg-gray-100 px-2 py-1 rounded">WHERE country = 'France' AND city = 'Paris'</code> gets estimated as (fraction of France rows) × (fraction of Paris rows). In reality, almost every Paris row is also a France row, so the joint selectivity is the city selectivity alone. Postgres underestimates by a factor of 1/n_countries. <strong>This is fixed with extended statistics</strong>, covered below.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Extended statistics for correlated columns</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres 10 added <code class="bg-gray-100 px-2 py-1 rounded">CREATE STATISTICS</code> for capturing correlations between columns. Three kinds matter for Rails apps:
+      </p>
+      <CodeBlock code={`-- Functional dependencies: city → country, postcode → city
+CREATE STATISTICS users_geo (dependencies)
+  ON country, city, postcode FROM users;
+
+-- ndistinct: number of distinct combinations
+CREATE STATISTICS orders_pair (ndistinct)
+  ON customer_id, status FROM orders;
+
+-- MCV across multiple columns
+CREATE STATISTICS posts_filter (mcv)
+  ON published, category_id FROM posts;
+
+-- Then refresh:
+ANALYZE users;
+ANALYZE orders;
+ANALYZE posts;`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        After the extended statistics exist and the next ANALYZE has run, the planner uses them for correlated predicates. <strong>Selectivity estimates that were off by 100× become accurate.</strong> The plans that depended on those estimates start picking the right algorithm.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The signal that you need extended statistics: an EXPLAIN ANALYZE shows the planner estimated a small number on a multi-column predicate but the actual rows were much larger, AND single-column ANALYZE does not fix it. The correlation between the columns is the missing information.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Reading pg_stat_user_tables</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres records per-table activity counters in <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_user_tables</code>. The columns that matter for plan investigations:
+      </p>
+      <CodeBlock code={`SELECT
+  schemaname,
+  relname,
+  n_live_tup,
+  n_dead_tup,
+  last_analyze,
+  last_autoanalyze,
+  n_mod_since_analyze
+FROM pg_stat_user_tables
+WHERE schemaname = 'public'
+ORDER BY n_mod_since_analyze DESC
+LIMIT 20;`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        <code class="bg-gray-100 px-2 py-1 rounded">n_mod_since_analyze</code> is the count of rows changed (inserted, updated, deleted) since the last ANALYZE. If it is in the millions and <code class="bg-gray-100 px-2 py-1 rounded">last_analyze</code> is hours old, the planner's view is stale. Run <code class="bg-gray-100 px-2 py-1 rounded">ANALYZE relname;</code> and re-explain the slow query. Most of the time the plan changes for the better.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <code class="bg-gray-100 px-2 py-1 rounded">n_dead_tup</code> in the same view is the dead-tuple count, which is the bloat signal. Lesson 5 covers what to do with that.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The planner is only as good as the data it sees about your data. Most surprise slowdowns are not bad SQL or missing indexes; they are a planner working with a stale model of reality. The senior workflow is to verify reality matches the planner's beliefs before changing anything else.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Three checks in order, on any unexplained slow query:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>EXPLAIN ANALYZE. Compare estimated rows vs actual rows at each node.</li>
+        <li>If they diverge: <code class="bg-gray-100 px-2 py-1 rounded">ANALYZE table_name;</code>, then re-explain.</li>
+        <li>If they still diverge on a multi-column predicate: create an extended statistic, ANALYZE, re-explain.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed">
+        Only then start touching SQL or indexes. <strong>The query was not always the problem.</strong>
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run the <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_user_tables</code> query above against your production database. Sort by <code class="bg-gray-100 px-2 py-1 rounded">n_mod_since_analyze</code>. Identify the three tables most likely to have stale stats.</li>
+        <li>For each, check <code class="bg-gray-100 px-2 py-1 rounded">last_autoanalyze</code>. <strong>If it is hours or days old on a high-write table</strong>, autovacuum is not keeping up. The fix is either raising autovacuum aggressiveness on that table or running a scheduled ANALYZE.</li>
+        <li>Pick a query in your app that filters on two correlated columns (country + city, customer + status, user + workspace). Run EXPLAIN ANALYZE. Compare estimated rows against actual. If the estimate is off by more than 5×, create an extended statistic and re-explain.</li>
+        <li>Set up an alert on <code class="bg-gray-100 px-2 py-1 rounded">n_mod_since_analyze &gt; 1_000_000</code> for your busiest tables. The alert is your early-warning that a plan regression is coming.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-db-explain-analyze" class="text-ruby hover:text-ruby-dark transition-colors">← EXPLAIN ANALYZE for Rails developers</a>
+      <a href="/lessons/senior-db-indexing-beyond-btree" class="text-ruby hover:text-ruby-dark transition-colors">Indexing beyond btree →</a>
+    </div>
+  </article>
+</Layout>

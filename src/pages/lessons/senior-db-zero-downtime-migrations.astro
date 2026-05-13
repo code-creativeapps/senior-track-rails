@@ -1,0 +1,213 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Zero-downtime migrations on Postgres" description="The patterns: add column with default in two steps, add index concurrently, rename column via shadow column, drop column safely. What strong_migrations enforces and the table-size reflex that prevents 9 a.m. incidents.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Databases in Production · 7 of 8</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:rocket" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Zero-downtime migrations</h1>
+      </div>
+      <p class="text-xl text-gray-600">The patterns that keep ALTER TABLE off the critical path: add column with default in two steps, add index concurrently, rename via shadow column. What strong_migrations enforces and the table-size reflex that separates safe deploys from 9 a.m. incidents.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        DDL statements in Postgres (ALTER TABLE, CREATE INDEX, DROP COLUMN) take locks on the tables they modify. The default lock for most DDL is <code class="bg-gray-100 px-2 py-1 rounded">AccessExclusiveLock</code>: blocks every other operation on the table, including reads. For a small table this lock is acquired and released in milliseconds. For a 50-million-row table, the operation under the lock can take ten minutes, during which every query that touches the table waits in the connection pool.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The history of Postgres DDL has been a slow march toward shorter locks. Postgres 11 made adding a column with a default a metadata-only operation (no row rewrite). Postgres 12 made certain ALTER COLUMN operations faster. <code class="bg-gray-100 px-2 py-1 rounded">CREATE INDEX CONCURRENTLY</code> has existed since 8.2 for building indexes without locking writes. The catalog of "safe DDL" has grown, but the trap remains: a single naive ALTER TABLE in a migration file can lock a production table for the entire deploy window.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Zero-downtime migration patterns are the catalog of "do this DDL the right way." The senior reflex on any migration touching a large table is to check the table size before reading the migration, then map the proposed change onto a known safe pattern. Most migrations have a safe form; the ones that do not need to be split into multiple steps across deploys.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: the unread Rails migration</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team ships a migration without thinking about table size:
+      </p>
+      <CodeBlock code={`class AddStatusToOrders < ActiveRecord::Migration[7.1]
+  def change
+    add_column :orders, :status, :string, default: 'pending', null: false
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        On a 10,000-row dev database, the migration runs instantly. On a 50-million-row production orders table, the migration acquires AccessExclusiveLock on the table at 09:01, starts rewriting every row to populate the default value, and finishes at 09:14. For 13 minutes, every read and write of the orders table waits. The site is down for everything order-related.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres 11 fixed this specific case: <code class="bg-gray-100 px-2 py-1 rounded">ADD COLUMN ... DEFAULT ... NOT NULL</code> is now metadata-only. The default is stored separately and applied at read time for existing rows. The migration above is safe on PG11+ at any table size.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        But other migrations still trigger row rewrites or long locks. Changing a column type. Setting NOT NULL on an existing nullable column. Adding a CHECK constraint without NOT VALID. Removing a NOT NULL. The team that writes the migration usually does not see these on their dev database, because dev tables are tiny. <strong>The senior reflex: open the production table size before reading the migration body.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Adding columns safely</h2>
+      <p class="text-gray-700 leading-relaxed">
+        On Postgres 11+:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><code class="bg-gray-100 px-2 py-1 rounded">ADD COLUMN</code> with no default or with a constant default: <strong>safe at any size.</strong> Metadata-only.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">ADD COLUMN</code> with a volatile default (<code class="bg-gray-100 px-2 py-1 rounded">DEFAULT random()</code>, <code class="bg-gray-100 px-2 py-1 rounded">DEFAULT NOW()</code>): rewrites every row. Unsafe at large size.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">ADD COLUMN</code> with NOT NULL and no default: fails on tables with rows. Set the default first, then add NOT NULL after backfill.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The standard pattern for "add a column that should be NOT NULL with values for existing rows":
+      </p>
+      <CodeBlock code={`# Deploy 1: add the column nullable, backfill in batches
+class AddStatusToOrders < ActiveRecord::Migration[7.1]
+  def change
+    add_column :orders, :status, :string, default: 'pending'
+  end
+end
+
+# Background job or rake task, after deploy 1
+Order.in_batches(of: 10_000) do |batch|
+  batch.where(status: nil).update_all(status: 'pending')
+end
+
+# Deploy 2: add NOT NULL constraint after backfill is done
+class AddStatusNotNullToOrders < ActiveRecord::Migration[7.1]
+  def change
+    change_column_null :orders, :status, false
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The reason for splitting: the NOT NULL constraint takes a brief AccessExclusiveLock to validate, but the table contents are already populated by the backfill, so the validation runs quickly. The alternative (one migration that adds NOT NULL during the row rewrite) blocks the table for the duration of the rewrite.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Adding indexes concurrently</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <code class="bg-gray-100 px-2 py-1 rounded">CREATE INDEX</code> takes a <code class="bg-gray-100 px-2 py-1 rounded">ShareLock</code> on the table: reads continue, writes block. On a 50M-row table, the writes block for 5 to 30 minutes. <code class="bg-gray-100 px-2 py-1 rounded">CREATE INDEX CONCURRENTLY</code> takes a smaller lock and lets writes continue while it builds the index in two scans. It is slower overall (two scans) but does not block traffic.
+      </p>
+      <CodeBlock code={`class AddIndexOnOrdersUserId < ActiveRecord::Migration[7.1]
+  disable_ddl_transaction!
+
+  def change
+    add_index :orders, :user_id, algorithm: :concurrently
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Two constraints. <code class="bg-gray-100 px-2 py-1 rounded">disable_ddl_transaction!</code> is required because CONCURRENTLY cannot run inside a transaction. If the index build fails partway through, it leaves an invalid index that has to be dropped manually with <code class="bg-gray-100 px-2 py-1 rounded">DROP INDEX</code>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The "always concurrently in production" rule has one exception: on a tiny table during development, the synchronous CREATE INDEX is fine and easier to debug. <strong>For any production table over 100,000 rows, default to concurrently.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Renaming a column via shadow column</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <code class="bg-gray-100 px-2 py-1 rounded">ALTER TABLE ... RENAME COLUMN</code> is safe at the database level (metadata-only on Postgres). The trap is at the application level. Between the moment the migration runs and the moment new code referencing the new name is deployed, requests served by old code that reference the old name break. The deploy window becomes a multi-minute period of broken requests.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The safe pattern is a shadow column across three deploys:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Deploy 1:</strong> add the new column, copy values from the old one. Update application code to write both old and new on every change, but keep reading from old.</li>
+        <li><strong>Deploy 2:</strong> switch application reads to the new column. Old column is still being written to (in case of rollback).</li>
+        <li><strong>Deploy 3:</strong> stop writing the old column. Drop it in a follow-up migration.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed">
+        The shadow-column pattern is the same shape for renames, column-type changes, and splitting a column into two. The principle is that any database-level change which takes effect instantly must not require a coordinated change in application code that has not been deployed yet. <strong>Decouple the database change from the code change by giving both old and new the data they need at the same time.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Dropping a column safely</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Dropping a column is a metadata-only operation: the column header is removed from the table catalog, but the existing data stays on disk until the next VACUUM FULL or pg_repack. The lock is brief.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The danger is not in the migration; it is in Active Record. AR caches schema metadata at boot. If a Rails process has cached the column's existence and the migration drops it, the next time AR tries to use that column the query fails. The pattern that avoids the bug:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Deploy 1:</strong> tell Active Record to ignore the column via <code class="bg-gray-100 px-2 py-1 rounded">self.ignored_columns = [:column_name]</code> on the model. Confirm production is happy with the column ignored.</li>
+        <li><strong>Deploy 2:</strong> run the migration that drops the column. Old AR processes serving requests have the column ignored, so they do not try to use it.</li>
+        <li><strong>Deploy 3 (optional):</strong> remove the <code class="bg-gray-100 px-2 py-1 rounded">ignored_columns</code> line.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed">
+        Skipping the ignore step and dropping the column in one deploy works most of the time. The times it does not result in a brief window of "column does not exist" errors that hit users.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Backfilling large tables</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A migration that runs <code class="bg-gray-100 px-2 py-1 rounded">User.where(verified: nil).update_all(verified: false)</code> on a 10-million-row table updates every row in one transaction. The transaction holds a lock on every row it touches, generates 10 million dead tuples in one go (lesson 5), and stays in the WAL log until it commits. The right approach is batching:
+      </p>
+      <CodeBlock code={`class BackfillUserVerifiedFlag < ActiveRecord::Migration[7.1]
+  disable_ddl_transaction!
+
+  def up
+    User.unscoped.in_batches(of: 5_000) do |batch|
+      batch.where(verified: nil).update_all(verified: false)
+      sleep 0.1  # Give autovacuum and replicas room to keep up
+    end
+  end
+
+  def down
+    # Reversal is usually a no-op for a backfill
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Each batch is its own transaction. Locks are short, dead tuples are spread across the run instead of concentrated, autovacuum can keep up. The optional sleep is for very busy systems where the backfill itself competes with live traffic for resources. <strong>For backfills that take more than a few minutes, run them outside the migration entirely (as a Rake task or a one-off Sidekiq job) so a failure does not block the deploy.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">strong_migrations as the safety net</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The <code class="bg-gray-100 px-2 py-1 rounded">strong_migrations</code> gem reads migration files and blocks ones that match known unsafe patterns. Adding a column with a volatile default. Creating an index without CONCURRENTLY on a table over a threshold. Changing a column type. The list is long and well-maintained.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The gem does not catch every issue (large backfills inside migrations are usually allowed because the gem cannot judge the data size), but it catches the most common foot-guns. Adding it to a Rails app takes one line in the Gemfile and one initializer. <strong>For any team shipping migrations more than once a week, strong_migrations is worth the install cost on day one.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Most production database incidents are not novel; they are well-catalogued mistakes hitting a new team that does not know the catalog. The patterns in this lesson exist because thousands of teams have already learned them the expensive way. The senior version of the workflow is short:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Open production table size before reading the migration.</li>
+        <li>If the table is large, check whether the migration matches a known safe pattern. If not, redesign across multiple deploys.</li>
+        <li>For indexes on large tables: <code class="bg-gray-100 px-2 py-1 rounded">algorithm: :concurrently</code>.</li>
+        <li>For backfills on large tables: out-of-band rake task in batches.</li>
+        <li>For renames and drops: shadow column or <code class="bg-gray-100 px-2 py-1 rounded">ignored_columns</code> across deploys.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed">
+        Every one of these is documented in the strong_migrations README and reinforced by anyone who has spent a 9 a.m. incident on the receiving end of one. <strong>The senior reflex is making the checks automatic instead of remembered.</strong>
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Install <code class="bg-gray-100 px-2 py-1 rounded">strong_migrations</code> in your app. Run the existing migration suite against it to see what would have been caught.</li>
+        <li>Pick the largest table in your app. Run <code class="bg-gray-100 px-2 py-1 rounded">SELECT pg_size_pretty(pg_total_relation_size('table_name')), reltuples::bigint FROM pg_class WHERE relname = 'table_name';</code>. Memorise the number. <strong>The next migration that touches it should be evaluated against this size, not against your dev database's.</strong></li>
+        <li>Find a recent migration that added a column with a default. Was it on PG11+? Was the default constant? If both yes, it was safe. If not, work out what the safe shape would have been.</li>
+        <li>Pick a column you would rename if you could. Sketch the three-deploy shadow-column plan. Estimate how many days it takes to ship end-to-end. <strong>If the answer is "more than a week," the rename is more expensive than living with the imperfect name; that itself is a senior tradeoff worth recognising.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-db-isolation-locking" class="text-ruby hover:text-ruby-dark transition-colors">← Transaction isolation and locking</a>
+      <a href="/lessons/senior-db-read-replicas" class="text-ruby hover:text-ruby-dark transition-colors">Read replicas and multi-DB →</a>
+    </div>
+  </article>
+</Layout>

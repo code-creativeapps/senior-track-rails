@@ -1,0 +1,193 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Transaction isolation and locking in Postgres" description="Read committed's lost-update problem, when SELECT FOR UPDATE is correct, advisory locks for cross-request synchronization, how to read pg_locks during an incident, and the case for atomic UPDATE over with_lock.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Databases in Production · 6 of 8</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:lock" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Transaction isolation and locking</h1>
+      </div>
+      <p class="text-xl text-gray-600">Read committed's lost-update problem, when SELECT FOR UPDATE is correct, advisory locks for cross-request synchronization, reading pg_locks during an incident, and the case for atomic UPDATE over Rails's with_lock.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The SQL standard defines four transaction isolation levels: read uncommitted, read committed, repeatable read, and serializable. Each one weakens or strengthens what concurrent transactions can see and what races can happen between them. Postgres implements three: it treats read uncommitted as read committed (Postgres's MVCC makes the weaker version unnecessary), and adds the standard repeatable read and serializable on top.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The default in Postgres is <strong>read committed</strong>. Every statement in a transaction sees a fresh snapshot, including changes committed by other transactions since the previous statement. The level prevents dirty reads but leaves three concurrency anomalies in play: non-repeatable reads, phantom reads, and the classic <strong>lost-update</strong> race.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Most Rails apps run on read committed without ever consciously choosing it. The result is a class of bugs that show up under load and disappear under tests: two requests reading the same row, both computing a new value, both writing, and one write being silently overwritten. This lesson is about recognising that class and the tools for solving it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: lost update under read committed</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team builds a counter that tracks the number of views on a post:
+      </p>
+      <CodeBlock code={`# In a controller action
+post = Post.find(params[:id])
+post.views_count += 1
+post.save!`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Under normal load this works. Under concurrent load (two simultaneous requests for the same post), the race plays out like this:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Request A reads views_count = 10.</li>
+        <li>Request B reads views_count = 10.</li>
+        <li>Request A computes 11 in Ruby and saves.</li>
+        <li>Request B computes 11 in Ruby and saves.</li>
+        <li>The counter is 11, not 12. One view was lost.</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed">
+        Read committed does not prevent this. Both reads see the same starting value. Both writes succeed because they both target the same row and the second write does not detect that the row changed between the read and the write. This is the lost-update anomaly, and it is the most common concurrency bug in Rails apps.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fix is not "use a transaction." A transaction wraps the read and write atomically from the perspective of crash recovery, but read committed still lets the two transactions see each other's stale snapshots. <strong>The fix is to either lock the row before reading it or to let the database do the increment atomically.</strong> Three tools, each appropriate for different cases.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Atomic UPDATE: the simplest answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        For the counter case, the right answer is rarely locking. It is <strong>letting the database do the arithmetic</strong>:
+      </p>
+      <CodeBlock code={`Post.where(id: params[:id]).update_all("views_count = views_count + 1")`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Postgres takes a row-level lock on the matching row during the UPDATE, reads the current value, adds 1, writes it back. No read-then-write-in-Ruby race. Two simultaneous UPDATEs serialise on the row lock, and the counter ends at 12. No application code is doing the addition.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Active Record's <code class="bg-gray-100 px-2 py-1 rounded">increment_counter</code> uses this exact pattern. <code class="bg-gray-100 px-2 py-1 rounded">Post.increment_counter(:views_count, post_id)</code> compiles to the same UPDATE. The pattern generalises beyond counters: any update that can be expressed as a SQL expression over the current row should be done as an atomic UPDATE, not read-modify-write in Ruby.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior reflex: when a piece of code reads a value, computes a derivation, and writes it back, ask whether the derivation can be expressed in SQL. <strong>If yes, atomic UPDATE is the right shape and locking is unnecessary.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">SELECT FOR UPDATE for read-modify-write</h2>
+      <p class="text-gray-700 leading-relaxed">
+        When the modification cannot be expressed as a SQL expression (it involves business logic, branching, calls to external services), pessimistic locking is the right tool. Rails wraps it with <code class="bg-gray-100 px-2 py-1 rounded">with_lock</code>:
+      </p>
+      <CodeBlock code={`Post.find(params[:id]).with_lock do |post|
+  raise "Post is locked" if post.locked_at
+  raise "Quota exceeded" if post.user.over_quota?
+
+  post.update!(approved: true, approved_at: Time.current)
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Behind the scenes, <code class="bg-gray-100 px-2 py-1 rounded">with_lock</code> opens a transaction and runs <code class="bg-gray-100 px-2 py-1 rounded">SELECT * FROM posts WHERE id = ? FOR UPDATE</code>. The FOR UPDATE clause takes a row-level lock that blocks any other transaction from updating or deleting the same row until this transaction commits. The block runs with the locked row in <code class="bg-gray-100 px-2 py-1 rounded">post</code>; the transaction commits at the end, releasing the lock.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The cost is throughput. While the lock is held, every other request for this row waits. Holding a row lock across a slow external API call (a Stripe charge, a Mailchimp sync) means every concurrent request for the same row sits behind it. <strong>The rule: do not call out to external services inside a with_lock block.</strong> Take the lock, do the in-memory work, commit, then call out.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Two variants worth knowing. <code class="bg-gray-100 px-2 py-1 rounded">FOR UPDATE SKIP LOCKED</code> skips rows that are already locked by another transaction instead of waiting. Useful for job queues: each worker picks the next unlocked job. <code class="bg-gray-100 px-2 py-1 rounded">FOR NO KEY UPDATE</code> is a weaker lock that allows other transactions to take foreign-key locks on the row, which avoids some lock contention in busy parent-child relationships.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Advisory locks for cross-request synchronization</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Row locks protect rows. Some synchronizations are not about a single row: "only one job processes this user at a time," "only one cron run happens at once across all servers," "only one user can edit this document concurrently." For these, Postgres offers <strong>advisory locks</strong>: named application-level locks the database tracks but does not enforce against any particular table.
+      </p>
+      <CodeBlock code={`# Take a session-scoped advisory lock keyed by user_id
+ActiveRecord::Base.connection.execute("SELECT pg_advisory_lock(#{user_id})")
+begin
+  # ... do work that should be exclusive per user
+ensure
+  ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{user_id})")
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The lock is held until the matching release call or until the session ends. Other sessions calling <code class="bg-gray-100 px-2 py-1 rounded">pg_advisory_lock</code> with the same key wait until the lock is released. <code class="bg-gray-100 px-2 py-1 rounded">pg_try_advisory_lock</code> is the non-blocking variant: returns true if the lock was acquired, false if not. Useful for "if someone else is already doing this, skip."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The <code class="bg-gray-100 px-2 py-1 rounded">with_advisory_lock</code> gem wraps this in a Rails-friendly block. Production uses include: making sure a billing job runs once per customer per day even across multiple worker processes, ensuring a slow migration script does not run twice on overlapping deploys, serialising a global recompute that must not double-run.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Two variants matter. <code class="bg-gray-100 px-2 py-1 rounded">pg_advisory_xact_lock</code> takes a transaction-scoped lock that auto-releases on commit or rollback. This is usually what you want for short critical sections: less risk of leaking a lock if Ruby raises. <code class="bg-gray-100 px-2 py-1 rounded">pg_advisory_lock</code> is session-scoped, useful for longer-running coordination but requires careful release.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Reading pg_locks during an incident</h2>
+      <p class="text-gray-700 leading-relaxed">
+        When the app gets paged for "database connections at limit, queries hanging," the first place to look is <code class="bg-gray-100 px-2 py-1 rounded">pg_locks</code> joined with <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_activity</code>. The query that finds blocking sessions:
+      </p>
+      <CodeBlock code={`SELECT
+  blocked.pid       AS blocked_pid,
+  blocked.query     AS blocked_query,
+  blocking.pid      AS blocking_pid,
+  blocking.query    AS blocking_query,
+  blocking.state    AS blocking_state,
+  now() - blocking.xact_start AS blocking_age
+FROM pg_stat_activity blocked
+JOIN pg_stat_activity blocking
+  ON blocking.pid = ANY(pg_blocking_pids(blocked.pid))
+WHERE blocked.wait_event_type = 'Lock';`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        Each row is a "this query is waiting on that query." The blocking query's age tells you how long it has held the lock. The pattern to watch for: one slow query holding a row lock, dozens of fast queries piling up behind it. Killing the blocking session (<code class="bg-gray-100 px-2 py-1 rounded">SELECT pg_cancel_backend(pid);</code>) often clears the cascade in seconds.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The other thing to spot is <strong>deadlocks</strong>: two transactions each holding a lock the other needs. Postgres detects them automatically and aborts one of them with <code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::Deadlocked</code> (or <code class="bg-gray-100 px-2 py-1 rounded">PG::TRDeadlockDetected</code>). A deadlock log entry means the application took locks in inconsistent order between transactions. Most fixes are about ordering: always lock parent before child, always lock by id ascending, never take two locks in a loop without thinking about the order.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When to graduate to repeatable read or serializable</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Read committed plus row-level locking handles most concurrency cases. The two stronger levels exist for the cases where they do not.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Repeatable read</strong> guarantees that the same SELECT inside a transaction returns the same rows every time. Useful for reports that span multiple queries and need a consistent snapshot. The cost is that concurrent UPDATEs to rows your transaction touched will fail with <code class="bg-gray-100 px-2 py-1 rounded">could not serialize access</code>, which means application-level retry on the error.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Serializable</strong> guarantees that the result of all concurrent transactions is equivalent to running them one at a time in some order. The strongest level; the most expensive. Postgres detects conflicts and aborts losing transactions. The pattern: wrap critical sections in a serializable transaction, catch <code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::SerializationFailure</code>, retry with backoff.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The decision rule: stay on read committed unless a specific anomaly is biting you and atomic UPDATE plus SELECT FOR UPDATE cannot fix it. Stronger isolation has real cost in retries, and the retry loops have to be correct. <strong>Most teams never need repeatable read or serializable; the teams that do almost always reach for it specifically rather than as a default.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three tools, three problem shapes:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Atomic UPDATE</strong> when the new value is a SQL expression of the old. Counters, increments, decrements, status transitions.</li>
+        <li><strong>SELECT FOR UPDATE (with_lock)</strong> when the new value depends on application logic. Approval flows, complex state machines, multi-field updates that read each other.</li>
+        <li><strong>Advisory locks</strong> when the synchronization is not about a row. Cross-request coordination, per-tenant job exclusivity, "only one of these can run at a time" across servers.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The senior reflex is recognising which shape the problem has before reaching for a tool. Most "we need a lock" instincts dissolve into "we need an atomic UPDATE." Most "the database is hung" investigations resolve into "one session is holding a lock too long." <strong>Knowing the three tools, and which one fits which shape, is most of the concurrency story in a Postgres-backed Rails app.</strong>
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Grep your codebase for <code class="bg-gray-100 px-2 py-1 rounded">+= 1</code>, <code class="bg-gray-100 px-2 py-1 rounded">-= 1</code>, or any read-then-update on a numeric column. <strong>Each one is a candidate lost-update bug.</strong> Rewrite as atomic UPDATE.</li>
+        <li>Find <code class="bg-gray-100 px-2 py-1 rounded">with_lock</code> blocks in the codebase. For each, check whether the block calls out to an external service. If yes, refactor: take the lock, do in-memory work, commit, then call out.</li>
+        <li>Identify a piece of work that should run "only one at a time" across servers (a daily report, a backfill, a long-running calculation). Wrap it in <code class="bg-gray-100 px-2 py-1 rounded">pg_try_advisory_lock</code>. Confirm that running two copies in parallel results in one acquiring the lock and the other no-op-ing.</li>
+        <li>Save the pg_locks query above somewhere accessible. <strong>Next time the database is slow, run it first.</strong> The blocking-session pattern is the single most common operational cause of an "everything is hung" page.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-db-mvcc-vacuum-bloat" class="text-ruby hover:text-ruby-dark transition-colors">← MVCC, vacuum, and bloat</a>
+      <a href="/lessons/senior-db-zero-downtime-migrations" class="text-ruby hover:text-ruby-dark transition-colors">Zero-downtime migrations →</a>
+    </div>
+  </article>
+</Layout>

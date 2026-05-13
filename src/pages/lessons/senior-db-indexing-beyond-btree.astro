@@ -1,0 +1,174 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Indexing beyond btree in Postgres" description="Partial indexes, expression indexes, GIN and GIST for JSONB and full-text, BRIN for time-series, and covering indexes with INCLUDE. When each is the right tool and when an extra index hurts.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Databases in Production · 3 of 8</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:list-tree" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Indexing beyond btree</h1>
+      </div>
+      <p class="text-xl text-gray-600">Partial, expression, GIN/GIST, BRIN, and covering indexes. When each is the right tool, when an extra index hurts more than it helps, and the queries that go from 4 seconds to 4 milliseconds with the right index type.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres has six index types. Btree is the default and the one most Rails developers know. The others (Hash, GiST, SP-GiST, GIN, BRIN) exist because btree is wrong for problem shapes that show up regularly: containment queries on JSONB, full-text search, geometric overlap, append-only time-series data.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Beyond the index type itself, Postgres supports modifiers that change what an index covers: partial indexes (only the rows you care about), expression indexes (indexed on a function of a column), and the INCLUDE clause for covering indexes (columns stored in the index for index-only scans).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior move is matching the index to the query shape. The wrong index is worse than no index: it pays the write cost without paying back at read time. The right index can take a query from 4 seconds to 4 milliseconds without changing a line of application code.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: btree everything</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team builds a settings system that stores per-user preferences in a JSONB column:
+      </p>
+      <CodeBlock code={`class AddSettingsToUsers < ActiveRecord::Migration[7.1]
+  def change
+    add_column :users, :settings, :jsonb, default: {}, null: false
+    add_index  :users, :settings
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The team writes a query: <code class="bg-gray-100 px-2 py-1 rounded">User.where("settings -&gt;&gt; 'plan' = ?", 'pro')</code>. They expect the index to make it fast. EXPLAIN shows a seq scan. The index is never used.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The default btree index on a JSONB column indexes the column's binary representation, treating it as an opaque value. Equality on the whole object works (rare in practice); containment queries do not. The right tool is GIN, with the right opclass for the access pattern. A btree on a JSONB column is wasted disk space and write overhead, and it gives no read benefit.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Three things are wrong with the default reflex. <strong>First, every index has a write cost.</strong> INSERT and UPDATE have to update every index on the table. An unused index is a tax on every write. <strong>Second, the planner has to consider every index for every query.</strong> Twenty indexes on one table makes planning slower. <strong>Third, the wrong index hides the right one.</strong> A team that "added an index" stops looking, and the actual fix (a different index type, a partial index, an expression index) never gets in.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Partial indexes</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A partial index covers only the rows matching a predicate. The classic case is a status column with a heavy tail. Most rows are <code class="bg-gray-100 px-2 py-1 rounded">completed</code>; queries almost always look for <code class="bg-gray-100 px-2 py-1 rounded">pending</code> or <code class="bg-gray-100 px-2 py-1 rounded">failed</code>:
+      </p>
+      <CodeBlock code={`add_index :jobs, :scheduled_at,
+  where: "status IN ('pending', 'failed')",
+  name:  "index_jobs_active_by_scheduled_at"`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The index is one-tenth the size of a full one. Lookups for active jobs are faster because the index covers only relevant rows. Crucially, INSERTs and UPDATEs of completed jobs do not touch this index at all. The cost paid by writes is proportional to the rows actually queried, not the whole table.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Partial indexes also work for soft-deleted records (<code class="bg-gray-100 px-2 py-1 rounded">where: "deleted_at IS NULL"</code>) and any other "most queries care about this subset" pattern. <strong>If a query's WHERE clause consistently includes a predicate, that predicate belongs in a partial index.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Expression indexes</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Indexes on functions of columns. The most common Rails case is case-insensitive email lookup:
+      </p>
+      <CodeBlock code={`add_index :users, "LOWER(email)", unique: true,
+  name: "index_users_on_lower_email"`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        Queries written as <code class="bg-gray-100 px-2 py-1 rounded">User.where("LOWER(email) = ?", email.downcase)</code> use this index. Queries written as <code class="bg-gray-100 px-2 py-1 rounded">User.where(email: email)</code> do not, because the column is being compared directly and the index is on <code class="bg-gray-100 px-2 py-1 rounded">LOWER(email)</code>, not <code class="bg-gray-100 px-2 py-1 rounded">email</code>. The match has to be exact.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Other useful expressions: <code class="bg-gray-100 px-2 py-1 rounded">DATE(created_at)</code> when grouping by day, <code class="bg-gray-100 px-2 py-1 rounded">md5(large_text)</code> for fingerprint matching, <code class="bg-gray-100 px-2 py-1 rounded">(metadata-&gt;&gt;'key')</code> for indexing one JSONB field instead of the whole document. <strong>An expression index works on anything Postgres can compute deterministically from a row's columns.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">GIN and GIST for JSONB and full-text</h2>
+      <p class="text-gray-700 leading-relaxed">
+        GIN (Generalized Inverted Index) is the right tool for "is this small thing inside that big thing" queries. JSONB containment, array overlap, full-text search via <code class="bg-gray-100 px-2 py-1 rounded">tsvector</code>: all GIN.
+      </p>
+      <CodeBlock code={`-- JSONB containment queries
+add_index :users, :settings, using: :gin
+
+# Now this is index-supported:
+User.where("settings @> ?", { plan: 'pro' }.to_json)
+
+-- Full-text search on a tsvector column
+execute %q{
+  CREATE INDEX index_posts_on_tsv ON posts USING GIN (to_tsvector('english', body));
+}
+
+# Index-supported:
+Post.where("to_tsvector('english', body) @@ plainto_tsquery(?)", 'rails postgres')`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        GIN indexes are slower to write than btree (each indexed term is its own entry). For JSONB columns updated frequently, the write cost adds up. The <code class="bg-gray-100 px-2 py-1 rounded">jsonb_path_ops</code> opclass is a smaller, faster GIN variant that supports only the <code class="bg-gray-100 px-2 py-1 rounded">@&gt;</code> operator (containment), which is usually what JSONB queries need.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        GiST (Generalized Search Tree) is the cousin for geometric and range data: PostGIS, range types like <code class="bg-gray-100 px-2 py-1 rounded">tsrange</code> and <code class="bg-gray-100 px-2 py-1 rounded">int4range</code>, similarity search via <code class="bg-gray-100 px-2 py-1 rounded">pg_trgm</code>. The "find all bookings whose date range overlaps this week" query is a GiST query.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">BRIN for time-series</h2>
+      <p class="text-gray-700 leading-relaxed">
+        BRIN (Block Range INdex) stores summary stats per range of physical pages: the min and max value of the indexed column in each 128-page block. A btree on a 100GB events table is itself many gigabytes. The equivalent BRIN is megabytes.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        BRIN works when the indexed column is correlated with physical storage order. The classic case is <code class="bg-gray-100 px-2 py-1 rounded">created_at</code> on an append-only table. New rows go at the end, in time order, so the table is naturally sorted by created_at on disk. A BRIN index on that column gives Postgres enough information to skip whole page ranges that cannot contain matches.
+      </p>
+      <CodeBlock code={`add_index :events, :created_at, using: :brin,
+  name: "index_events_on_created_at_brin"`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        On a 50GB events table, the BRIN is around 100KB. Query performance for date-range filters is close to btree, with one-thousandth the disk and write cost. <strong>The trap is using BRIN on columns that are not physically sorted</strong>: a UUID column, a user_id column on a busy multi-tenant table. The BRIN ranges become useless and the planner falls back to a seq scan.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Covering indexes with INCLUDE</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres 11 added the INCLUDE clause for btree indexes. Columns listed in INCLUDE are stored in the index but are not part of the search key. The benefit is enabling <strong>index-only scans</strong>: queries that need only the indexed columns (key + included) finish without touching the heap.
+      </p>
+      <CodeBlock code={`add_index :posts, :user_id, include: [:title, :created_at, :published]`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        A query like <code class="bg-gray-100 px-2 py-1 rounded">Post.select(:title, :created_at, :published).where(user_id: 1234)</code> can now answer entirely from the index. EXPLAIN shows <em>Index Only Scan</em> instead of <em>Index Scan</em>. The heap is not read at all. On a wide table where most queries pull a small set of columns, this is the difference between 50ms and 5ms.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The cost is index size. Included columns inflate every index entry, and they have to be updated whenever those columns change. <strong>Include columns that the query reads but does not filter on, and only when the table is large enough that heap fetches dominate the query time.</strong> For a 10,000-row table, covering indexes buy nothing. For a 50,000,000-row table, they can buy an order of magnitude.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Indexes are not free. Each one pays a write cost on every INSERT and UPDATE, takes disk space, and crowds the planner's decision tree. The senior move is to look at the query first, the access pattern second, and the index type third. <strong>The right index is whichever one makes the query's plan node a single small scan and contributes the least to write overhead.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Five rules of thumb from the patterns above:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>If the WHERE clause always includes the same predicate, use a <strong>partial index</strong>.</li>
+        <li>If the query compares a function of a column, use an <strong>expression index</strong>.</li>
+        <li>If the column is JSONB, array, or full-text, use <strong>GIN</strong> (or GIST for ranges and geometry).</li>
+        <li>If the table is huge and naturally sorted by an indexed column, use <strong>BRIN</strong>.</li>
+        <li>If the query reads a few extra columns but filters on one, use <strong>INCLUDE</strong> for an index-only scan.</li>
+      </ul>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">SELECT indexrelname, idx_scan FROM pg_stat_user_indexes ORDER BY idx_scan ASC LIMIT 20;</code> on a production-like database. Indexes with <code class="bg-gray-100 px-2 py-1 rounded">idx_scan = 0</code> are unused. They are pure write cost. <strong>Drop them.</strong></li>
+        <li>Find the slowest query in <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code> that filters on a status, deleted_at, or other heavy-tail column. Try a partial index covering only the matching rows. Measure before and after.</li>
+        <li>If the app uses JSONB anywhere, find the queries that filter on it. Replace any default btree with a <code class="bg-gray-100 px-2 py-1 rounded">jsonb_path_ops</code> GIN index. Re-EXPLAIN.</li>
+        <li>Pick a wide table where common queries select 3 to 5 columns and filter on one. Try a covering index with INCLUDE. <strong>If the EXPLAIN flips to "Index Only Scan", you have a candidate worth shipping.</strong></li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-db-planner-statistics" class="text-ruby hover:text-ruby-dark transition-colors">← The planner and its statistics</a>
+      <a href="/lessons/senior-db-window-and-cte" class="text-ruby hover:text-ruby-dark transition-colors">Window functions and CTEs →</a>
+    </div>
+  </article>
+</Layout>

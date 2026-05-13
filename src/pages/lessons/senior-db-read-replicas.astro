@@ -1,0 +1,186 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Read replicas and multi-DB in Rails" description="When read replicas help, when they don't, what replication lag breaks in practice, Rails 6+ multi-database role API, and the 'we added a replica and the app got slower' failure mode.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Databases in Production · 8 of 8</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:copy" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Read replicas and multi-DB in Rails</h1>
+      </div>
+      <p class="text-xl text-gray-600">When read replicas help, when they do not, what replication lag breaks in practice, Rails 6+ multi-database role API, and the "we added a replica and the app got slower" failure mode that catches teams who reach for replicas too early.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres has had streaming replication since version 9.0 (2010). A primary database streams its write-ahead log (WAL) to one or more standby servers. The standbys replay the WAL and stay close to the primary's state. Reads can be served from a standby, taking read load off the primary.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 6 (2019) added native support for talking to multiple databases. The <code class="bg-gray-100 px-2 py-1 rounded">connects_to</code> declaration on a model maps a role (writing, reading) to a database connection. Switching connections at runtime is done via <code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::Base.connected_to(role: :reading) do ... end</code>. The middleware that ships with Rails routes GET/HEAD requests to the reading role by default.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior question is when replicas actually pay back, and when they make the app worse. Both answers are common in production. Adding a replica without a clear use case is one of the most consistent ways to make a Rails app slower and harder to reason about. <strong>The replica is a tool for specific shapes of workload, not a generic performance fix.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: "we added a replica and the app got slower"</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team is paged for occasional slow queries on the primary. They add a read replica and route all reads to it. The next week, the app is consistently slower, replication lag is alerting, and someone notices that one specific feature is now showing yesterday's data.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Three things went wrong.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. The replica's buffer cache is cold.</strong> The primary has been running for months; its shared_buffers contain the working set in memory. The replica is fresh; its cache is empty. The first time the replica serves a query, it reads pages from disk that the primary would have served from RAM. The query is slower on the replica than it would have been on the primary, even though the replica was supposed to be the fast path.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Replication lag turned into bugs.</strong> Users who saved a setting were redirected to a page that read from the replica, which had not yet received the WAL entry for the save. The page showed the old setting. Users assumed the save did not work, saved again, watched it fail to stick, and filed support tickets.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Connection pool exhaustion got worse.</strong> Before the replica, Puma processes had one pool of connections. After, each process needed two pools: writing and reading. Sized for peak, that meant double the connection count. The Postgres primary's <code class="bg-gray-100 px-2 py-1 rounded">max_connections</code> setting was hit during peak traffic and new sessions failed entirely.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The replica was correct for some workloads (reporting, analytics, long-running OLAP queries that should not compete with OLTP traffic) and wrong for others (user-facing reads where consistency matters). Adding it everywhere as a blanket fix was the actual mistake.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When replicas help</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three workload shapes benefit from replicas.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Reporting and analytics.</strong> Long-running aggregation queries that touch huge amounts of data should not run on the primary, where they compete with OLTP traffic for resources. A dedicated reporting replica with the analytics queries pinned to it isolates the workload. The replica can be sized differently (more memory, more parallel workers) and lag does not matter because reports do not need real-time data.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Read-heavy endpoints with cacheable shape.</strong> A public homepage that lists posts, a marketing page that shows stats, an API endpoint that returns lookup data: these read but do not write, do not need write-after-read consistency, and benefit from being served by a replica that the primary does not have to compete with.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Geographic read distribution.</strong> A US-primary app with European users can put a replica in Frankfurt and serve European read traffic from it. The latency win for those users is real; the cost is one more piece of infrastructure to monitor.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Each of these has the same property: <strong>the read traffic is identifiable, isolated, and tolerant of staleness.</strong> Reads that do not have these properties belong on the primary.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When they do not</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four cases where replicas are the wrong tool.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Read-your-own-writes.</strong> A user saves a profile change, then navigates to the profile page. The save went to the primary; the page reads from the replica. If replication lag is non-zero (and it always is), the page shows the old data. The user thinks the save failed. <strong>Any user-facing read that happens shortly after a write the user made must hit the primary.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Transactions that mix reads and writes.</strong> A request that starts a transaction must keep all of it on one connection. Switching mid-transaction breaks atomicity. Rails handles this correctly out of the box (transactions stay on the writing connection), but custom code that uses <code class="bg-gray-100 px-2 py-1 rounded">connected_to</code> blocks inside a transaction can get this wrong.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Low-volume apps where the primary is not saturated.</strong> A replica is operational overhead: another database to monitor, alert on, rotate credentials for, run migrations against (replicas usually replay the migration automatically, but configuration changes do not). For an app whose primary is at 5% CPU during peak, the operational cost outweighs the benefit.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>4. Workloads with bursty write patterns.</strong> A primary that takes a sudden write spike (bulk import, daily aggregation, big backfill) produces a large WAL burst. Replicas have to catch up by replaying the burst. During catch-up, replication lag spikes; if read traffic on the replica returns stale data, the spike becomes user-visible.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Rails 6+ multi-DB role API</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Setting up multi-database in <code class="bg-gray-100 px-2 py-1 rounded">database.yml</code>:
+      </p>
+      <CodeBlock code={`production:
+  primary:
+    database: app_production
+    host: <%= ENV['PRIMARY_DB_HOST'] %>
+    user: app
+  primary_replica:
+    database: app_production
+    host: <%= ENV['REPLICA_DB_HOST'] %>
+    user: app
+    replica: true`} language="yaml" />
+      <p class="text-gray-700 leading-relaxed">
+        And in the abstract base model:
+      </p>
+      <CodeBlock code={`class ApplicationRecord < ActiveRecord::Base
+  primary_abstract_class
+
+  connects_to database: { writing: :primary, reading: :primary_replica }
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        With the middleware enabled (it is on by default in Rails 6+ apps with multi-DB configured), GET and HEAD requests automatically route to the reading role. POST, PUT, PATCH, DELETE route to writing. For explicit routing inside controllers or jobs:
+      </p>
+      <CodeBlock code={`ActiveRecord::Base.connected_to(role: :reading) do
+  # Reads go to the replica
+  PostsReport.compute_top_authors
+end
+
+ActiveRecord::Base.connected_to(role: :writing) do
+  # Force a read to hit the primary, useful right after a write
+  user.reload
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The <code class="bg-gray-100 px-2 py-1 rounded">DatabaseSelector</code> middleware adds one more behaviour: for a configurable window after a write (default 2 seconds), it routes the same session's reads to the primary. This is the framework-level fix for the read-your-own-writes problem. The window can be tuned via <code class="bg-gray-100 px-2 py-1 rounded">database_selector.delay</code> in the application config.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Replication lag in practice</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Lag is measured from the replica's side as the time between the primary committing a WAL entry and the replica applying it. The query that reports it:
+      </p>
+      <CodeBlock code={`-- On the replica
+SELECT
+  pg_last_wal_receive_lsn() - pg_last_wal_replay_lsn() AS bytes_lag,
+  EXTRACT(EPOCH FROM (NOW() - pg_last_xact_replay_timestamp())) AS seconds_lag;`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        Under normal load on a well-provisioned replica, the seconds_lag is under 100 milliseconds. During WAL bursts (large backfills on the primary, busy migrations), it can spike to seconds or minutes. The senior practice is to alert on lag thresholds and to consider routing reads back to the primary when lag exceeds an SLA.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Rails's <code class="bg-gray-100 px-2 py-1 rounded">DatabaseSelector::Resolver::Session</code> supports a "lag check" pattern: before routing to the replica, check the replica's lag; if it is over a threshold, fall back to the primary. The pattern lives in the resolver class and adds one query per replica decision, which is cheap relative to the cost of returning stale data.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Replicas are a workload isolation tool, not a performance multiplier. They pay back when a specific subset of reads can be cleanly separated from the rest of the workload and that subset is tolerant of staleness. They cost operational overhead, double the connection pooling, and introduce a class of bugs (lag, stale reads, transaction-boundary mistakes) that the single-database app does not have.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior workflow on a slowing primary:
+      </p>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Find the slow queries first. <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code>, EXPLAIN ANALYZE, lessons 1 and 2 of this section.</li>
+        <li>Check if the primary is actually saturated (CPU, IO, connection count). If not, replicas will not help.</li>
+        <li>Identify which workload can be cleanly separated. Reporting? Geo distribution? A specific endpoint? Without a clean separation, the replica adds overhead without isolating anything.</li>
+        <li>Add a replica only for that workload, with explicit <code class="bg-gray-100 px-2 py-1 rounded">connected_to</code> calls. Leave the rest of the app on the primary.</li>
+        <li>Monitor lag. Alert on it. Have a runbook for "lag exceeded SLA: cut over to primary."</li>
+      </ol>
+      <p class="text-gray-700 leading-relaxed">
+        Most Rails apps run on a single Postgres primary for their entire useful life. <strong>The teams that add replicas correctly are the ones that name the specific workload first and add the replica for that workload, not the ones that add a replica and hope reads get faster.</strong>
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Check your primary's CPU, IO, and connection count during peak. <strong>If the primary is at 30% CPU and connection count is fine, you do not need a replica.</strong> Solve the slow queries with the lessons in this section instead.</li>
+        <li>Identify one workload in your app that is read-only, tolerant of seconds of staleness, and large enough to matter (analytics, marketing pages, public API). That is your candidate for a replica.</li>
+        <li>If you already run replicas, audit which reads use them. Grep for <code class="bg-gray-100 px-2 py-1 rounded">connected_to</code> and the middleware config. <strong>Find any read-your-own-writes paths that route to the replica;</strong> these are silent bug sources.</li>
+        <li>Set up the lag query above as a dashboard. Pick an SLA (often 1 second). Add an alert. The first time you see a spike, you will understand more about your write workload than a year of reading docs would have taught you.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-db-zero-downtime-migrations" class="text-ruby hover:text-ruby-dark transition-colors">← Zero-downtime migrations</a>
+      <a href="/databases" class="text-ruby hover:text-ruby-dark transition-colors">Back to Databases in Production →</a>
+    </div>
+  </article>
+</Layout>
