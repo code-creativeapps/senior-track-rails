@@ -1,0 +1,133 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview: "When would you avoid Active Record callbacks?"' description="The Rails interview question that filters for design judgment. Callbacks are a common source of production pain. What the interviewer is checking, the senior framing for when callbacks are right vs wrong, the alternatives, and the failure modes that teach the lesson.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:zap-off" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"When would you avoid Active Record callbacks?"</h1>
+      </div>
+      <p class="text-xl text-gray-600">The Rails interview question that filters for design judgment. Callbacks are a common source of production pain. What the interviewer is checking, when callbacks fit vs do not, the alternatives, and the failure modes that teach the lesson.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Active Record callbacks (<code class="bg-gray-100 px-2 py-1 rounded">after_save</code>, <code class="bg-gray-100 px-2 py-1 rounded">before_destroy</code>, <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code>, and so on) are one of the patterns Rails developers use constantly and rarely question. The interview question filters for whether the candidate has hit the failure modes that come from over-using them and can name when they should be replaced with a different pattern.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        A weak answer says "I always use callbacks." A senior answer says "callbacks are right when the side effect is intrinsic to the record's lifecycle and the team can predict it; they are wrong when the side effect is a business operation that happens to be triggered by a record change."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Behind the question is also a check on whether the candidate knows the difference between <code class="bg-gray-100 px-2 py-1 rounded">after_save</code> and <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code> and why that difference matters for external side effects.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "Callbacks let you run code when a record is saved or updated. I use them for things like sending notifications after a user signs up, or normalising data before save. They are useful but can get out of control if you stack too many on one model."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        Mostly correct, but missing the specifics. The senior answer names the failure modes (callbacks firing inside transactions, callbacks that depend on each other, callbacks that are hard to test, callbacks that run in surprising contexts) and gives a heuristic for when to extract.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four failure modes seniors avoid by reaching for different patterns.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. External side effects inside the transaction.</strong> "An <code class="bg-gray-100 px-2 py-1 rounded">after_save</code> that calls Stripe or sends an email runs inside the save's transaction. If the transaction rolls back later (a downstream validation fails, an after_save on another callback raises), the email was already sent and the customer was charged. The fix is to use <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code> for external side effects, which runs after the transaction commits, so a rolled-back save never triggers the external call."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Callbacks that fire in surprising contexts.</strong> "A model has <code class="bg-gray-100 px-2 py-1 rounded">after_create :send_welcome_email</code>. A team member writes a rake task that bulk-creates 50,000 users for a backfill, and sends 50,000 welcome emails by accident. The fix: <code class="bg-gray-100 px-2 py-1 rounded">User.create</code> in production triggers the callback; in a backfill, it should not. Either guard the callback (<code class="bg-gray-100 px-2 py-1 rounded">unless: :skip_welcome_email?</code>), or move the trigger to the controller action that creates real users."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Callbacks that make tests slow or brittle.</strong> "A model with five after_save callbacks that each touch external services becomes painful to test. Every test fixture creation triggers all five. Tests slow down; mocking gets verbose. The smell: factory_bot factories that have to stub three things only to create a record. The fix: pull the side effects out of the model into service objects or background jobs, fire them from the controller, leave the model with only validations and intrinsic state changes."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>4. Callbacks that depend on each other.</strong> "When <code class="bg-gray-100 px-2 py-1 rounded">after_save :update_search_index</code> depends on <code class="bg-gray-100 px-2 py-1 rounded">after_save :sync_to_warehouse</code> having run first, and the order silently depends on declaration order in the class file, you have a coupling problem that will bite when someone reorders the file or adds a new callback in the middle. The fix is to extract the orchestration into an explicit class that calls the steps in order, with named methods."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When callbacks ARE the right choice</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "Two patterns where callbacks fit cleanly."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Data normalisation.</strong> "A <code class="bg-gray-100 px-2 py-1 rounded">before_save :normalize_email</code> that downcases and strips whitespace is intrinsic to the User record's contract. It runs on every save, has no external dependencies, is trivial to test, and the team expects it. Same shape for <code class="bg-gray-100 px-2 py-1 rounded">before_validation :set_default_attributes</code>."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Computed attributes.</strong> "A <code class="bg-gray-100 px-2 py-1 rounded">before_save :compute_slug</code> that derives the slug from the title is the right shape. The slug always reflects the title. The callback ensures the invariant holds whether the record was created in a controller, a rake task, or a factory."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        "Both patterns share the same property: the callback is intrinsic to the record's data model, deterministic, and has no external side effect. Cross those lines and the callback becomes a maintenance burden."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The alternatives</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "Three patterns to reach for when a callback would be wrong."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Service objects.</strong> "<code class="bg-gray-100 px-2 py-1 rounded">SignUpUser.call(params)</code> creates the user, then explicitly fires <code class="bg-gray-100 px-2 py-1 rounded">SendWelcomeEmail.call(user)</code> and <code class="bg-gray-100 px-2 py-1 rounded">CreateDefaultWorkspace.call(user)</code>. The orchestration is visible in one place; bulk-creating users without those side effects is a plain <code class="bg-gray-100 px-2 py-1 rounded">User.create!</code>. Detailed in <a href='/lessons/interview-question-service-objects' class='text-ruby underline hover:text-ruby-dark'>Tell me about service objects</a>."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Background jobs called explicitly.</strong> "From the controller, after the create succeeds, call <code class="bg-gray-100 px-2 py-1 rounded">WelcomeEmailJob.perform_later(user.id)</code>. The job runs in the background. The job is not coupled to the model lifecycle; bulk imports do not trigger it."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Pub/sub or domain events.</strong> "For apps with many cross-cutting concerns, an event-bus pattern (Wisper, ActiveSupport::Notifications, or a custom one) lets the model publish 'user.created' and subscribers (in their own files) react. More setup; right for larger apps where the orchestration is genuinely complex."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What is the difference between <code class="bg-gray-100 px-2 py-1 rounded">after_save</code> and <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code>?"</strong> The right answer: <code class="bg-gray-100 px-2 py-1 rounded">after_save</code> runs inside the database transaction; <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code> runs after the transaction commits. For external side effects (HTTP calls, queueing jobs, sending emails), always <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code>. The transaction can roll back; the email cannot be unsent.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What about <code class="bg-gray-100 px-2 py-1 rounded">around_save</code>?"</strong> Niche. Lets you wrap the save in arbitrary code (typically for instrumentation: timing, transaction tracing). Rarely the right tool for business logic.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How do you skip callbacks?"</strong> The right answer names the tools and the trade-off. <code class="bg-gray-100 px-2 py-1 rounded">update_columns</code> bypasses callbacks and validations. <code class="bg-gray-100 px-2 py-1 rounded">save(validate: false)</code> skips validations but runs callbacks. There is no clean "skip callbacks" without monkey-patching; the senior answer is that if you frequently need to skip them, the callbacks should not have been there to begin with.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"Have you ever written a 200-line model with twenty callbacks?"</strong> The honest answer is "yes, on a previous team," followed by the lesson. Most senior Rails developers have lived through this and learned why service objects exist.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Active Record callbacks couple side effects to the persistence lifecycle. That coupling is correct when the side effect IS part of the persistence lifecycle (slug computation, normalisation). It is wrong when the side effect is a business operation that happens to be triggered by a record change (sending an email, charging a card, syncing to an external system).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior reflex: when adding a callback, ask "is this intrinsic to the data, or is this a business operation?" The honest answer determines whether it belongs in the model or in a service. Most production Rails pain from callbacks traces to teams not asking this question often enough.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/interview-question-service-objects",  title: "Tell me about service objects",              blurb: "the alternative pattern for the second category" },
+      { href: "/lessons/senior-srp-service-objects",          title: "Service Objects in Real Rails Code",         blurb: "the deeper pattern this question hints at" },
+      { href: "/lessons/interview-question-background-jobs",  title: "How do you handle long-running tasks?",      blurb: "where after_commit + Active Job replaces callbacks" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/interview-question-session-cookies" class="text-ruby hover:text-ruby-dark transition-colors">← "How do sessions and cookies work?"</a>
+      <a href="/lessons/interview-question-background-jobs" class="text-ruby hover:text-ruby-dark transition-colors">"How do you handle long-running tasks?" →</a>
+    </div>
+  </article>
+</Layout>

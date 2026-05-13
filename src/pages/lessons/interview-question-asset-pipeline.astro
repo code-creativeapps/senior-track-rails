@@ -1,0 +1,127 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview: "How does asset compilation work in Rails 8?"' description="The Rails interview question that tests whether the candidate has kept up with the 2020-to-2026 asset-pipeline overhaul. PropShaft, Importmap, Vite, esbuild, Tailwind, Sprockets-as-legacy. What changed, what to pick, and the senior reflexes.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:package-2" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"How does asset compilation work in Rails 8?"</h1>
+      </div>
+      <p class="text-xl text-gray-600">The interview question that tests whether the candidate has kept up with the asset-pipeline overhaul. PropShaft, Importmap, Vite, esbuild, Tailwind, Sprockets-as-legacy. What changed, what to pick, and the senior reflexes.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The Rails asset story has been one of the most-churned parts of the framework over the last five years. Sprockets gave way to Webpacker, Webpacker gave way to a constellation of choices (Importmap, jsbundling-rails, cssbundling-rails, PropShaft, Vite-Rails), and Rails 8 cemented a new default.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The interview question filters for whether the candidate knows the current landscape, can pick the right option for a given app, and has thought about the trade-offs. A weak answer says "Sprockets handles it" (out of date by years). A senior answer names PropShaft, Importmap, the role of Tailwind, and when each choice applies.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "Rails uses the asset pipeline to compile and serve CSS and JavaScript. In production it precompiles and fingerprints the files. With Rails 8 they switched some defaults around but I think Sprockets is still in there somewhere."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        Out of date. Rails 8's default for new apps is PropShaft + Importmap + Tailwind. Sprockets is still available but is no longer the recommended path. The senior answer names the pieces, what each one does, and why the split is cleaner than the old all-in-one Sprockets approach.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three layers, each handled by a different tool in modern Rails.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Serving static assets: PropShaft.</strong> "PropShaft replaced Sprockets as the default asset server in Rails 7.1+ and is cemented in Rails 8. It does less than Sprockets did: no Sass compilation, no JavaScript bundling, no asset transformation. It fingerprints files (adds a content hash to the filename) and serves them with appropriate cache headers. That is it. The reduced scope is the feature: PropShaft is small enough to understand."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. JavaScript: Importmap (default), or Vite, or esbuild.</strong> "Importmap is the Rails 8 default. It uses the browser's native module system: a manifest file maps logical names like 'application' to actual JS file URLs, the browser downloads each module separately, no bundling. Right for apps that are mostly Stimulus + Turbo + small libraries. No node_modules, no transpilation step, no build pipeline."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        "When Importmap is not enough: <code class="bg-gray-100 px-2 py-1 rounded">jsbundling-rails</code> integrates esbuild, Rollup, or Bun. <code class="bg-gray-100 px-2 py-1 rounded">vite-rails</code> integrates Vite. The right pick when the app uses TypeScript, React/Vue components, or wants HMR for rapid iteration."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. CSS: Tailwind (most common), or cssbundling-rails.</strong> "<code class="bg-gray-100 px-2 py-1 rounded">tailwindcss-rails</code> is the dominant CSS choice in 2026 Rails apps. It runs the Tailwind CLI to compile, watches for changes in dev, and outputs a precompiled CSS file. <code class="bg-gray-100 px-2 py-1 rounded">cssbundling-rails</code> is the generic version: Sass, PostCSS, Bootstrap, whatever bundler you want."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The fingerprint and the manifest</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "One thing seniors are expected to know: how does the browser know which fingerprinted filename to request? The answer is a build manifest. <code class="bg-gray-100 px-2 py-1 rounded">.manifest.json</code> in <code class="bg-gray-100 px-2 py-1 rounded">public/assets/</code> maps logical names ('application.js') to fingerprinted filenames ('application-a4f37c0e.js'). Helpers like <code class="bg-gray-100 px-2 py-1 rounded">javascript_include_tag('application')</code> read the manifest and emit the correct URL into the rendered HTML."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        "The fingerprint enables aggressive caching: assets get <code class="bg-gray-100 px-2 py-1 rounded">Cache-Control: public, max-age=31536000, immutable</code> headers because the URL changes when the content changes. Browsers and CDNs cache forever; deploys invalidate by URL change. This is the basic mechanism every modern asset pipeline shares; Sprockets had it, PropShaft has it."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Picking among Importmap, esbuild, Vite</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "Three forks of the JS-bundling decision, each fitting a different shape of app."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Importmap (the default).</strong> "Right when JS is mostly Stimulus controllers, a sprinkle of vanilla JS, and a few <code class="bg-gray-100 px-2 py-1 rounded">pin</code>-ed libraries from a CDN. Zero build step. Browsers handle module imports natively. Fast dev startup."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>esbuild via jsbundling-rails.</strong> "Right when you want a bundle but not a full build pipeline. Compiles to a single file, fast, minimal config. The right pick if Importmap is too thin but Vite is too much."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Vite via vite-rails.</strong> "Right when the app uses TypeScript, React/Vue components, or benefits from HMR. The dev experience is the best of the three; the production build is on par with esbuild. The right pick for Inertia.js apps and anything with significant frontend complexity."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        "The senior heuristic: start with Importmap; switch to Vite when the JS surface grows enough to justify the overhead. Most teams that pick Vite from day one for a CRUD app eventually regret the build-pipeline complexity."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What is the difference between PropShaft and Sprockets?"</strong> The right answer: scope. Sprockets handled fingerprinting, Sass compilation, JS bundling, ERB asset templates, dependency directives ('//= require'). PropShaft only fingerprints. Other concerns (CSS, JS) are explicitly someone else's job. Sprockets is still available for legacy apps; PropShaft is the new default.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How does <code class="bg-gray-100 px-2 py-1 rounded">rails assets:precompile</code> work?"</strong> The right answer: it runs the asset build chain (PropShaft fingerprinting, jsbundling/Vite/esbuild for JS, Tailwind/cssbundling for CSS) and writes the result to <code class="bg-gray-100 px-2 py-1 rounded">public/assets/</code>. Deploy hosts (Heroku, Render, Kamal) run this during the build phase. The output is what the production app serves.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How do you handle a CSS framework like Tailwind in development with HMR?"</strong> The right answer: <code class="bg-gray-100 px-2 py-1 rounded">bin/dev</code> (the Procfile.dev script Rails 8 ships) starts the Rails server plus a Tailwind watcher in parallel. Tailwind recompiles on file changes; the page picks up the new CSS on reload. For full HMR, Vite is the upgrade.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What about cache-busting in production?"</strong> The right answer: the fingerprint in the filename. <code class="bg-gray-100 px-2 py-1 rounded">application-a4f37c0e.js</code> has its hash in the URL; when content changes, the hash changes, the URL changes, the cache is bypassed. The HTML always references the current hash via the manifest lookup. <strong>You never explicitly invalidate cache; the URL change does it.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The 2026 Rails asset story is "small tools composed, not one big tool that does everything." PropShaft fingerprints. Importmap (or Vite/esbuild) handles JS. Tailwind (or cssbundling) handles CSS. Each tool is replaceable; switching one does not break the others. The opposite of the Sprockets all-in-one approach.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior call is picking the smallest set of tools that handles your app's actual needs. For a Rails-CRUD app: PropShaft + Importmap + Tailwind. For an Inertia-React app: PropShaft + Vite + Tailwind. For a legacy app on Sprockets: keep Sprockets until the migration cost is paid for by a feature need.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/rails-8-features",            title: "Rails 8 Features Explained",                  blurb: "the full asset-pipeline change in context" },
+      { href: "/lessons/modern-rails-stack-2026",     title: "The Modern Rails Stack",                      blurb: "where these tools sit in the broader stack" },
+      { href: "/lessons/hotwire-vs-inertia-vs-react", title: "Hotwire vs Inertia vs React",                blurb: "the frontend choice that drives the JS pipeline pick" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/interview-question-background-jobs" class="text-ruby hover:text-ruby-dark transition-colors">← "How do you handle long-running tasks?"</a>
+      <a href="/interview" class="text-ruby hover:text-ruby-dark transition-colors">Back to Interview Prep →</a>
+    </div>
+  </article>
+</Layout>

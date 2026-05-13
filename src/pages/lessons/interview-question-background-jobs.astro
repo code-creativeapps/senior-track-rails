@@ -1,0 +1,127 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview: "How do you handle long-running tasks in Rails?"' description="The Rails interview question that tests whether the candidate has shipped real production background work. Active Job, the adapter choice, retries and idempotency, the gotchas around transactions and rolled-back enqueues.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:timer" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"How do you handle long-running tasks?"</h1>
+      </div>
+      <p class="text-xl text-gray-600">The interview question that tests whether the candidate has shipped real production background work. Active Job, the adapter choice, retries and idempotency, transactions, and the gotchas that bite teams once they hit scale.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "Long-running" in a Rails request usually means "this should not happen synchronously." The interview question filters for whether the candidate has thought about why the request cycle is bad for long work, what tool to reach for, how to make jobs reliable, and what to do when a job fails.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        A weak answer says "use Sidekiq." A senior answer covers Active Job as the abstraction, the adapter choice for 2026, retry semantics, idempotency, the transactional-enqueue trap, and the operational concerns (job UI, dead-job recovery, runaway queues).
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "I would put the long-running work in a background job using Sidekiq. The controller calls <code class="bg-gray-100 px-2 py-1 rounded">SomeJob.perform_later</code> and returns immediately; the job runs separately."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        Correct as a starting point. Misses Active Job (the abstraction Rails ships), the 2026 adapter choice (Solid Queue is the new default), retries and idempotency, and the transactional gotcha.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Active Job as the layer.</strong> "Rails has shipped Active Job since 4.2. Application code calls <code class="bg-gray-100 px-2 py-1 rounded">SomeJob.perform_later(args)</code> regardless of the adapter underneath. The adapter (Sidekiq, Solid Queue, good_job) is a config setting. Writing application code against Active Job means I can swap adapters without touching business logic."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The adapter choice for 2026.</strong> "Default to Solid Queue for new Rails 8 apps. Postgres-backed, no Redis required, transactional enqueueing with the database. Switch to Sidekiq if throughput exceeds ~5,000 jobs/sec or the team has years of Sidekiq ops experience. Detailed in <a href='/lessons/sidekiq-vs-solid-queue' class='text-ruby underline hover:text-ruby-dark'>Sidekiq vs Solid Queue</a>."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The transactional enqueue trap.</strong> "Critical detail. If I'm using Sidekiq, <code class="bg-gray-100 px-2 py-1 rounded">SomeJob.perform_later</code> writes to Redis immediately, regardless of whether the surrounding transaction commits. If the transaction rolls back, the job still runs and finds no record. The Sidekiq community pattern is <code class="bg-gray-100 px-2 py-1 rounded">after_commit_everywhere</code> or wrapping enqueues in <code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::Base.connection.after_commit_block</code>. With Solid Queue, the enqueue is in the same database transaction, so this problem disappears."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Retries and idempotency.</strong> "Jobs can fail and will be retried. The senior reflex: <strong>every job should be idempotent</strong>. Running the job twice should produce the same result as running it once. For 'send email' jobs, that means tracking whether the email was sent before sending; for 'process payment' jobs, that means an idempotency key on the Stripe call. <code class="bg-gray-100 px-2 py-1 rounded">retry_on</code> in Active Job declares which exceptions warrant retries; <code class="bg-gray-100 px-2 py-1 rounded">discard_on</code> declares which should give up immediately."
+      </p>
+      <CodeBlock code={`class ChargeOrderJob < ApplicationJob
+  retry_on Stripe::APIConnectionError, wait: :polynomially_longer, attempts: 5
+  discard_on ActiveRecord::RecordNotFound  # order was deleted, do not retry
+
+  def perform(order_id)
+    order = Order.find(order_id)
+    return if order.charged?  # idempotency check
+
+    Stripe::Charge.create(
+      amount:           order.total_cents,
+      customer:         order.user.stripe_customer_id,
+      idempotency_key:  "order-#{order.id}-charge"
+    )
+    order.update!(charged: true, charged_at: Time.current)
+  end
+end`} language="ruby" />
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The operational concerns</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "Beyond the code, three things a senior thinks about for any background-job system."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Observability.</strong> "I need to see which jobs are running, which are failing, what the queue depths look like. Sidekiq Web is the gold standard for this. Mission Control for Solid Queue is improving. For both: have a known URL, know who has access, check it during incidents."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Dead jobs.</strong> "When a job exhausts retries, it lands in a dead-jobs queue. Someone needs to look at it. A weekly review of the dead-jobs queue is a useful discipline; otherwise dead jobs become invisible until they cost something."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Queue priorities.</strong> "Not all jobs are equal. A welcome email can wait two minutes; a fraud check has to run within seconds. Separate queues with different worker pools (or different concurrency settings) let critical work jump ahead of the bulk."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"When would you NOT use a background job?"</strong> When the operation is fast and the user is waiting for the result. Don't background a 50ms database query: the controller can wait, the user wants the result. Background work is for operations that exceed roughly 200ms or that should not block the response (sending email, generating reports, syncing to external systems).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How would you handle a job that needs to run at a specific time?"</strong> <code class="bg-gray-100 px-2 py-1 rounded">SomeJob.set(wait: 1.hour).perform_later</code> or <code class="bg-gray-100 px-2 py-1 rounded">.set(wait_until: 5.minutes.from_now)</code>. For recurring schedules: Sidekiq Cron, Solid Queue's recurring tasks, or a Cronicle/Cron setup that enqueues jobs at the right times.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How do you backfill a large dataset?"</strong> Not in one job. Bulk operations should be batched: <code class="bg-gray-100 px-2 py-1 rounded">find_each(batch_size: 1000)</code>, enqueueing one job per batch (or per record if the per-record work is heavy). The senior trap: a single job that <code class="bg-gray-100 px-2 py-1 rounded">.update_all</code> on 10M rows runs for hours and cannot be paused.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What is a 'poison pill' and how do you handle one?"</strong> A job that fails consistently and never makes progress (always raises the same exception). Without intervention, retries keep firing forever. The fix: either fix the underlying bug (often a stale reference to a deleted record), or move the job to dead-letter so it stops eating queue capacity. <code class="bg-gray-100 px-2 py-1 rounded">discard_on</code> with specific exceptions handles many of these automatically.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Background jobs are not "send the work somewhere else." They are a distinct surface with their own failure modes (retries, partial completion, queue exhaustion, transactional decoupling) and their own operational surface (UI, dead jobs, queue depth, priority). A senior treats the job system as carefully as the request system.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The shortest version of the senior answer: <strong>Active Job + an adapter, jobs are idempotent, enqueue after_commit, retry with backoff, watch the dead queue</strong>. Anything more sophisticated (priorities, scheduled runs, batches) is a refinement of that core.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/sidekiq-vs-solid-queue",                title: "Sidekiq vs Solid Queue",                       blurb: "the adapter decision in detail" },
+      { href: "/lessons/senior-scaling-background-jobs",        title: "Background Jobs as a Scaling Tool",            blurb: "the senior-track deep dive" },
+      { href: "/lessons/interview-question-active-record-callbacks", title: "When would you avoid Active Record callbacks?", blurb: "where after_commit + Active Job replaces callbacks" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/interview-question-active-record-callbacks" class="text-ruby hover:text-ruby-dark transition-colors">← "When would you avoid AR callbacks?"</a>
+      <a href="/lessons/interview-question-asset-pipeline" class="text-ruby hover:text-ruby-dark transition-colors">"How does asset compilation work in Rails 8?" →</a>
+    </div>
+  </article>
+</Layout>

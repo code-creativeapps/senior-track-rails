@@ -1,0 +1,117 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview: "How do sessions and cookies work in Rails?"' description="The Rails interview question that tests whether the candidate has actually thought about how state survives across stateless HTTP requests. The cookie store, the signed/encrypted distinction, the alternative session backends, and the production failure modes seniors have hit.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:cookie" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"How do sessions and cookies work in Rails?"</h1>
+      </div>
+      <p class="text-xl text-gray-600">The interview question that tests whether the candidate has actually thought about how state survives across stateless HTTP requests. The cookie store, signed vs encrypted, alternative session backends, and the production failure modes seniors have hit.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        HTTP is stateless. Sessions are the layer that pretends otherwise. The question filters for whether the candidate knows where session data lives, who can read it, who can tamper with it, and what happens when the session grows past the default size limit.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The follow-ups extend into authentication, CSRF protection, secure cookie flags, and the trade-offs between the cookie store and server-side stores. A weak answer says "Rails handles it." A senior answer covers the mechanics, the security model, and at least one production gotcha.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "Sessions are how Rails remembers a user across requests. You set <code class="bg-gray-100 px-2 py-1 rounded">session[:user_id] = user.id</code> in a controller, and on the next request the user is still logged in. Cookies are what the browser sends back to the server with each request."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        Correct, but skips every interesting detail. The senior answer covers where the session data is stored (cookie store by default), how Rails prevents the user from forging session data, what the 4KB cookie limit means in practice, and the alternative stores.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The mechanism.</strong> "Rails's default session store is the cookie store. When you write <code class="bg-gray-100 px-2 py-1 rounded">session[:user_id] = 42</code>, Rails serialises the entire session hash, encrypts it, signs it with a secret, base64-encodes the result, and sends it back as a <code class="bg-gray-100 px-2 py-1 rounded">_app_session</code> cookie. The browser stores the cookie and sends it back with every subsequent request. The server decrypts, verifies the signature, deserialises, and the session hash is back in <code class="bg-gray-100 px-2 py-1 rounded">session</code>."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Signed vs encrypted.</strong> "Pre-Rails 5, the cookie store signed the cookie but did not encrypt it. Anyone with the cookie could base64-decode and read the session contents (but not modify it without invalidating the signature). Rails 5 switched to encrypted-and-signed by default. The signing uses HMAC; the encryption uses AES-GCM. The signing key and encryption key both derive from <code class="bg-gray-100 px-2 py-1 rounded">Rails.application.secret_key_base</code>."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The 4KB limit.</strong> "Browsers cap cookies at 4KB. The session payload (encrypted + base64-encoded) has to fit. For a session with a user_id and a flash message, that is plenty. For a session that accidentally accumulates large data (form-state-across-redirects, half-built objects, large attribute hashes), the cookie blows the limit and Rails raises <code class="bg-gray-100 px-2 py-1 rounded">ActionDispatch::Cookies::CookieOverflow</code>. The senior fix is to keep the session small (ids, not objects) and use the flash for short-lived messages only."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The alternatives.</strong> "Rails ships three other session stores. The Active Record store puts sessions in a database table; right when sessions are large or when you need server-side invalidation. The cache store (Memcached or Redis) keeps sessions in-memory; right when sessions are large but ephemeral. The null store no-ops everything; useful for stateless APIs. Each is one config line in <code class="bg-gray-100 px-2 py-1 rounded">config/initializers/session_store.rb</code>."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The cookie flags that matter</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "Three flags Rails sets by default and a senior should be able to name."
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">HttpOnly</code></strong>: the cookie is not accessible to JavaScript. Mitigates session theft via XSS. Always on for session cookies; you have to opt-out explicitly.</li>
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Secure</code></strong>: the cookie is sent only over HTTPS. Rails sets it in production automatically when <code class="bg-gray-100 px-2 py-1 rounded">config.force_ssl = true</code>.</li>
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">SameSite</code></strong>: controls when the cookie is sent on cross-origin requests. Defaults to <code class="bg-gray-100 px-2 py-1 rounded">Lax</code> in Rails 7+. <code class="bg-gray-100 px-2 py-1 rounded">Strict</code> for higher-security apps; <code class="bg-gray-100 px-2 py-1 rounded">None</code> only when you genuinely need cross-site cookie sharing and pair it with <code class="bg-gray-100 px-2 py-1 rounded">Secure</code>.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">CSRF protection</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "Sessions plus state-changing requests means CSRF risk. Rails handles this with the <code class="bg-gray-100 px-2 py-1 rounded">protect_from_forgery</code> filter (on by default in ApplicationController). Every form rendered by Rails embeds an authenticity token; on POST/PUT/PATCH/DELETE, Rails verifies that the token in the request matches the one bound to the session. A request without a valid token raises <code class="bg-gray-100 px-2 py-1 rounded">ActionController::InvalidAuthenticityToken</code> and the action is not run."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        "The senior gotcha: API endpoints called from a different origin do not have a session cookie and do not need (or work with) CSRF tokens. The Rails default is <code class="bg-gray-100 px-2 py-1 rounded">protect_from_forgery with: :exception</code> which raises on missing tokens. For API controllers, use <code class="bg-gray-100 px-2 py-1 rounded">skip_before_action :verify_authenticity_token</code> and rely on a different auth mechanism (Bearer token, signed JWT, OAuth)."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How do you invalidate a session?"</strong> The right answer depends on the store. With the cookie store, you rotate the signing/encryption key, which invalidates every existing cookie. With the Active Record store, delete the row. With the cache store, evict the key. There is no "logout server-side" with cookie-store unless you keep a server-side blacklist or use short expirations.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What's the difference between the session and cookies in Rails?"</strong> The right answer: <code class="bg-gray-100 px-2 py-1 rounded">session</code> is one specific cookie that Rails owns, signs/encrypts, and treats as a hash. <code class="bg-gray-100 px-2 py-1 rounded">cookies</code> is the general API for setting any cookie on the response. The session is built on top of the cookies API in the default store.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How would you handle a logout that invalidates the session everywhere?"</strong> The right answer names the trade-off. With cookie-store, you cannot. Switch to a server-side store (AR or Redis) and delete the session row, or implement a token-based session in the cookie that gets revoked by id in a server-side blacklist on logout. Devise's "trackable" + "timeoutable" + a revocation strategy is the standard pattern.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How big is the session payload in your app?"</strong> Bonus question. A senior should be able to estimate: an integer user_id plus a flash hash is under 200 bytes. Anything over 1KB suggests something is being put in the session that should not be.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The session is one cookie among many, with specific security properties Rails enforces. Knowing the mechanism (encrypted + signed, base64, browser sends it back) is the difference between "the session works by magic" and "I can debug why this user got logged out unexpectedly."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Most production session problems trace to one of three causes: the session got too big (CookieOverflow), the signing key rotated and old cookies became invalid (users logged out unexpectedly), or the session contains data that should have been stored server-side (security-sensitive flags, large object hashes). A senior who has hit any of these can describe the cause in one sentence.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/interview-question-request-cycle",   title: "Walk me through a Rails request",            blurb: "where the session middleware fits in the stack" },
+      { href: "/lessons/interview-question-rails-magic",     title: "What happens when belongs_to runs?",         blurb: "the same 'declarations are method calls' frame" },
+      { href: "/lessons/source-before-action",               title: "How before_action chains run",               blurb: "the filter layer that protect_from_forgery sits in" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/interview-question-caching" class="text-ruby hover:text-ruby-dark transition-colors">← "How would you cache an expensive query?"</a>
+      <a href="/lessons/interview-question-active-record-callbacks" class="text-ruby hover:text-ruby-dark transition-colors">"When would you avoid Active Record callbacks?" →</a>
+    </div>
+  </article>
+</Layout>
