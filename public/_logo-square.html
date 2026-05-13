@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>rails/fullstack / learn — square logos & banners</title>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    @import url('https://rsms.me/inter/inter.css');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter var', Inter, system-ui, sans-serif;
+      background: #f3f4f6;
+      padding: 40px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 40px;
+      justify-items: center;
+    }
+    .tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .label {
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #6b7280;
+      font-weight: 600;
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    }
+    .actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .actions button {
+      font: 600 11px/1 'SFMono-Regular', Menlo, Consolas, monospace;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #374151;
+      cursor: pointer;
+    }
+    .actions button:hover {
+      border-color: #ec1c5e;
+      color: #ec1c5e;
+    }
+    .logo {
+      width: 400px;
+      height: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: -0.04em;
+      line-height: 0.85;
+      font-weight: 800;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+    .pink { color: #ec1c5e; }
+    .stack-large { font-size: 96px; }
+    /* Sub-brand tail: " / learn" rendered in muted weight after the parent.
+       Light variants get a darker gray; dark variants a lighter gray. */
+    .v-dark-stack    .subbrand,
+    .v-mono-dark     .subbrand { color: #9ca3af; }
+    .v-light-stack   .subbrand,
+    .v-wordmark-light .subbrand,
+    .v-monogram-light .subbrand { color: #9ca3af; }
+    .subbrand { font-weight: 400; }
+
+    /* Variant A: dark, stacked, slash separator */
+    .v-dark-stack { background: #0a0a0a; color: #f5f5f5; }
+    .v-dark-stack .slash { color: #ec1c5e; font-size: 96px; line-height: 0.7; margin: 4px 0; }
+    .v-dark-stack .subbrand-row { font-size: 36px; letter-spacing: 0.02em; margin-top: 14px; }
+    .v-dark-stack .subbrand-row .slash { font-size: 36px; color: #ec1c5e; margin: 0 4px; }
+
+    /* Variant B: cream/light, stacked */
+    .v-light-stack { background: #faf7f2; color: #0a0a0a; }
+    .v-light-stack .slash { color: #ec1c5e; font-size: 96px; line-height: 0.7; margin: 4px 0; }
+    .v-light-stack .subbrand-row { font-size: 36px; letter-spacing: 0.02em; margin-top: 14px; }
+    .v-light-stack .subbrand-row .slash { font-size: 36px; color: #ec1c5e; margin: 0 4px; }
+
+    /* Variant C: dark, monogram r/fs with /l tail */
+    .v-mono-dark {
+      background: #0a0a0a;
+      color: #f5f5f5;
+      letter-spacing: -0.06em;
+    }
+    .v-mono-dark .mono-row { display: inline-flex; align-items: baseline; font-size: 180px; line-height: 1; }
+    .v-mono-dark .mono-row .slash { color: #ec1c5e; font-size: 220px; line-height: 1; margin: 0 -4px; transform: translateY(-6px); }
+    .v-mono-dark .subbrand-tail { display: inline-flex; align-items: baseline; font-size: 64px; margin-top: 18px; letter-spacing: -0.04em; }
+    .v-mono-dark .subbrand-tail .slash { color: #ec1c5e; font-size: 64px; margin: 0 6px; }
+
+    /* Variant D: light, wordmark single line + tagline */
+    .v-wordmark-light {
+      background: #ffffff;
+      color: #0a0a0a;
+      font-size: 44px;
+      letter-spacing: -0.03em;
+      padding: 80px 60px;
+    }
+    .v-wordmark-light .row { display: inline-flex; align-items: baseline; }
+    .v-wordmark-light .slash { color: #ec1c5e; font-size: 44px; margin: 0 3px; }
+    .v-wordmark-light .subbrand { font-size: 44px; margin-left: 10px; }
+    .v-wordmark-light .tagline {
+      margin-top: 22px;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #6b7280;
+      font-weight: 600;
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    }
+
+    /* Variant E: light, monogram r/fs/l */
+    .v-monogram-light {
+      background: #ffffff;
+      color: #0a0a0a;
+      letter-spacing: -0.04em;
+      padding: 60px;
+    }
+    .v-monogram-light .row { display: inline-flex; align-items: baseline; font-size: 130px; line-height: 1; }
+    .v-monogram-light .slash { color: #ec1c5e; font-size: 130px; margin: 0 4px; }
+    .v-monogram-light .subbrand { font-size: 130px; margin-left: 6px; }
+    .v-monogram-light .tagline {
+      margin-top: 28px;
+      font-size: 13px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #6b7280;
+      font-weight: 600;
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+    }
+
+    /* OG image — 1200×630 (Twitter/LinkedIn/Facebook). Render once, save
+       the PNG, and drop it into /public as og-image.png so the og:image
+       meta uses a rasterized version. */
+    .og {
+      width: 1200px;
+      height: 630px;
+      max-width: 100%;
+      letter-spacing: -0.03em;
+      font-weight: 800;
+      line-height: 1.05;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      padding: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background: #ffffff;
+      color: #0a0a0a;
+    }
+    .og .eyebrow {
+      font-size: 22px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      font-weight: 600;
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      margin-bottom: 28px;
+    }
+    .og .wordmark { font-size: 120px; }
+    .og .wordmark .slash { color: #ec1c5e; }
+    .og .wordmark .subbrand { color: #9ca3af; font-weight: 400; margin-left: 14px; }
+    .og .tagline {
+      margin-top: 28px;
+      font-size: 36px;
+      color: #4b5563;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+    .og .footnote {
+      margin-top: 46px;
+      font-size: 20px;
+      color: #9ca3af;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+    .og .footnote .pink { color: #ec1c5e; }
+
+    /* LinkedIn banner — 1584×396, pfp safe-zone on the left */
+    .banner {
+      width: 1584px;
+      max-width: 100%;
+      aspect-ratio: 4 / 1;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      letter-spacing: -0.03em;
+      font-weight: 800;
+      line-height: 1.05;
+      display: flex;
+      align-items: center;
+    }
+    .banner .row { display: inline-flex; align-items: baseline; }
+    .banner .slash { color: #ec1c5e; }
+    .pfp-safe-zone { width: 460px; flex-shrink: 0; }
+
+    .banner-light {
+      background: #ffffff;
+      color: #0a0a0a;
+      padding: 0 90px 0 0;
+      justify-content: flex-start;
+      gap: 0;
+    }
+    .banner-light .right { flex: 1; padding-left: 40px; text-align: left; }
+    .banner-light .eyebrow {
+      font-size: 13px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-weight: 700;
+      margin-bottom: 22px;
+    }
+    .banner-light .eyebrow .slash { font-size: 13px; }
+    .banner-light .eyebrow .subbrand { color: #6b7280; font-weight: 400; margin-left: 6px; }
+    .banner-light .headline {
+      font-size: 60px;
+      line-height: 1.1;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .banner-light .headline .pink { color: #ec1c5e; }
+  </style>
+</head>
+<body>
+  <div class="tile">
+    <div class="label">A · dark · stacked</div>
+    <div class="logo v-dark-stack" data-name="logo-a-dark-stacked">
+      <span class="stack-large">rails</span>
+      <span class="slash">/</span>
+      <span class="stack-large">fullstack</span>
+      <div class="subbrand-row"><span class="slash">/</span><span class="subbrand">learn</span></div>
+    </div>
+    <div class="actions" data-target-prev>
+      <button data-scale="2">PNG ×2</button>
+      <button data-scale="3">PNG ×3</button>
+      <button data-scale="4">PNG ×4</button>
+    </div>
+  </div>
+
+  <div class="tile">
+    <div class="label">B · light · stacked</div>
+    <div class="logo v-light-stack" data-name="logo-b-light-stacked">
+      <span class="stack-large">rails</span>
+      <span class="slash">/</span>
+      <span class="stack-large">fullstack</span>
+      <div class="subbrand-row"><span class="slash">/</span><span class="subbrand">learn</span></div>
+    </div>
+    <div class="actions" data-target-prev>
+      <button data-scale="2">PNG ×2</button>
+      <button data-scale="3">PNG ×3</button>
+      <button data-scale="4">PNG ×4</button>
+    </div>
+  </div>
+
+  <div class="tile">
+    <div class="label">C · dark · monogram r/fs/l</div>
+    <div class="logo v-mono-dark" data-name="logo-c-dark-monogram">
+      <div class="mono-row"><span>r</span><span class="slash">/</span><span>fs</span></div>
+      <div class="subbrand-tail"><span class="slash">/</span><span class="subbrand">l</span></div>
+    </div>
+    <div class="actions" data-target-prev>
+      <button data-scale="2">PNG ×2</button>
+      <button data-scale="3">PNG ×3</button>
+      <button data-scale="4">PNG ×4</button>
+    </div>
+  </div>
+
+  <div class="tile">
+    <div class="label">D · light · wordmark + tagline</div>
+    <div class="logo v-wordmark-light" data-name="logo-d-light-wordmark">
+      <div class="row">
+        <span>rails</span><span class="slash">/</span><span>fullstack</span><span class="subbrand">/ learn</span>
+      </div>
+      <div class="tagline">Senior track for Rails devs</div>
+    </div>
+    <div class="actions" data-target-prev>
+      <button data-scale="2">PNG ×2</button>
+      <button data-scale="3">PNG ×3</button>
+      <button data-scale="4">PNG ×4</button>
+    </div>
+  </div>
+
+  <div class="tile">
+    <div class="label">E · light · monogram r/fs/l + tagline</div>
+    <div class="logo v-monogram-light" data-name="logo-e-light-monogram">
+      <div class="row">
+        <span>r</span><span class="slash">/</span><span>fs</span><span class="subbrand">/l</span>
+      </div>
+      <div class="tagline">Senior track for Rails devs</div>
+    </div>
+    <div class="actions" data-target-prev>
+      <button data-scale="2">PNG ×2</button>
+      <button data-scale="3">PNG ×3</button>
+      <button data-scale="4">PNG ×4</button>
+    </div>
+  </div>
+
+  <!-- OG image — 1200×630, used by og:image meta tag. -->
+  <div class="tile" style="grid-column: 1 / -1;">
+    <div class="label">OG image · 1200×630</div>
+    <div class="og" data-name="og-image">
+      <div class="eyebrow">From railsfullstack.com</div>
+      <div class="wordmark">rails<span class="slash">/</span>fullstack<span class="subbrand">/ learn</span></div>
+      <div class="tagline">The senior track for Rails developers.</div>
+      <div class="footnote">SOLID · Scaling · Rails source code · Payments · Interview · <span class="pink">55 practice cards</span></div>
+    </div>
+    <div class="actions" data-target-prev>
+      <button data-scale="1">PNG ×1 (1200w)</button>
+      <button data-scale="2">PNG ×2 (2400w)</button>
+    </div>
+  </div>
+
+  <!-- LinkedIn banner — 1584×396, pfp safe-zone. -->
+  <div class="tile" style="grid-column: 1 / -1;">
+    <div class="label">Banner · light · pfp-safe (1584×396)</div>
+    <div class="banner banner-light" data-name="banner-light">
+      <div class="pfp-safe-zone"></div>
+      <div class="right">
+        <div class="eyebrow">rails<span class="slash">/</span>fullstack<span class="subbrand">/ learn</span> · From railsfullstack.com</div>
+        <div class="headline">The senior track for <span class="pink">Ruby on Rails</span> developers.</div>
+      </div>
+    </div>
+    <div class="actions" data-target-prev>
+      <button data-scale="1">PNG ×1 (1584w)</button>
+      <button data-scale="2">PNG ×2 (3168w)</button>
+    </div>
+  </div>
+
+  <script>
+    // Each .actions block lives directly after the visual it captures.
+    // Buttons declare their scale via data-scale; html2canvas re-renders
+    // the target into a high-DPI canvas, then we force a download.
+    document.querySelectorAll('.actions[data-target-prev] button').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const actions = btn.closest('.actions');
+        const target = actions.previousElementSibling;
+        const name = target.dataset.name || 'logo';
+        const scale = Number(btn.dataset.scale || 2);
+        const original = btn.textContent;
+        btn.textContent = '…rendering';
+        btn.disabled = true;
+        try {
+          const canvas = await html2canvas(target, {
+            scale,
+            backgroundColor: null,
+            useCORS: true,
+            logging: false,
+          });
+          const link = document.createElement('a');
+          link.download = `${name}@${scale}x.png`;
+          link.href = canvas.toDataURL('image/png');
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        } catch (e) {
+          alert(`Render failed: ${e.message}`);
+        } finally {
+          btn.textContent = original;
+          btn.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

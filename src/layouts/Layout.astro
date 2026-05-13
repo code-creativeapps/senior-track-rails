@@ -7,8 +7,8 @@ interface Props {
 
 const { title, description } = Astro.props;
 
-const fullTitle = `${title} | rails/learn`;
-const desc = description || `${title} — rails/learn, the senior track from railsfullstack.com.`;
+const fullTitle = `${title} | rails/fullstack / learn`;
+const desc = description || `${title} — rails/fullstack / learn, the senior track from railsfullstack.com.`;
 const canonical = new URL(Astro.url.pathname, Astro.site).toString();
 const ogImage = new URL('/og-image.svg', Astro.site).toString();
 ---
@@ -30,7 +30,7 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={desc} />
     <meta property="og:image" content={ogImage} />
-    <meta property="og:site_name" content="rails/learn — RailsFullStack" />
+    <meta property="og:site_name" content="rails/fullstack / learn" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -43,7 +43,7 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
       <nav class="max-w-7xl mx-auto px-6 py-4">
         <div class="flex items-center justify-between gap-6">
           <a href="/" class="text-xl font-bold tracking-tight text-gray-900 hover:opacity-80 transition-opacity whitespace-nowrap">
-            rails<span class="text-gum-pink mx-0.5">/</span>learn
+            rails<span class="text-gum-pink">/</span>fullstack <span class="text-gray-400 font-normal">/ learn</span>
           </a>
           <div class="flex items-center gap-5 text-sm">
             <a href="/practice" class="text-gray-600 hover:text-gray-900 transition-colors">Practice</a>
@@ -66,7 +66,7 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
       <div class="max-w-7xl mx-auto px-6 py-10 grid gap-8 md:grid-cols-3 text-sm">
         <div>
           <p class="text-xl font-bold tracking-tight text-gray-900 mb-2">
-            rails<span class="text-gum-pink mx-0.5">/</span>learn
+            rails<span class="text-gum-pink">/</span>fullstack <span class="text-gray-400 font-normal">/ learn</span>
           </p>
           <p class="text-gray-500 leading-relaxed">
             The senior track for Rails developers. Free, no signup. Part of the railsfullstack family.
