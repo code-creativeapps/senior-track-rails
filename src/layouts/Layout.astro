@@ -7,8 +7,8 @@ interface Props {
 
 const { title, description } = Astro.props;
 
-const fullTitle = `${title} | Senior Track — RailsFullStack`;
-const desc = description || `${title} — Senior Track for Rails developers.`;
+const fullTitle = `${title} | rails/learn`;
+const desc = description || `${title} — rails/learn, the senior track from railsfullstack.com.`;
 const canonical = new URL(Astro.url.pathname, Astro.site).toString();
 const ogImage = new URL('/og-image.svg', Astro.site).toString();
 ---
@@ -30,7 +30,7 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={desc} />
     <meta property="og:image" content={ogImage} />
-    <meta property="og:site_name" content="Senior Track — RailsFullStack" />
+    <meta property="og:site_name" content="rails/learn — RailsFullStack" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -41,17 +41,20 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
   <body class="bg-gray-50 text-gray-900 antialiased">
     <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
       <nav class="max-w-7xl mx-auto px-6 py-4">
-        <div class="flex items-center justify-between">
-          <a href="/" class="text-2xl font-bold text-ruby hover:text-ruby-dark transition-colors">
-            Senior Track
+        <div class="flex items-center justify-between gap-6">
+          <a href="/" class="text-xl font-bold tracking-tight text-gray-900 hover:opacity-80 transition-opacity whitespace-nowrap">
+            rails<span class="text-gum-pink mx-0.5">/</span>learn
           </a>
           <div class="flex items-center gap-5 text-sm">
             <a href="/practice" class="text-gray-600 hover:text-gray-900 transition-colors">Practice</a>
-            <a href="/reading-the-source" class="text-gray-600 hover:text-gray-900 transition-colors">Reading</a>
+            <a href="/reading-the-source" class="text-gray-600 hover:text-gray-900 transition-colors">Rails source code</a>
             <a href="/solid" class="text-gray-600 hover:text-gray-900 transition-colors">SOLID</a>
             <a href="/scaling" class="text-gray-600 hover:text-gray-900 transition-colors">Scaling</a>
             <a href="/payments" class="text-gray-600 hover:text-gray-900 transition-colors">Payments</a>
             <a href="/interview" class="text-gray-600 hover:text-gray-900 transition-colors">Interview</a>
+            <a href="https://railsfullstack.com" class="ml-2 inline-flex items-center gap-1 text-gum-pink hover:text-gum-pink/80 font-semibold whitespace-nowrap">
+              Rails jobs <span aria-hidden="true">→</span>
+            </a>
           </div>
         </div>
       </nav>
@@ -60,11 +63,42 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
       <slot />
     </main>
     <footer class="bg-white border-t border-gray-200 mt-16">
-      <div class="max-w-7xl mx-auto px-6 py-8">
-        <p class="text-sm text-gray-500 text-center">
-          Senior Track — RailsFullStack<br />
-          Content Licensed Under CC-BY-NC-4.0 · Code Samples Under Apache 2.0
-        </p>
+      <div class="max-w-7xl mx-auto px-6 py-10 grid gap-8 md:grid-cols-3 text-sm">
+        <div>
+          <p class="text-xl font-bold tracking-tight text-gray-900 mb-2">
+            rails<span class="text-gum-pink mx-0.5">/</span>learn
+          </p>
+          <p class="text-gray-500 leading-relaxed">
+            The senior track for Rails developers. Free, no signup. Part of the railsfullstack family.
+          </p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-3">Elsewhere</p>
+          <ul class="space-y-2 text-gray-600">
+            <li>
+              <a href="https://railsfullstack.com" class="hover:text-gum-pink transition-colors inline-flex items-center gap-1">
+                railsfullstack.com <span class="text-gray-400">— Rails jobs</span>
+              </a>
+            </li>
+            <li>
+              <a href="https://blog.railsfullstack.com" class="hover:text-gum-pink transition-colors inline-flex items-center gap-1">
+                blog.railsfullstack.com <span class="text-gray-400">— writing on the Rails ecosystem</span>
+              </a>
+            </li>
+            <li>
+              <a href="https://www.linkedin.com/company/railsfullstack/" class="hover:text-gum-pink transition-colors">
+                LinkedIn
+              </a>
+            </li>
+          </ul>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-3">License</p>
+          <p class="text-gray-500 leading-relaxed">
+            Content licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" class="underline hover:text-gum-pink">CC BY-NC 4.0</a>.<br />
+            Code samples under Apache 2.0.
+          </p>
+        </div>
       </div>
     </footer>
   </body>

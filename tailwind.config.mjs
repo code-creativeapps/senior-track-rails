@@ -14,6 +14,9 @@ export default {
           light: '#FF3333',
           dark: '#B00000',
         },
+        // Brand pink shared with railsfullstack.com — used for the slash
+        // in the rails/learn wordmark and the diagonal stroke in the favicon.
+        'gum-pink': '#ec1c5e',
       },
     },
   },
