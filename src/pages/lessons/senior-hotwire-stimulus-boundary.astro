@@ -2,6 +2,7 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
 <Layout title="Stimulus vs React: When to Graduate Off Hotwire" description="Where Stimulus came from, why a Stimulus controller with twenty fields is a sign you have crossed the boundary, and the rule of thumb seniors use to decide when to stay with Stimulus or graduate to a real frontend framework.">
@@ -167,6 +168,12 @@ export default class extends Controller {
         <li>Pick the most complex UI on the roadmap for the next quarter. Sketch how it would look in Stimulus, in Inertia + React, and in a small embedded SPA. <strong>The right tool is rarely the one you used last time;</strong> it is the one whose shape matches the problem.</li>
       </ol>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-hotwire-when-not-to",       title: "When NOT to Use Hotwire",                   blurb: "the four problem shapes that demand React" },
+      { href: "/lessons/senior-hotwire-optimistic-ui",     title: "Optimistic UI without state management",   blurb: "Stimulus done at the right scale" },
+      { href: "/lessons/senior-srp-concerns",              title: "Rails Concerns",                            blurb: "single-responsibility thinking, server-side" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/lessons/senior-hotwire-optimistic-ui" class="text-ruby hover:text-ruby-dark transition-colors">← Optimistic UI without state management</a>

@@ -2,9 +2,10 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
-<Layout title="EXPLAIN ANALYZE in Postgres: A Rails Developer's Guide" description="Reading Postgres query plans beyond 'is it using the index?' Cost vs actual time, rows estimated vs actual, the grammar of plan nodes, and the one number seniors check first when a query is slow.">
+<Layout title="EXPLAIN ANALYZE in Postgres: A Rails Developer's Guide" description="Stop diagnosing slow Postgres queries by squinting at 'Seq Scan' and adding an index. Read the plan: estimate vs actual rows, the grammar of plan nodes, the one number seniors check first. With Rails .explain integration and pg_stat_statements.">
   <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
     <div class="text-center">
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -177,6 +178,12 @@ import CodeBlock from '../../components/CodeBlock.astro';
         <li>Install <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code> on a production-like database. Run <code class="bg-gray-100 px-2 py-1 rounded">SELECT query, total_exec_time, calls, mean_exec_time FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 20;</code>. The top query is your starting point. <strong>Most apps have one or two queries that account for half the database time;</strong> these are the ones worth optimising.</li>
       </ol>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-db-planner-statistics",     title: "The Postgres planner and its statistics",   blurb: "why estimates drift from reality" },
+      { href: "/lessons/senior-db-indexing-beyond-btree",  title: "Indexing beyond btree",                     blurb: "what to add once you can read the plan" },
+      { href: "/lessons/senior-eager-loading",             title: "Rails Eager Loading",                       blurb: "the Active Record side of N+1 prevention" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/databases" class="text-ruby hover:text-ruby-dark transition-colors">← Databases in Production</a>

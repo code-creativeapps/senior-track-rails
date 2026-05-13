@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
 <Layout title="Rails Eager Loading: includes vs preload vs eager_load vs joins" description="Master the four query strategies every senior Rails developer reaches for instinctively, and learn when each is the right tool.">
@@ -242,6 +243,12 @@ end</code></pre>
         Read the SQL. Confirm with the log. Reach for <code class="bg-gray-100 px-2 py-1 rounded">preload</code> by default, and only upgrade when you have a reason.
       </p>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-db-explain-analyze",        title: "EXPLAIN ANALYZE in Postgres",               blurb: "see which strategy actually ran" },
+      { href: "/lessons/senior-db-indexing-beyond-btree",  title: "Indexing beyond btree",                     blurb: "what indexes support each eager-load shape" },
+      { href: "/lessons/source-activerecord-query",        title: "How User.where(...) becomes SQL",           blurb: "the Rails internals that compile your scopes" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>

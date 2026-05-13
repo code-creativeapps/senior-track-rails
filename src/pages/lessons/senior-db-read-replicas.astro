@@ -2,9 +2,10 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
-<Layout title="Postgres Read Replicas in Rails: When They Help (and Hurt)" description="When read replicas help, when they don't, what replication lag breaks in practice, Rails 6+ multi-database role API, and the 'we added a replica and the app got slower' failure mode.">
+<Layout title="Postgres Read Replicas in Rails: When They Help (and Hurt)" description="Most teams add a Postgres read replica and the app gets slower, not faster. Cold buffer cache, replication lag, doubled connection pools. When replicas actually help, when they hurt, and the Rails 6+ multi-DB role API.">
   <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
     <div class="text-center">
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -177,6 +178,12 @@ SELECT
         <li>Set up the lag query above as a dashboard. Pick an SLA (often 1 second). Add an alert. The first time you see a spike, you will understand more about your write workload than a year of reading docs would have taught you.</li>
       </ol>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-db-explain-analyze",        title: "EXPLAIN ANALYZE in Postgres",               blurb: "diagnose before reaching for a replica" },
+      { href: "/lessons/senior-db-isolation-locking",      title: "Transaction isolation and locking",         blurb: "what transactions break across roles" },
+      { href: "/lessons/senior-scaling-concurrency",       title: "The Rails concurrency model",               blurb: "Puma threads and the connection pool" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/lessons/senior-db-zero-downtime-migrations" class="text-ruby hover:text-ruby-dark transition-colors">← Zero-downtime migrations</a>

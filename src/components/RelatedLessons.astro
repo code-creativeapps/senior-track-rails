@@ -1,0 +1,29 @@
+---
+// Inline "Related lessons" block — shown just before the prev/next nav.
+// Each lesson can opt-in by passing 2-3 related lessons. The links carry
+// the page's outbound PageRank to siblings in other sections, which is
+// the single biggest internal-SEO compound for a content site.
+interface RelatedLesson {
+  href: string;
+  title: string;
+  blurb?: string;
+}
+interface Props {
+  lessons: RelatedLesson[];
+}
+const { lessons } = Astro.props;
+---
+
+<section class="border border-gray-200 bg-gray-50 rounded-lg p-6 space-y-3">
+  <h3 class="text-sm uppercase tracking-wider text-gray-500 font-semibold">Related lessons</h3>
+  <ul class="space-y-2">
+    {lessons.map((l) => (
+      <li>
+        <a href={l.href} class="block group">
+          <span class="text-gray-900 group-hover:text-ruby font-medium transition-colors">{l.title}</span>
+          {l.blurb && <span class="text-gray-600 text-sm"> — {l.blurb}</span>}
+        </a>
+      </li>
+    ))}
+  </ul>
+</section>

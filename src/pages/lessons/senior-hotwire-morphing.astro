@@ -2,6 +2,7 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
 <Layout title="Turbo Morphing in Rails 8: Updates Without the Flicker" description="Where Turbo's morph mode came from, what it preserves that full replacement loses, and the gotchas around focus, scroll, animations, and Stimulus controller lifecycle that catch teams on first contact.">
@@ -131,6 +132,12 @@ import CodeBlock from '../../components/CodeBlock.astro';
         <li>Add a <code class="bg-gray-100 px-2 py-1 rounded">turbo-stream.morph</code> action to one CRUD response in the app. Compare the resulting feel against the previous replace-based version.</li>
       </ol>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-hotwire-streams-vs-broadcasts", title: "Turbo Streams vs Broadcasts",            blurb: "the transport that morph runs on top of" },
+      { href: "/lessons/senior-hotwire-stimulus-boundary",     title: "Stimulus vs React",                       blurb: "morph changes the Stimulus lifecycle" },
+      { href: "/lessons/senior-hotwire-optimistic-ui",         title: "Optimistic UI without state management", blurb: "morph preserves state mid-interaction" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/lessons/senior-hotwire-stimulus-boundary" class="text-ruby hover:text-ruby-dark transition-colors">← The Stimulus boundary</a>

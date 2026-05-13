@@ -2,9 +2,10 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
-<Layout title="When NOT to Use Hotwire: 4 Cases Where Rails Reaches for React" description="Where Hotwire's design assumptions stop fitting, the four shapes of problem that disqualify it, the alternatives ranked by complexity, and how to recognise that you have outgrown it mid-project. The most senior judgment in the Hotwire lineup.">
+<Layout title="When NOT to Use Hotwire: 4 Cases Where Rails Reaches for React" description="Rich text editors, complex drag-and-drop, real-time multi-user collaboration, offline-first. The four problem shapes where Rails teams should reach for React or Inertia instead of Hotwire, and the signs you've already crossed the line.">
   <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
     <div class="text-center">
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -140,6 +141,12 @@ import CodeBlock from '../../components/CodeBlock.astro';
         <li>Search the codebase for <code class="bg-gray-100 px-2 py-1 rounded">data-turbo="false"</code> and <code class="bg-gray-100 px-2 py-1 rounded">data-turbo-permanent</code>. Each one is a point where Hotwire's defaults stopped fitting. Look at the surrounding code. Is this a small accommodation, or a sign the whole surface should be rethought?</li>
       </ol>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-hotwire-stimulus-boundary", title: "Stimulus vs React",                         blurb: "where the line lives, before this lesson's cases" },
+      { href: "/lessons/senior-hotwire-morphing",          title: "Turbo Morphing in Rails 8",                 blurb: "the Hotwire feature that closes much of the gap" },
+      { href: "/lessons/senior-srp-form-objects",          title: "Form Objects in Rails",                     blurb: "when a complex form does not need a JS framework" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/lessons/senior-hotwire-morphing" class="text-ruby hover:text-ruby-dark transition-colors">← Turbo morphing in Rails 8</a>

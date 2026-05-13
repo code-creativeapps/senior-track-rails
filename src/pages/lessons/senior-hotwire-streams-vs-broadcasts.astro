@@ -2,6 +2,7 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
 <Layout title="Turbo Streams vs Broadcasts: When to Use Each (Hotwire)" description="Where Hotwire's two transport channels come from, why most teams reach for ActionCable when they should be streaming inline, and the render-and-broadcast pattern that keeps CRUD responses and WebSocket pushes from stepping on each other.">
@@ -169,6 +170,12 @@ end`} language="ruby" />
         <li>Find a model with a high write rate (audit logs, view counts, soft-delete tombstones) that has a <code class="bg-gray-100 px-2 py-1 rounded">broadcasts_to</code>. Compare its write volume against the read volume of the broadcast destination. <strong>If reads are near zero, remove the broadcast.</strong></li>
       </ol>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-hotwire-optimistic-ui",     title: "Optimistic UI without state management",   blurb: "the like-button pattern Stimulus owns" },
+      { href: "/lessons/senior-scaling-background-jobs",   title: "Background jobs as a scaling tool",         blurb: "where broadcasts compete for queue capacity" },
+      { href: "/lessons/senior-db-isolation-locking",      title: "Transaction isolation and locking",         blurb: "what after_commit guarantees and does not" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/hotwire" class="text-ruby hover:text-ruby-dark transition-colors">← Hotwire</a>

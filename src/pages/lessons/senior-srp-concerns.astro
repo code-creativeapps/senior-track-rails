@@ -2,6 +2,7 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
 <Layout title="Rails Concerns: When They Help and When They're Junk Drawers" description="Where the Concerns pattern comes from, why it's the most controversial Rails pattern, and how Mastodon uses small focused concerns like Expireable to share behavior cleanly across models.">
@@ -217,6 +218,12 @@ end
         <li>Bonus: look at the file size of your models. <strong>If a 1000-line model has been split into ten 100-line concerns, the model has not gotten simpler.</strong> The coupling is the same; only the navigation got worse. The honest fix is service objects, not concerns.</li>
       </ol>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-srp-service-objects",       title: "Service Objects in Rails",                  blurb: "the alternative pattern for stateful logic" },
+      { href: "/lessons/senior-srp-policy-objects",        title: "Policy Objects in Rails",                   blurb: "authorization as its own object, not a concern" },
+      { href: "/lessons/senior-hotwire-stimulus-boundary", title: "Stimulus vs React",                         blurb: "the same boundary thinking applied to frontend" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/lessons/senior-srp-decorators" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 5 — Decorators</a>

@@ -2,6 +2,7 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
 <Layout title="Zero-Downtime Rails Migrations on Postgres (Safe Patterns)" description="The patterns: add column with default in two steps, add index concurrently, rename column via shadow column, drop column safely. What strong_migrations enforces and the table-size reflex that prevents 9 a.m. incidents.">
@@ -204,6 +205,12 @@ end`} language="ruby" />
         <li>Pick a column you would rename if you could. Sketch the three-deploy shadow-column plan. Estimate how many days it takes to ship end-to-end. <strong>If the answer is "more than a week," the rename is more expensive than living with the imperfect name; that itself is a senior tradeoff worth recognising.</strong></li>
       </ol>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-db-mvcc-vacuum-bloat",      title: "Postgres VACUUM, MVCC, and Bloat",          blurb: "what backfills leave behind" },
+      { href: "/lessons/senior-db-indexing-beyond-btree",  title: "Indexing beyond btree",                     blurb: "CREATE INDEX CONCURRENTLY in context" },
+      { href: "/lessons/senior-db-isolation-locking",      title: "Transaction isolation and locking",         blurb: "what AccessExclusiveLock means in practice" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/lessons/senior-db-isolation-locking" class="text-ruby hover:text-ruby-dark transition-colors">← Transaction isolation and locking</a>

@@ -2,6 +2,7 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
 ---
 
 <Layout title="Postgres VACUUM, MVCC, and Table Bloat (Rails Operator's Guide)" description="What an UPDATE actually does, why a 10GB table can hold 200MB of live data, when autovacuum is enough, when to intervene, and the VACUUM FULL vs pg_repack call.">
@@ -155,6 +156,12 @@ ALTER TABLE events SET (
         <li>Install <code class="bg-gray-100 px-2 py-1 rounded">pg_repack</code> on a staging database. Repack a bloated table. Measure before and after. <strong>If you ever reach for VACUUM FULL in production, this is your alternative.</strong></li>
       </ol>
     </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-db-isolation-locking",      title: "Transaction isolation and locking",         blurb: "MVCC seen from the transaction side" },
+      { href: "/lessons/senior-db-planner-statistics",     title: "The Postgres planner and its statistics",   blurb: "how bloat distorts the planner's view" },
+      { href: "/lessons/senior-db-zero-downtime-migrations", title: "Zero-downtime Rails migrations",          blurb: "bulk updates create the bloat this lesson clears" },
+    ]} />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/lessons/senior-db-window-and-cte" class="text-ruby hover:text-ruby-dark transition-colors">← Window functions and CTEs</a>
