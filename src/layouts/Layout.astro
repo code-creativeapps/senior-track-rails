@@ -20,6 +20,8 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://rsms.me" />
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
     <link rel="canonical" href={canonical} />
     <title>{fullTitle}</title>
     <meta name="description" content={desc} />
@@ -109,13 +111,20 @@ const ogImage = new URL('/og-image.svg', Astro.site).toString();
     box-sizing: border-box;
   }
 
+  /* Match blog.railsfullstack.com: Inter variable font + the same
+     OpenType feature toggles for slashed zero / alt characters. */
+  html {
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Inter var', 'Inter', system-ui, -apple-system, sans-serif;
     line-height: 1.6;
   }
 
   code {
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.9em;
   }
 </style>
