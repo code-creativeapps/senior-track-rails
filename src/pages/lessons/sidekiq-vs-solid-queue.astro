@@ -1,0 +1,178 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title="Sidekiq vs Solid Queue: Which to Pick for Rails 8" description="Sidekiq has 12 years of production scars and the best background-job UI on Earth. Solid Queue ships as the Rails 8 default, runs on your Postgres, and removes the Redis dependency. Six axes of comparison and the cases where each is the right call.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Comparison · Background Jobs</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:timer" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Sidekiq vs Solid Queue</h1>
+      </div>
+      <p class="text-xl text-gray-600">Sidekiq has 12 years of production scars and the best background-job UI on Earth. Solid Queue ships as the Rails 8 default, runs on your Postgres, and removes the Redis dependency. Six axes of comparison and the cases where each is the right call.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this comparison comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Sidekiq, released by Mike Perham in 2012, became the dominant Ruby background-job library within two years. It used threads inside one process backed by Redis, processed tens of thousands of jobs per second on modest hardware, and shipped a clean web UI for inspecting queues, retries, and dead jobs. For a decade, "background jobs in Rails" meant Sidekiq.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Queue arrived with Rails 8 in September 2024, written at 37signals for HEY. It is database-backed (Postgres, MySQL, or SQLite), removes the Redis dependency, and ships as the default queue adapter in new Rails 8 apps. The framing across the team has been clear: Solid Queue is the new default for most apps, Sidekiq remains the right call for the high-throughput cases.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Both tools work. The question is not which one is better in the abstract but which one fits the workload you actually have. The rest of this lesson walks through the six axes that matter and the verdict on each.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 1: throughput</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Sidekiq processes around 8,000 to 10,000 simple jobs per second on a single worker process on modern hardware. That number drops with job complexity (database queries, external calls, payload size) but Redis itself is rarely the bottleneck. Sidekiq Pro and Enterprise add features (batches, rate limiting, encryption) without changing the per-second ceiling much.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Queue's ceiling is closer to 1,000 to 2,000 jobs per second per worker, limited by the cost of database polling and row locking. The number is fine for most Rails apps. A typical web product processes 50 to 500 jobs per second in steady state, with spikes to a few thousand. Solid Queue handles that range without breaking a sweat.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> Below ~5,000 jobs/sec, Solid Queue is comfortable. Above ~5,000 jobs/sec, Sidekiq's architecture pays back. Most apps will never reach that threshold.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 2: infrastructure cost</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Sidekiq requires Redis. On Heroku, that is a Redis add-on at $15 to $200+/month depending on size. On Fly.io or Render, it is a managed Redis instance or a self-hosted Redis container. Either way, it is a second database to monitor, alert on, back up, and reason about during incidents.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Queue runs against your existing Postgres. No new infrastructure, no new credentials, no new incident surface. The cost is some additional load on the Postgres primary: Solid Queue polls for new jobs and updates rows on state transitions. For most apps this is rounding error compared to OLTP traffic; for very high-throughput apps it can become a measurable share of database CPU.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> If you do not already need Redis for caching or rate limiting, Solid Queue saves a piece of infrastructure. If you already run Redis for other reasons, the marginal cost of adding Sidekiq is small.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 3: transactional integrity</h2>
+      <p class="text-gray-700 leading-relaxed">
+        This is where Solid Queue's database-backed design wins decisively. Because jobs are rows in the same database as your app data, enqueueing a job inside a transaction is atomic with the transaction. If the transaction rolls back, the job is not in the queue. If it commits, the job is guaranteed enqueued.
+      </p>
+      <CodeBlock code={`# With Solid Queue: atomic
+ApplicationRecord.transaction do
+  order = Order.create!(params)
+  ChargeOrderJob.perform_later(order.id)  # Same DB transaction
+  # If this transaction rolls back, the job is gone too.
+end
+
+# With Sidekiq: not atomic
+ApplicationRecord.transaction do
+  order = Order.create!(params)
+  ChargeOrderJob.perform_later(order.id)  # Writes to Redis immediately
+  raise "something else fails"            # Order rolls back...
+  # ...but the job was already enqueued and will run, finding no order.
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The Sidekiq community has worked around this with the <code class="bg-gray-100 px-2 py-1 rounded">after_commit</code> callback pattern, where jobs are enqueued only after the transaction commits. The pattern works but adds a layer of careful discipline. Forget the wrapper in one place and you get phantom jobs.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> If your jobs need to be transactionally consistent with database writes (payments, state machines, ordering-sensitive flows), Solid Queue is the right choice. Sidekiq can do it, but requires discipline you have to enforce yourself.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 4: ecosystem and observability</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Sidekiq's web UI has been the gold standard for a decade. Queue inspection, retry counts, scheduled jobs, dead jobs with full stack traces, batch progress, real-time stats. Most Rails teams who use Sidekiq have a bookmarked URL they open during incidents and know exactly what they are looking at.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Sidekiq's plugin ecosystem extends beyond the UI: <code class="bg-gray-100 px-2 py-1 rounded">sidekiq-cron</code>, <code class="bg-gray-100 px-2 py-1 rounded">sidekiq-unique-jobs</code>, <code class="bg-gray-100 px-2 py-1 rounded">sidekiq-status</code>, integrations with every observability tool. The community has solved most operational corner cases.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Queue is younger and the ecosystem is thinner. The 37signals team ships <a href="https://github.com/basecamp/mission_control-jobs" class="text-ruby underline hover:text-ruby-dark">Mission Control</a> as a sibling gem for a queue-management UI, and it has improved fast through 2024 and 2025. The UI is good now, although not as feature-rich as Sidekiq Web. Integrations with observability platforms are catching up.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> Sidekiq still leads on UI maturity and plugin breadth. Solid Queue is good enough for most teams in 2026 and the gap is closing.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 5: retries and failure handling</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Both tools have retry semantics built on Active Job. <code class="bg-gray-100 px-2 py-1 rounded">retry_on</code> and <code class="bg-gray-100 px-2 py-1 rounded">discard_on</code> work identically. Sidekiq adds its own retry block syntax for finer control; Solid Queue is mostly Active Job-native.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Sidekiq's dead-jobs queue is a separate Redis sorted set. Failed jobs accumulate, you can inspect them, retry them, or delete them. The semantics are well-understood after a decade of teams using them.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Queue's failed jobs are rows in the <code class="bg-gray-100 px-2 py-1 rounded">solid_queue_failed_executions</code> table. Mission Control exposes them. The model is simpler than Sidekiq's retry stack but covers the common needs (inspect, retry, delete).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> Roughly equivalent for typical Rails-app retry needs. Sidekiq has more knobs if your retry logic is intricate.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 6: cost of being wrong</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Both tools sit behind Active Job, so application code (<code class="bg-gray-100 px-2 py-1 rounded">SomeJob.perform_later(...)</code>) looks identical. Migrating from one to the other is mostly an infrastructure swap plus reconfiguring the adapter in <code class="bg-gray-100 px-2 py-1 rounded">config/application.rb</code>. The application-level cost is near zero.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The migration cost lives in operations: standing up the new infrastructure, dual-writing during cutover, monitoring both queues until you trust the new one. A team that picks Solid Queue and outgrows it can swap to Sidekiq in a sprint. A team that picks Sidekiq and decides to simplify can swap to Solid Queue in a sprint.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> The decision is not load-bearing. Pick the one that fits your current shape; revisit if the shape changes.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The decision rule</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Default to <strong>Solid Queue</strong> if:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>You are starting a new Rails 8 app. It is the default, and the friction of swapping is for a future problem.</li>
+        <li>You do not already need Redis for caching or rate limiting.</li>
+        <li>Job count is under ~5,000/sec in normal operation.</li>
+        <li>Transactional integrity with the database is important (payments, state machines).</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Default to <strong>Sidekiq</strong> if:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>You already run Redis and the team knows it.</li>
+        <li>Job throughput exceeds 5,000/sec sustained, or you have spiky workloads where database pressure during job dequeue would compete with OLTP traffic.</li>
+        <li>The team has years of Sidekiq operational experience and the plugins it relies on (<code class="bg-gray-100 px-2 py-1 rounded">sidekiq-unique-jobs</code>, batch APIs, custom middleware) do not have direct Solid Queue equivalents.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        For an app sitting in the middle, both work. Many production Rails apps in 2026 are migrating to Solid Queue not because Sidekiq is failing them but because removing Redis simplifies their infrastructure. Both are valid moves.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Tooling decisions are not identity. The teams that get the most out of either tool are the ones who picked it for clear reasons and would switch when the reasons changed. The reasons that matter: throughput, transactional integrity, infrastructure cost, ecosystem maturity. Most apps cluster cleanly on one side or the other once those four are evaluated.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The reason Solid Queue exists is that 37signals concluded most of the apps they ship would rather not run Redis. The reason Sidekiq still thrives is that some workloads still benefit from its architecture. Both reasons are legitimate, and the choice in your app is about which side of the line you sit on, not which tool is fashionable this year.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-scaling-background-jobs", title: "Background jobs as a scaling tool",   blurb: "the underlying pattern both tools implement" },
+      { href: "/lessons/senior-db-isolation-locking",    title: "Transaction isolation and locking",   blurb: "why transactional enqueue matters" },
+      { href: "/lessons/senior-scaling-concurrency",     title: "The Rails concurrency model",         blurb: "Puma threads, connection pools, where job workers fit" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">Comparison · Background jobs</span>
+    </div>
+  </article>
+</Layout>

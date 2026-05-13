@@ -1,0 +1,166 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title="Postgres vs MySQL for Rails: Which to Pick in 2026" description="Both are excellent at general OLTP work for a Rails app. Postgres pulls ahead on JSONB, advanced indexing, MVCC, CTEs, and extensions. MySQL wins on simplicity, replication maturity, and certain read-heavy patterns. Six axes of comparison and the cases each is the right call.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Comparison · Rails Databases</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:database" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Postgres vs MySQL for Rails</h1>
+      </div>
+      <p class="text-xl text-gray-600">Both are excellent at general OLTP work for a Rails app. Postgres pulls ahead on JSONB, advanced indexing, MVCC, CTEs, and extensions. MySQL wins on simplicity, replication maturity, and some read-heavy patterns. Six axes and the cases where each is the right call.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this comparison comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails ships with both Postgres and MySQL adapters and treats neither as the default. SQLite became the default for new Rails 8 apps, but for production, almost every Rails team picks Postgres or MySQL. The reason both have stuck around: each is the right answer in different circumstances, and the gap between them in the OLTP middle ground has narrowed steadily over a decade.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The decision happens once per project and is hard to reverse. Migration between the two is possible but takes weeks for a non-trivial app: vendor-specific column types, query syntax, index types, and operational tooling all have to be reworked. The senior call is making the decision deliberately rather than picking by familiarity.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Both work. The question is which one fits the data, the team, and the operations you actually have. The rest of this lesson walks through the six axes that decide it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 1: data model flexibility</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres ships with the broadest set of column types in mainstream databases. <strong>JSONB</strong> is the headline: a binary-encoded JSON type with first-class indexing (GIN), containment operators, and Active Record support since Rails 4.2. Storing user preferences, audit log payloads, third-party integration responses: all easy in Postgres. Arrays, range types, enums, UUIDs, hstore, and PostGIS for geometry round out the catalog.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        MySQL 8 added a JSON type that is functionally close to Postgres's JSONB but with quirks: indexing requires generated columns, the query syntax is more verbose, and the Active Record integration is thinner. For light JSON use, MySQL is fine. For an app that stores significant schema-less data, Postgres is a meaningfully better fit.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> If your data model includes JSONB, arrays, or extensions like PostGIS, Postgres. If you are storing tabular data with the occasional JSON blob, both work.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 2: indexing options</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres has six index types: btree, hash, GiST, SP-GiST, GIN, and BRIN. The wide selection is genuinely useful. <a href="/lessons/senior-db-indexing-beyond-btree" class="text-ruby underline hover:text-ruby-dark">Indexing beyond btree</a> walks through partial indexes, expression indexes, GIN for JSONB and full-text, BRIN for time-series, and INCLUDE for covering indexes. Each solves a problem shape that a btree-only database has to work around.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        MySQL has btree (the default for InnoDB), hash (for memory tables and an option for InnoDB in 8+), and full-text indexes. Partial indexes and expression indexes are not first-class; the workaround is to create a generated column and index it. The result is more migrations, more schema drift, and indexes that are harder to reason about.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> Postgres for any workload where you expect to reach for non-btree indexes (JSONB, full-text, time-series). For straightforward OLTP, MySQL's narrower set is enough.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 3: concurrency and MVCC</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Both databases use MVCC (Multi-Version Concurrency Control) so reads do not block writes and vice versa. The implementations differ.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres stores all row versions in the table itself; old versions become "dead tuples" and are cleaned up by autovacuum. The trade-off is potential bloat on high-write tables (covered in <a href="/lessons/senior-db-mvcc-vacuum-bloat" class="text-ruby underline hover:text-ruby-dark">MVCC, vacuum, and bloat</a>) and the operational discipline of tuning autovacuum.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        MySQL with InnoDB stores old versions in a separate undo log. Bloat is less of an issue, but the undo log can grow during long-running transactions and cause its own operational problems. The pattern of issues is different rather than smaller.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> Both are battle-tested under heavy OLTP load. The team you have is more important than the engine you pick.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 4: replication and high availability</h2>
+      <p class="text-gray-700 leading-relaxed">
+        MySQL's replication is older, more mature, and has a richer ecosystem. Statement-based and row-based replication, GTIDs, group replication, semi-sync replication, and a wider set of tooling (Orchestrator, ProxySQL, Vitess for horizontal scaling). MySQL has been running large-scale production at YouTube, Facebook, Booking.com, and Shopify for over a decade, and the operational playbooks are well-documented.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres's streaming replication has been production-ready since 9.0 (2010), logical replication since 10 (2017), and the gap with MySQL on replication-specific features has closed substantially. Tools like Patroni handle automatic failover; pglogical and the built-in logical replication cover most cross-cluster use cases. The Postgres community has caught up in the last five years, though it has not fully matched MySQL's depth on the most exotic patterns.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> Both handle "primary plus read replica" trivially. For the high end (multi-region active-active, sharding, complex failover topologies), MySQL still has more pre-built solutions. Postgres is fine for the typical "one primary, one or two replicas" pattern Rails apps run.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 5: query expressiveness</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Both support window functions, CTEs, and recursive queries. Postgres has had them longer and the implementation is more complete. Lateral joins, anonymous code blocks (DO), procedural languages (PL/pgSQL, PL/Python), and rich PostGIS geometry queries all live in Postgres.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        MySQL 8 added CTEs, window functions, and recursive queries, which closes most of the gap. Lateral joins and CTEs as updatable expressions (UPDATE inside a CTE) are still Postgres-only. For most Rails app queries, both engines compose the SQL you need.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> Postgres for analytical SQL, complex reporting, or anything that benefits from PostGIS. MySQL for straightforward OLTP queries.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Axis 6: hosted vendors and ops familiarity</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Both are first-class on AWS RDS, Google Cloud SQL, Azure Database, Aiven, Crunchy, Supabase, PlanetScale (MySQL-compatible), and every PaaS Rails teams typically use. The vendor matrix is roughly the same.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Heroku Postgres is more mature and feature-rich than its MySQL alternatives on the platform. Render's Postgres offering is also stronger. For teams that prefer managed services with deep platform integration, Postgres has a slight edge in the Rails-adjacent hosting ecosystem.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The bigger factor is the team. A team with 10 years of MySQL ops experience should run MySQL. A team that knows Postgres should run Postgres. The mid-incident skill of "I know what to look at when the database is on fire" is more valuable than any architectural feature.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Verdict.</strong> Roughly even on hosting. Tilt toward Postgres if you are starting fresh; tilt toward MySQL if your team's expertise is there.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The decision rule</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Default to <strong>Postgres</strong> if any of:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>The app stores JSONB, arrays, or geometric data.</li>
+        <li>Search or filtering requires GIN-style indexes (full-text, JSONB containment).</li>
+        <li>The team has no strong prior preference.</li>
+        <li>You expect to lean on advanced SQL (CTEs, window functions, lateral joins).</li>
+        <li>You will deploy on Heroku, Render, or Supabase, which favor Postgres.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Default to <strong>MySQL</strong> if any of:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>The team has deep MySQL ops experience and limited Postgres experience.</li>
+        <li>The app needs the operational maturity around large-scale replication (Vitess, sharding, multi-region active-active).</li>
+        <li>You are integrating with systems already on MySQL and want to avoid two database engines.</li>
+        <li>You will deploy on PlanetScale and want its branching workflow.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        For a new Rails app in 2026 with no strong team preference and a typical SaaS shape, Postgres is the safer default. The wider feature set, the JSONB story, the better fit with Rails 8's Solid Suite (Solid Queue, Solid Cache, Solid Cable all default to the primary database), and the hosting ecosystem alignment all push the same direction.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Database choice is a long-term decision. The cost of being wrong is measured in months, not days. The cost of choosing well is invisible because the database stops being a topic and becomes a substrate. The senior call is to pick deliberately and then commit, not to keep relitigating the choice every two years.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Both Postgres and MySQL are excellent. Neither will be the reason your product fails. The team's familiarity with the engine they pick matters more than the marginal advantages of either. <strong>Default to Postgres for a fresh Rails 8 app; default to whatever your team knows for everything else.</strong>
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-db-explain-analyze",       title: "EXPLAIN ANALYZE in Postgres",                blurb: "the skill that pays off whichever engine you pick" },
+      { href: "/lessons/senior-db-indexing-beyond-btree", title: "Indexing beyond btree",                      blurb: "where Postgres pulls genuinely ahead" },
+      { href: "/lessons/senior-db-mvcc-vacuum-bloat",     title: "Postgres VACUUM, MVCC, and Bloat",           blurb: "the operational cost of the Postgres MVCC design" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">Comparison · Rails Databases</span>
+    </div>
+  </article>
+</Layout>

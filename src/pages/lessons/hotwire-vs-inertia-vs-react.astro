@@ -1,0 +1,149 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title="Hotwire vs Inertia vs React for Rails (2026 Decision Guide)" description="Three ways to ship a frontend on Rails in 2026: Hotwire keeps the server in charge, Inertia bridges Rails routing to React components, React with a JSON API lets you build a full SPA. The cases where each is the right call, ranked by added complexity.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Comparison · Rails Frontends</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:layout-template" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Hotwire vs Inertia vs React</h1>
+      </div>
+      <p class="text-xl text-gray-600">Three ways to ship a frontend on Rails in 2026. Hotwire keeps the server in charge. Inertia bridges Rails routing to React components. React with a JSON API lets you build a full SPA. The cases where each is the right call, ranked by added complexity.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this comparison comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        For most of the 2010s, Rails frontends were ERB plus jQuery or coffeescript. The path to a richer frontend was unclear: either keep gluing JavaScript onto the page, or rewrite as a single-page app with Rails as a JSON server. Both had costs.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Three tools emerged that target different points on that tradeoff curve. <strong>Hotwire</strong> (DHH and the Basecamp team, 2021) lets the server stay in charge, with Turbo handling navigation and Stream updates and Stimulus for small bits of behavior. <strong>Inertia.js</strong> (Jonathan Reinink, 2019) keeps Rails controllers but renders React, Vue, or Svelte components instead of ERB, with client-side navigation that feels like an SPA. <strong>React (or Vue, Svelte) with a JSON API</strong> goes all-in on the frontend: separate codebase, Rails serves data only.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The three sit on a complexity ladder. Each step up adds capability and operational cost. The senior call is figuring out which rung your problem actually needs.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Hotwire: server-rendered HTML with sprinkles</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>What it is.</strong> Turbo Drive intercepts links and forms to replace only the body, not the whole page. Turbo Frames carve the page into independently navigable regions. Turbo Streams update specific elements in response to a form submit or an ActionCable broadcast. Stimulus is the small JS layer for behavior the server cannot handle (toggles, copy-to-clipboard, optimistic UI).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>What it is good at.</strong> Building Rails apps with the smallest possible JavaScript footprint. ERB stays the source of truth for HTML. The server keeps owning authentication, authorization, routing, and rendering. New developers join the team and can read a controller plus a view and understand what the page does.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Where it stops fitting.</strong> Rich text editors. Complex drag-and-drop with persistent state. Real-time multi-user collaboration (cursors, operational transforms). Offline-first applications. These four shapes are covered in detail in <a href="/lessons/senior-hotwire-when-not-to" class="text-ruby underline hover:text-ruby-dark">When NOT to Use Hotwire</a>. If your app's central interaction lives in one of those categories, Hotwire is not the right tool for that surface.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Operational cost.</strong> One codebase. One deploy pipeline. One language for templates and controllers. Adds a small JS bundle and ActionCable for broadcasts. Teams who know Rails can ship Hotwire with no new hiring.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Inertia: Rails routing, React components</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>What it is.</strong> A protocol that sits between Rails and a JavaScript framework. Rails controllers respond with a JSON payload containing the component name and the props it needs; Inertia's client library swaps the rendered component without a full page reload. The Rails routing, authentication, and authorization stay exactly as they were; the view layer becomes React, Vue, or Svelte components.
+      </p>
+      <CodeBlock code={`# app/controllers/users_controller.rb
+class UsersController < ApplicationController
+  def show
+    @user = User.find(params[:id])
+    render inertia: "Users/Show", props: {
+      user:   @user.as_json,
+      orders: @user.orders.recent.as_json
+    }
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>What it is good at.</strong> Apps where the frontend is meaningfully complex but the backend is still a fairly traditional Rails app. Search-as-you-type with rich filtering. Drag-and-drop kanban boards with persistent state. Forms with many dependent fields and rich validation. The component model gives you composability the server-rendered approach cannot match, and the server still owns the data and authorization.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Where it stops fitting.</strong> Real-time multi-user editing at a granular level. Apps where the frontend has to work offline. Mobile applications where you want native chrome (although Hotwire Native covers that with the server-rendered approach). At the high end of frontend complexity, Inertia's "Rails owns routing" assumption becomes a constraint.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Operational cost.</strong> One repository, but two stacks. The team needs Ruby and JavaScript expertise. Build tooling is more involved (Vite, the Inertia adapter, the chosen UI framework). One deploy pipeline. The page-load story is the most subtle part: server-side rendering for the first visit, client-side for subsequent navigations. Done right, it is fast and SEO-friendly. Done wrong, the first paint is slow.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">React + Rails API: the full SPA</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>What it is.</strong> Two applications. The Rails backend exposes a JSON API (REST, GraphQL, or RPC). The frontend is a separate codebase, often deployed independently, that consumes the API. The frontend owns routing, state management, and rendering entirely.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>What it is good at.</strong> Products where the UX is the product. Linear, Figma, Notion: the frontend behavior is the differentiator and it justifies the engineering investment. Apps with multiple clients (web, mobile, desktop) sharing one backend. Teams large enough to support specialized frontend and backend roles.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Where it stops fitting.</strong> Most Rails apps. The complexity of two codebases, two deploy pipelines, two on-call rotations, and the API contract that has to evolve between them is real. Teams that pick this path without a clear "the UX is the product" reason often regret it within 18 months.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Operational cost.</strong> Two repositories. Two CI pipelines. Two production environments. An API versioning strategy. Authentication via tokens (Devise + JWT, or session-based with explicit cookies). Onboarding new engineers takes longer because there are more pieces to learn.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The decision rule</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three questions answer it. Walk them in order.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Does the most complex interaction in your app fit Hotwire's design?</strong> CRUD pages, dashboards, lists, forms, search with filters, real-time notifications: yes. Rich text editor, complex DnD, multi-user collaboration, offline: no. If yes, default to Hotwire. You can embed React islands for the few exceptions.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. If Hotwire does not fit, does your frontend need to be the product?</strong> If the UX is what users pay for, if the brand is the interface, if the product page would be hard to describe without a screen recording: yes. If the frontend is a way to interact with a backend service: no. If the frontend is the product, the cost of a full SPA pays back. If not, Inertia gives you most of the capability at half the cost.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Do you have the team to support a full SPA?</strong> Two codebases, two pipelines, two on-call rotations is real ongoing cost. Teams under ~10 engineers usually struggle to keep both clean. Teams over ~50 often want the separation for organizational reasons.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Quick summary.</strong> Most Rails apps: Hotwire. Rails apps with one or two genuinely-complex screens: Hotwire plus React islands, or Inertia. Apps where the frontend is the product: full SPA with a Rails API. The default for a new Rails 8 project should be Hotwire; the others are upgrades you make when the problem demands them.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Migration paths</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The good news: you do not have to bet the whole app on one choice. The three tools compose with each other along a clear progression.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Hotwire to embedded React.</strong> Keep Hotwire for 95% of the app. For the one screen that needs rich behavior (a Notion-style editor, a kanban canvas), mount a React component into a div, give it initial props from Rails, post back on save. The rest of the app does not change. This is the right first step away from pure Hotwire.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Hotwire to Inertia.</strong> If you find yourself needing rich behavior on more than a handful of screens, migrating those routes to Inertia is straightforward. The controllers stay; the view templates become React components. Hotwire can coexist with Inertia in the same app during the transition.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Inertia to full SPA.</strong> The biggest jump. Routes have to move from Rails to the SPA, the API has to become a stable contract, authentication has to be redesigned for tokens or cookies-as-API. Usually only worth doing if you have a clear product reason (the frontend is the product, you have multiple clients, your team has grown into specialized frontend and backend roles).
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Frontend complexity is a cost, not a feature. The right default is the simplest tool that handles your app's actual problem shape. For most Rails teams in 2026, that is Hotwire. The teams that get the most out of richer tools (Inertia, full SPA) are the ones who chose them because they hit a real Hotwire limit, not because the team wanted to use React.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior version of this judgment is willingness to move up the ladder when needed and willingness to stay put when not. Most Hotwire-to-Inertia migrations happen because the team kept hitting the same wall with one or two screens. Most Inertia-to-SPA migrations happen because the product manager finally said "the UX is the product." Both are good reasons. "We should be using React" is not, by itself.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-hotwire-when-not-to",       title: "When NOT to Use Hotwire",                   blurb: "the four problem shapes that force the upgrade" },
+      { href: "/lessons/senior-hotwire-stimulus-boundary", title: "Stimulus vs React",                         blurb: "the small-scale version of this same call" },
+      { href: "/lessons/senior-hotwire-streams-vs-broadcasts", title: "Turbo Streams vs Broadcasts",           blurb: "what Hotwire actually offers when it does fit" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">Comparison · Rails Frontends</span>
+    </div>
+  </article>
+</Layout>

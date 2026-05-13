@@ -25,6 +25,8 @@ function inferSection(pathname: string): { name: string; href: string } | null {
   if (!pathname.startsWith('/lessons/')) return null;
   const slug = pathname.replace(/^\/lessons\//, '').replace(/\/$/, '');
   const rules: Array<[RegExp, { name: string; href: string }]> = [
+    [/^hotwire-vs-/,                              { name: 'Hotwire',                 href: '/hotwire' }],
+    [/^sidekiq-vs-solid-queue|^postgres-vs-/,     { name: 'rails/learn',             href: '/' }],
     [/^senior-hotwire-/,  { name: 'Hotwire',                 href: '/hotwire' }],
     [/^senior-db-/,       { name: 'Databases in Production', href: '/databases' }],
     [/^senior-scaling-/,  { name: 'Scaling Rails Apps',      href: '/scaling' }],
