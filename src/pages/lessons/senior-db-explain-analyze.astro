@@ -1,0 +1,186 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="EXPLAIN ANALYZE for Rails developers" description="Reading Postgres query plans beyond 'is it using the index?' Cost vs actual time, rows estimated vs actual, the grammar of plan nodes, and the one number seniors check first when a query is slow.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Databases in Production · 1 of 8</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:search-code" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">EXPLAIN ANALYZE for Rails developers</h1>
+      </div>
+      <p class="text-xl text-gray-600">Reading query plans beyond "is it using the index?" The grammar of plan nodes, cost estimates vs actual time, and the one number seniors check first when a slow query lands on their desk.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Every SQL statement Postgres receives goes through two stages before the result comes back. The <strong>parser</strong> turns the text into a tree. The <strong>planner</strong> picks how to execute it: which index to scan, which join algorithm to use, in what order. The chosen plan is what actually runs against the data, and two plans for the same SQL can differ by orders of magnitude in cost.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <code class="bg-gray-100 px-2 py-1 rounded">EXPLAIN</code> prints the plan without running it. <code class="bg-gray-100 px-2 py-1 rounded">EXPLAIN ANALYZE</code> runs the query, then prints the plan annotated with what actually happened: real timings, real row counts, real buffer reads. The two are different tools and seniors use both for different reasons.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Most Rails developers learn to spot "Seq Scan" in an EXPLAIN output, panic, and add an index. That reflex is useful at the start. It also leaves a lot of detail on the table. A senior reading the same output looks at five other things first, and often concludes that the seq scan is correct and the slowness lives somewhere else entirely.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        This lesson is about those five things and the grammar of plan nodes that lets you find them. The end goal is being able to look at any plan and answer two questions in under thirty seconds: <strong>where is the time actually going?</strong> and <strong>does Postgres's view of the data match reality?</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: "Seq Scan! Add an index!"</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A junior dev sees this in their EXPLAIN output:
+      </p>
+      <CodeBlock code={`Seq Scan on posts  (cost=0.00..145.50 rows=8543 width=156)
+  Filter: published`} language="text" />
+      <p class="text-gray-700 leading-relaxed">
+        They open a migration and add <code class="bg-gray-100 px-2 py-1 rounded">add_index :posts, :published</code>. They re-run EXPLAIN. The plan now uses the index, the EXPLAIN looks "better," and the dev moves on.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Three things wrong with the move. <strong>First, the seq scan may have been right.</strong> If the posts table has 10,000 rows and 8,500 are published, scanning the table is faster than using an index that points at most of it. Postgres knew this and chose accordingly. The new index will be unused at query time and will slow down every INSERT, UPDATE, and DELETE that touches the table.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Second, the EXPLAIN output without ANALYZE is the planner's guess, not the reality.</strong> Cost is a synthetic number in arbitrary units, useful for comparing two plans but not for measuring real time. The planner can be confidently wrong, especially when stats are stale or selectivity is hard to estimate. Without ANALYZE, you are debugging an opinion, not a fact.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Third, the question was wrong to begin with.</strong> "Is this using an index?" is a means, not an end. The real question is whether the query is fast enough, and if not, where the time is going. An index scan that takes 200ms is worse than a seq scan that takes 50ms.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How to read a plan</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A plan is a tree of nodes. Each node is an operation (scan, join, sort, aggregate) with one or two children. Postgres prints the tree depth-first with indentation. <strong>The root of the tree is the topmost line</strong>, and execution flows from the leaves up to the root.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Each node has a one-line header that looks like this:
+      </p>
+      <CodeBlock code={`Index Scan using posts_user_id_idx on posts  (cost=0.43..125.34 rows=42 width=156) (actual time=0.018..1.245 rows=38 loops=1)
+  Index Cond: (user_id = 1234)
+  Filter: published
+  Rows Removed by Filter: 4`} language="text" />
+      <p class="text-gray-700 leading-relaxed">
+        The first parentheses give the planner's estimate: <code class="bg-gray-100 px-2 py-1 rounded">cost=start..total rows=N width=B</code>. Cost units are synthetic, calibrated to "fetching one disk page" being roughly 1.0. <strong>rows is the planner's row estimate</strong>, which drives most plan choices: small numbers favour nested loops, large numbers favour hash joins. <strong>width is the average byte size of a returned row.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The second parentheses appear only with ANALYZE: <code class="bg-gray-100 px-2 py-1 rounded">actual time=start..total rows=N loops=M</code>. Start is the time to the first row returned, total is the time to the last. <strong>rows here is what actually came back.</strong> Loops is how many times this node executed (one outer scan can drive the inner scan multiple times in a nested loop).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The lines under the header are conditions and filters. <code class="bg-gray-100 px-2 py-1 rounded">Index Cond</code> is what the index actually scans against. <code class="bg-gray-100 px-2 py-1 rounded">Filter</code> is what gets applied after the scan. <code class="bg-gray-100 px-2 py-1 rounded">Rows Removed by Filter</code> shows how many rows the filter discarded. A high Rows Removed by Filter is a strong signal that the index is doing less work than it should: most of the matching rows are being thrown away after the scan.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The first thing seniors check: estimate vs actual</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Open any EXPLAIN ANALYZE output, scan down the plan, and compare the planner's <code class="bg-gray-100 px-2 py-1 rounded">rows=</code> (in the cost parentheses) against the actual <code class="bg-gray-100 px-2 py-1 rounded">rows=</code> (in the actual-time parentheses). <strong>When estimated and actual diverge by an order of magnitude or more, the planner's view of the data is wrong, and any plan it picks based on that view is suspect.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        A common shape:
+      </p>
+      <CodeBlock code={`Nested Loop  (cost=0.43..892.10 rows=12 width=156) (actual time=2.341..18394.521 rows=84203 loops=1)
+  ->  Index Scan on users  (cost=0.43..8.45 rows=1 width=8) (actual time=0.012..0.418 rows=1 loops=1)
+        Index Cond: (id = 1234)
+  ->  Index Scan on posts  (cost=0.42..884.02 rows=12 width=156) (actual time=0.005..0.218 rows=84203 loops=1)
+        Index Cond: (user_id = users.id)`} language="text" />
+      <p class="text-gray-700 leading-relaxed">
+        Postgres expected user 1234 to have 12 posts. They have 84,203. The planner picked a nested loop because nested loops are great when the inner side returns a handful of rows per outer row. With 84,000 rows per outer row, the nested loop is wrong. A hash join would have finished in milliseconds. The query takes 18 seconds because of one bad estimate at the top of the plan.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fix is not to rewrite the query. The fix is to run <code class="bg-gray-100 px-2 py-1 rounded">ANALYZE posts;</code> to refresh the table statistics, then re-explain. If the estimate now matches reality, the plan will too. If the estimate is still wrong after ANALYZE, the statistics targets may need raising or an extended statistic may be needed (covered in lesson 2). <strong>The senior reflex is "check stats before you touch the SQL."</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The grammar of plan nodes</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A small vocabulary covers most plans you will see in a Rails app.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Seq Scan</strong> reads every row of a table. Right when most rows match the filter, or when the table is small enough that one sequential read is cheaper than an index lookup plus heap fetches. <strong>Index Scan</strong> walks an index, then fetches the matching rows from the heap. Right when the index is selective (returns a small fraction of the table). <strong>Index Only Scan</strong> answers the query entirely from the index, with no heap fetches. The best case for read-heavy queries; requires a <em>covering</em> index where every column the query needs is in the index.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Bitmap Heap Scan</strong> and <strong>Bitmap Index Scan</strong> appear together. The bitmap index scan builds an in-memory bitmap of matching row positions; the bitmap heap scan fetches them in physical disk order. This is what Postgres picks when an index would be selective but the matching rows are scattered across the heap, or when multiple indexes can be combined.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For joins, three shapes dominate. <strong>Nested Loop</strong>: for each outer row, look up matching inner rows. Right when the outer side is small or when there is an index on the inner join column. <strong>Hash Join</strong>: build an in-memory hash on the smaller side, probe with the larger. Right for equality joins on large inputs. <strong>Merge Join</strong>: both inputs arrive sorted, walk through them in parallel. Right when both sides are already sorted (often because both come from an index).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The other nodes you will recognize at a glance: <strong>Sort</strong> (sort rows for ORDER BY or as input to a merge join), <strong>Aggregate</strong> and <strong>HashAggregate</strong> (GROUP BY), <strong>Limit</strong>, <strong>Unique</strong>, <strong>Materialize</strong> (cache the inner side of a nested loop). The full list is in the Postgres docs; the ones above cover 95% of what shows up in real Rails query plans.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">EXPLAIN ANALYZE + BUFFERS for the full picture</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Time tells you the symptom. Buffers tell you why. Run with the BUFFERS option:
+      </p>
+      <CodeBlock code={`EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM posts WHERE user_id = 1234;`} language="sql" />
+      <p class="text-gray-700 leading-relaxed">
+        Each plan node now reports the IO it did:
+      </p>
+      <CodeBlock code={`Index Scan using posts_user_id_idx on posts  (...)
+  Index Cond: (user_id = 1234)
+  Buffers: shared hit=8 read=42`} language="text" />
+      <p class="text-gray-700 leading-relaxed">
+        <code class="bg-gray-100 px-2 py-1 rounded">shared hit</code> is pages found in Postgres's buffer cache (RAM). <code class="bg-gray-100 px-2 py-1 rounded">shared read</code> is pages read from disk. A query that does 100,000 buffer reads is doing serious IO and the time will be dominated by disk speed, not Postgres's internal work. A query that does 50 hits and zero reads is cache-hot and the time is all CPU.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior use of BUFFERS is recognising "this query is slow because it is cold." A query that shows 10,000 reads on a cold cache and 50 hits on a warm cache will look totally different in EXPLAIN ANALYZE depending on the order you ran them. Production performance depends on which case is normal. <strong>Run EXPLAIN ANALYZE twice in a row; the second run is the warm-cache reality.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Running it from Rails</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Active Record gives you <code class="bg-gray-100 px-2 py-1 rounded">.explain</code> on any relation:
+      </p>
+      <CodeBlock code={`Post.where(user_id: 1234).where(published: true).order(created_at: :desc).limit(20).explain`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        This returns the EXPLAIN output as a string. It does not run ANALYZE by default; for that, use <code class="bg-gray-100 px-2 py-1 rounded">.explain(:analyze, :buffers)</code> on Rails 7.1+. Older Rails versions need to drop into raw SQL:
+      </p>
+      <CodeBlock code={`ActiveRecord::Base.connection.execute(
+  "EXPLAIN (ANALYZE, BUFFERS) " + relation.to_sql
+).each { |row| puts row["QUERY PLAN"] }`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        For finding which queries to explain in the first place, install the <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code> extension on the database. It records cumulative timings per normalized query and is the single biggest signal for finding slow queries in a production app. Set it up once, then check it weekly. The query at the top of the "total time" leaderboard is almost always worth an EXPLAIN ANALYZE.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A query plan is a hypothesis the planner made based on what it knows about the data, and ANALYZE is the experiment that tests the hypothesis. Most slow-query investigations are about finding where the hypothesis broke. <strong>Estimates that diverge from reality are the loudest signal that something has changed underneath the planner's feet.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior approach to slow queries is not "add an index" or "rewrite the SQL." It is "read the plan, find where time and rows diverge from expectations, ask why." Indexes and rewrites are downstream of that question. Sometimes the answer is an index. Often the answer is stale statistics, a bad estimate the planner could not have made better, or a query that is fast in development against 100 rows and slow in production against 10 million. The plan tells you which.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Lesson 2 picks up the planner side: when statistics go stale, what extended statistics buy you, and how to read <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_user_tables</code> to spot the tables most likely to be lying to the planner today.
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Pick a query from a Rails app you maintain. Run it with <code class="bg-gray-100 px-2 py-1 rounded">.explain(:analyze, :buffers)</code> (or the raw SQL equivalent). Run it twice and compare the first and second outputs.</li>
+        <li>Walk the plan top-to-bottom. For each node, compare estimated <code class="bg-gray-100 px-2 py-1 rounded">rows=</code> against actual <code class="bg-gray-100 px-2 py-1 rounded">rows=</code>. <strong>Identify the node with the biggest discrepancy.</strong> That is where most of your investigation should focus.</li>
+        <li>If the biggest discrepancy is on a join, run <code class="bg-gray-100 px-2 py-1 rounded">ANALYZE table_name;</code> on the table involved, then re-explain. Did the estimate get closer? If yes, statistics were stale. If no, lesson 2 explains what to do next.</li>
+        <li>Install <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code> on a production-like database. Run <code class="bg-gray-100 px-2 py-1 rounded">SELECT query, total_exec_time, calls, mean_exec_time FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 20;</code>. The top query is your starting point. <strong>Most apps have one or two queries that account for half the database time;</strong> these are the ones worth optimising.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/databases" class="text-ruby hover:text-ruby-dark transition-colors">← Databases in Production</a>
+      <a href="/databases" class="text-ruby hover:text-ruby-dark transition-colors">The planner and its statistics (drafting) →</a>
+    </div>
+  </article>
+</Layout>

@@ -1,0 +1,121 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../layouts/Layout.astro';
+
+const lessons = [
+  {
+    slug:    'senior-db-explain-analyze',
+    icon:    'lucide:search-code',
+    title:   'EXPLAIN ANALYZE for Rails developers',
+    summary: 'Reading query plans beyond "is it using the index?" Cost vs actual time, rows estimated vs actual, the grammar of plan nodes, and the one number seniors check first.',
+    ready:   true,
+  },
+  {
+    slug:    'senior-db-planner-statistics',
+    icon:    'lucide:chart-bar',
+    title:   'The planner and its statistics',
+    summary: 'Why a query goes from 5ms to 800ms after a release without the SQL changing. Stats freshness, ANALYZE, pg_stat_user_tables, and the slow-query log. Where to look first.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-db-indexing-beyond-btree',
+    icon:    'lucide:list-tree',
+    title:   'Indexing beyond btree',
+    summary: 'Partial indexes, expression indexes, GIN/GIST for JSONB and full-text, BRIN for time-series, covering indexes with INCLUDE. When each is the right tool and when an extra index hurts.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-db-window-and-cte',
+    icon:    'lucide:layers-3',
+    title:   'Window functions and CTEs without the foot-gun',
+    summary: 'Running totals, top-N per group, gap detection, deduplication. Replacing 50 lines of Ruby with 4 lines of SQL. CTE materialization changes in PG12+ and when they bite.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-db-mvcc-vacuum-bloat',
+    icon:    'lucide:trash-2',
+    title:   'MVCC, vacuum, and bloat',
+    summary: 'What UPDATE actually does. Why a 10GB table can hold 200MB of live data. When autovacuum is enough, when to intervene, and the VACUUM FULL vs pg_repack call.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-db-isolation-locking',
+    icon:    'lucide:lock',
+    title:   'Transaction isolation and locking',
+    summary: 'Read committed\'s lost-update problem, when SELECT FOR UPDATE is correct, advisory locks, reading pg_locks during an incident, and Rails\'s with_lock semantics.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-db-zero-downtime-migrations',
+    icon:    'lucide:rocket',
+    title:   'Zero-downtime migrations',
+    summary: 'Add column with default in two steps. Add index concurrently. Rename column via shadow column. The patterns strong_migrations enforces and the table-size reflex.',
+    ready:   false,
+  },
+  {
+    slug:    'senior-db-read-replicas',
+    icon:    'lucide:copy',
+    title:   'Read replicas and multi-DB in Rails',
+    summary: 'When replicas help, when they do not, what replication lag breaks, Rails 6+ multi-database role API. Includes the "we added a replica and the app got slower" failure mode.',
+    ready:   false,
+  },
+];
+---
+
+<Layout title="Databases in Production" description="Eight lessons on running Postgres under a Rails app: reading query plans, indexing beyond btree, window functions and CTEs, vacuum and bloat, transaction isolation, zero-downtime migrations, and read replicas.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-8">
+    <div>
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">rails/learn</p>
+      <h1 class="text-4xl font-bold text-ruby-dark mb-4">Databases in Production</h1>
+      <p class="text-xl text-gray-600 leading-relaxed">Eight lessons on running Postgres under a Rails app. The first four build the foundations: reading query plans, the planner's statistics, indexing beyond btree, and the SQL constructs seniors reach for that mid-level devs rewrite in Ruby. The last four cover live operations: vacuum and bloat, transaction isolation, zero-downtime migrations, and read replicas.</p>
+    </div>
+
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+      <p class="text-sm text-gray-700 leading-relaxed">
+        Read the first two in order. The rest stand alone and can be taken in any order. <strong>If your app has a single database and a single server</strong>, focus on lessons 1 to 6. <strong>If you are running multiple environments, replicas, or larger volumes</strong>, lessons 7 and 8 are where seniors spend their time during incidents.
+      </p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      {lessons.map((lesson, i) => (
+        lesson.ready ? (
+          <a href={`/lessons/${lesson.slug}`} class="block bg-white rounded-lg border border-gray-200 p-5 hover:border-ruby/40 hover:shadow-md transition-all group">
+            <div class="flex items-start gap-3">
+              <Icon name={lesson.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
+              <div class="flex-1">
+                <div class="flex items-baseline justify-between mb-1">
+                  <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Lesson {i + 1}</p>
+                  <p class="text-xs text-gray-400">Walkthrough</p>
+                </div>
+                <h3 class="font-semibold text-gray-900 group-hover:text-ruby-dark transition-colors leading-snug mb-2">{lesson.title}</h3>
+                <p class="text-sm text-gray-600 leading-relaxed">{lesson.summary}</p>
+              </div>
+            </div>
+          </a>
+        ) : (
+          <div class="block bg-gray-50 rounded-lg border border-gray-200 border-dashed p-5">
+            <div class="flex items-start gap-3">
+              <Icon name={lesson.icon} class="w-7 h-7 inline-block text-gray-400" aria-hidden="true" />
+              <div class="flex-1">
+                <div class="flex items-baseline justify-between mb-1">
+                  <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Lesson {i + 1}</p>
+                  <p class="text-xs text-gray-400">Drafting</p>
+                </div>
+                <h3 class="font-semibold text-gray-500 leading-snug mb-2">{lesson.title}</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">{lesson.summary}</p>
+              </div>
+            </div>
+          </div>
+        )
+      ))}
+    </div>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">rails/learn · Databases in Production · 8 lessons</span>
+    </div>
+  </article>
+</Layout>
