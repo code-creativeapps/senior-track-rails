@@ -1,0 +1,154 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Lazy-loaded Turbo Frames in Real Rails Code" description="Where lazy frames come from, why one slow widget should not gate a whole page, and how teams at HEY and Basecamp compose multi-widget dashboards out of independent lazy frames.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Hotwire Series · 2 of 6</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:layers" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Lazy-loaded Turbo Frames</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where lazy frames come from, why one slow widget should not gate a whole page, and the multi-widget dashboard pattern that HEY and Basecamp ship in production.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Turbo Frames shipped in Hotwire Turbo 7.0 in late 2020. A <code class="bg-gray-100 px-2 py-1 rounded">&lt;turbo-frame&gt;</code> is a region of a page that Turbo treats as its own navigable unit. Links and forms inside the frame scope to it, and the rest of the page does not redraw when a frame navigates.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        There are two modes. Eager frames render server-side with the rest of the page in the original request. Lazy frames carry a <code class="bg-gray-100 px-2 py-1 rounded">src</code> attribute, and the browser fires an additional HTTP request as soon as the frame becomes visible.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The lazy variant is the one most teams under-use. It exists for the case where one part of a page is slow to render and the rest is fast. <strong>Without lazy frames, the slow part holds up the entire page.</strong> Lazy frames let the slow part load on its own schedule while the fast parts paint immediately.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The pattern shows up across HEY (each email screen is composed of a header frame, a sender-info frame, a thread frame, and a follow-up suggestion frame, all loading in parallel) and Basecamp (the dashboard loads each project card as an independent lazy frame).
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: one giant render</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team builds a dashboard with eight widgets. The controller fetches data for each:
+      </p>
+      <CodeBlock code={`class DashboardController < ApplicationController
+  def show
+    @recent_orders     = current_user.orders.recent.includes(:line_items)
+    @pending_invoices  = current_user.invoices.pending
+    @active_campaigns  = MarketingCampaign.active_for(current_user)
+    @team_activity     = current_user.team.recent_activity
+    @analytics_summary = AnalyticsClient.summary(current_user.account_id)
+    @recommendations   = Recommender.for(current_user)
+    @upcoming_renewals = current_user.subscriptions.renewing_soon
+    @notifications     = current_user.notifications.unread
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The page TTFB is the slowest collaborator. <code class="bg-gray-100 px-2 py-1 rounded">AnalyticsClient.summary</code> takes 600ms because it hits an external API. <code class="bg-gray-100 px-2 py-1 rounded">Recommender.for</code> takes 400ms because it runs a model query. The user waits over a second for a page where six of the eight widgets would have rendered in under 30ms.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The fix the team usually reaches for first is "move the slow stuff to a background job." But the widgets need to display now, not eventually. Caching helps on repeat visits, though cold cache is still slow. <strong>The real fix is moving the request boundary so each widget is its own request.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Each widget in its own frame</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The dashboard becomes a shell with one lazy frame per widget. Each frame has its own controller action.
+      </p>
+      <CodeBlock code={`<%# app/views/dashboards/show.html.erb %>
+<div class="grid grid-cols-2 gap-6">
+  <turbo-frame id="recent_orders"     src="<%= dashboard_recent_orders_path %>"     loading="lazy">
+    <div class="skeleton">Loading orders...</div>
+  </turbo-frame>
+
+  <turbo-frame id="analytics_summary" src="<%= dashboard_analytics_path %>"         loading="lazy">
+    <div class="skeleton">Loading analytics...</div>
+  </turbo-frame>
+
+  <%# ...six more frames %>
+</div>`} language="erb" />
+      <CodeBlock code={`class Dashboard::AnalyticsController < ApplicationController
+  def show
+    @summary = AnalyticsClient.summary(current_user.account_id)
+    render partial: "dashboard/analytics_summary"
+  end
+end`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        The shell page renders in 30ms with eight loading skeletons. The browser parses the HTML, sees the eight frame elements, and fires eight parallel HTTP requests. Each frame paints when its own request returns. The fast widgets (orders, invoices, notifications) finish in 50ms. The slow ones (analytics, recommendations) take 600ms but they do not gate anything else.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        TTFB went from 1100ms to 30ms. The slowest widget still takes 600ms, and the user reads five other widgets while they wait.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When to eager-load instead</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Lazy frames are not the default. Reach for them when:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>The widget's data fetch is meaningfully slow (external API, ML model, complex aggregation).</li>
+        <li>Different parts of the page load at different speeds and the fast parts shouldn't wait.</li>
+        <li>The widget sits below the fold and may never be seen.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Render eagerly (or skip the frame entirely) when:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>The data is already in memory or cached.</li>
+        <li>The widget is the main content of the page. Rendering it lazily delays what the user came for.</li>
+        <li>The total page render is already under 100ms.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        A widget that renders in 5ms does not need its own HTTP request. The overhead of a frame fetch (connection setup, middleware, controller dispatch, render) is itself 10 to 30ms. <strong>Frames are a tool for parallelism, not granularity.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The N+1 of lazy frames</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Frames are HTTP requests. A page with 50 lazy frames fires 50 requests as soon as it loads. HTTP/2 multiplexing helps the network round-trip, but each request still runs through the full Rails stack: middleware, session, authentication, authorization, controller, render. If each takes 30ms server-side, the server is doing 1500ms of CPU work to paint one page.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The HEY team caps frame fan-out per page. A typical email screen runs four to six lazy frames, not thirty. If a page needs thirty widgets, render them eagerly or aggregate them server-side into fewer requests. The request boundary is yours to choose; it does not have to mirror the visual boundary one-to-one.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The other failure mode is the slow frame that never returns. When a frame request times out, Turbo shows whatever was inside the placeholder element. <strong>Make the placeholder honest</strong>: a skeleton, an empty state, or a "couldn't load this" message, not a permanent loading spinner that misleads the user.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Request granularity should match presentation granularity. If a page has eight independent regions of data, it can be eight requests instead of one. The browser parallelizes them, slow regions do not block fast ones, and each region carries its own cache key, its own authorization scope, and its own retry behavior.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior call is recognizing when this granularity buys real time. A dashboard where every widget renders in 5ms gains nothing and pays the overhead. A dashboard with one external API call gains a second of perceived latency back. Measure first, then choose the boundary.
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Open a Rails app with a slow page. Add request-level timing (or read the development log) and identify which queries or external calls dominate.</li>
+        <li>Wrap each independent data fetch in its own lazy frame and its own controller action.</li>
+        <li>Render the shell page with skeleton placeholders. Measure TTFB.</li>
+        <li>Measure perceived time-to-first-useful-content: the moment the fastest widget paints. <strong>If the shell renders in 30ms and the fastest widget paints in 80ms, perceived load is 80ms,</strong> not whatever the slowest widget eventually takes.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-hotwire-streams-vs-broadcasts" class="text-ruby hover:text-ruby-dark transition-colors">← Turbo Streams vs Broadcasts</a>
+      <a href="/lessons/senior-hotwire-optimistic-ui" class="text-ruby hover:text-ruby-dark transition-colors">Optimistic UI without state management →</a>
+    </div>
+  </article>
+</Layout>

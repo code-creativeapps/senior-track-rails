@@ -1,0 +1,140 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Turbo morphing in Rails 8" description="Where Turbo's morph mode came from, what it preserves that full replacement loses, and the gotchas around focus, scroll, animations, and Stimulus controller lifecycle that catch teams on first contact.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Hotwire Series · 5 of 6</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:refresh-cw" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Turbo morphing in Rails 8</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where morph mode came from, what it preserves that full replacement loses, when to morph instead of replace, and the gotchas around focus, scroll, animations, and Stimulus lifecycle that catch teams on first contact.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Through Turbo 7, the way Turbo Drive (and Turbo Streams' <code class="bg-gray-100 px-2 py-1 rounded">replace</code> action) updated the page was wholesale. The new HTML arrived, Turbo swapped out the old block, and whatever client-side state lived inside that block disappeared. Form fields lost focus. Scrollbars jumped. Stimulus controllers disconnected and reconnected. CSS animations restarted. The page worked, but it always felt like a page reload, even when it was not.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Turbo 8 (which shipped with Rails 8 in September 2024) added <strong>morph mode</strong>. The technique borrows from the <a href="https://github.com/bigskysoftware/idiomorph" class="text-ruby underline hover:text-ruby-dark">Idiomorph</a> library, written by the htmx team. Instead of replacing the old DOM with the new, the algorithm walks both trees in parallel and applies the minimum set of changes: this attribute, that text node, this added child. Elements that look the same are left alone. Elements that have changed get patched in place.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        What survives morphing is everything that lives on a DOM element rather than its HTML representation. <strong>Form inputs keep their values and focus.</strong> <strong>Scrollbars stay where they were.</strong> <strong>Stimulus controllers remain connected.</strong> CSS transitions on attributes that did not change continue to play. The page feels alive across updates, which is the same property React reconciliation gives a React app, but achieved with server-rendered HTML and a few hundred lines of client JavaScript.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Mastodon adopted morphing across their main feed in late 2024. Basecamp uses it for their multi-column "scaffold" layout, where individual columns morph while the rest of the page sits still. The pattern is becoming the default for any Rails 8 page that updates often and is heavy on stateful UI.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: full-page replacement on every update</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team builds a search page. The user types in a search box, the form posts to <code class="bg-gray-100 px-2 py-1 rounded">/search</code>, the server returns a new page with results. With Turbo Drive's default replace behavior, three things happen on every keystroke:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>The search input loses focus. Each keystroke effectively triggers a click-elsewhere followed by re-focusing the input, which most browsers handle but some assistive technologies announce as a focus change.</li>
+        <li>The result list flickers. The old results disappear, blank space briefly shows, the new results appear.</li>
+        <li>Any CSS animation on the result cards (a fade-in, a stagger) restarts from scratch every time.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The team's workarounds usually involve preserving focus manually in JavaScript, debouncing the search hard enough to mask the flicker, or accepting it. None of these are good. The page feels jittery because the underlying mechanic is "throw away the page, render a new one."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How morphing works</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Morphing is enabled with a meta tag in the layout:
+      </p>
+      <CodeBlock code={`<%# app/views/layouts/application.html.erb %>
+<head>
+  <%# ...other head content %>
+  <meta name="turbo-refresh-method" content="morph">
+  <meta name="turbo-refresh-scroll" content="preserve">
+</head>`} language="erb" />
+      <p class="text-gray-700 leading-relaxed">
+        With morph enabled, the page update flow changes. The server still returns full HTML. Turbo parses the new HTML, then walks the old DOM and the new DOM in parallel. For each pair of corresponding elements:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li>If they are identical, do nothing. The old element stays.</li>
+        <li>If attributes have changed, patch the attributes on the old element.</li>
+        <li>If text content has changed, update the text node in place.</li>
+        <li>If children differ, recurse into them with the same algorithm.</li>
+        <li>If a new element exists in the new HTML, insert it.</li>
+        <li>If an old element no longer exists, remove it.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The algorithm uses an <code class="bg-gray-100 px-2 py-1 rounded">id</code> attribute as the matching key when present, falling back to position-in-parent when not. Elements with stable ids morph cleanly. Elements without ids morph by structural position, which usually works but degrades if siblings reorder.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For the search-page example, the search input element matches by id between the old and new HTML. Morphing applies zero changes to it. The input keeps focus, keeps its cursor position, keeps its current value. The result list reorders or replaces its children, but the surrounding chrome stays put.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The gotchas</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Morphing is not free. Four classes of problem show up in real Rails 8 apps adopting it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Stable ids are now load-bearing.</strong> Elements without ids get matched by position, so a reordered list (sort by date, then sort by name) confuses the morph algorithm. The fix is to put an id on every list item. Use <code class="bg-gray-100 px-2 py-1 rounded">dom_id(record)</code> as the rule.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Stimulus controllers do not reconnect on morph.</strong> A controller that runs setup in <code class="bg-gray-100 px-2 py-1 rounded">connect()</code> assuming the DOM is fresh will not run that setup on a morph update. If the morph changes a child element the controller cares about, you need to listen for the change explicitly. Stimulus 3.2 added <code class="bg-gray-100 px-2 py-1 rounded">data-turbo-permanent</code> as an escape hatch and morph-aware lifecycle hooks; check your Stimulus version.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. CSS animations triggered by class changes still play.</strong> If you add a <code class="bg-gray-100 px-2 py-1 rounded">.fade-in</code> class via the new HTML, the morph applies the class and the animation runs. The effect is that lists where items toggle visibility get the animation each time, which is sometimes what you want and sometimes a flicker. The fix is to set a sentinel attribute (<code class="bg-gray-100 px-2 py-1 rounded">data-animated="true"</code>) after the first run, and gate the animation on the absence of that attribute.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>4. Form state across morphs is per-element, not per-form.</strong> Inputs preserve their values on morph if they keep the same id. Wrap a form in a Turbo Frame and the inputs inside that frame retain their state when the frame morphs. But if the surrounding form element itself is replaced (because its outer id changed), all the inputs inside lose their values. The rule: keep form-element ids stable across renders.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">When to morph, when to replace</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Morph mode is opt-in per page (via the meta tag) or per Turbo Stream (via the <code class="bg-gray-100 px-2 py-1 rounded">turbo_stream.morph</code> action introduced in Turbo 8). The decision rule:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Morph when continuity matters.</strong> The user is mid-action on the page: typing, scrolled to a specific spot, has form state. The update is incremental: a result list refines, a counter ticks up, a status toggles.</li>
+        <li><strong>Replace when the change is conceptually a new page.</strong> Navigation between sections, switching from view-mode to edit-mode, anything where the user has crossed a real boundary and would not expect their previous state to survive.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        A useful heuristic: if a full reload of the page would feel correct, replace is fine. If a full reload would feel like the page broke, morph is the right call.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Preserve UI continuity unless the change is conceptually a fresh page. The work the browser does between user interactions is what makes a web app feel like an app and not like a series of documents loading. Scroll position, focus, transient form state, in-flight animations: these are the small pieces that say "the same page is still here, with new content." Throwing them away on every server response makes Hotwire feel like a 2003 form post; preserving them makes it feel like Notion.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior judgment is recognising which updates are "same page, new content" and which are "different page." Morph the former. Replace the latter. The decision is rarely the same for every interaction on a single page, which is why morph mode is opt-in per page and per stream rather than a global toggle.
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Open a Rails 8 app with a search page, a filter sidebar, or any interface where the same page updates frequently. Enable morphing via the meta tag.</li>
+        <li>Verify which interactions feel better (the search input keeps focus, the scroll position holds) and which break (a Stimulus dropdown that re-runs its setup, a CSS animation that no longer triggers).</li>
+        <li>For each break, ask: <strong>is the problem an unstable id, an order-dependent setup, or an animation that needs gating?</strong> Apply the right fix.</li>
+        <li>Add a <code class="bg-gray-100 px-2 py-1 rounded">turbo-stream.morph</code> action to one CRUD response in the app. Compare the resulting feel against the previous replace-based version.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-hotwire-stimulus-boundary" class="text-ruby hover:text-ruby-dark transition-colors">← The Stimulus boundary</a>
+      <a href="/lessons/senior-hotwire-when-not-to" class="text-ruby hover:text-ruby-dark transition-colors">When NOT to reach for Hotwire →</a>
+    </div>
+  </article>
+</Layout>

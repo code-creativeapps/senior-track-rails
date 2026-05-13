@@ -1,0 +1,149 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="When NOT to reach for Hotwire" description="Where Hotwire's design assumptions stop fitting, the four shapes of problem that disqualify it, the alternatives ranked by complexity, and how to recognise that you have outgrown it mid-project. The most senior judgment in the Hotwire lineup.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Hotwire Series · 6 of 6</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:square-x" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">When NOT to reach for Hotwire</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where Hotwire's design assumptions stop fitting, the four shapes of problem that disqualify it, the alternatives ranked by added complexity, and how to recognise that you have outgrown it mid-project.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Hotwire's design rests on a small number of assumptions. The server owns the data. HTML is the wire format. State lives in the DOM or in the database, not in client-side memory. Interactions are short: a click, a form submit, a small region updating, occasionally a broadcast pushing an update from elsewhere.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        When the problem you are solving fits those assumptions, Hotwire is excellent. Most Rails apps are exactly this shape: CRUD with some real-time touches, forms that submit, lists that update, modals that open. The framework was tuned for this case and the productivity it offers is real.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        When the assumptions break, Hotwire struggles. <strong>The senior call is recognising the break before you have spent three months trying to make Hotwire fit a problem shape it was not designed for.</strong> What follows is the four shapes of problem where Hotwire is the wrong tool, and the alternatives that actually fit.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Rich text editors and complex content surfaces</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Building a Notion-style editor in Hotwire is possible. It is also a year of work that competes against thousands of person-years invested in tools like ProseMirror, Tiptap, Slate, and Lexical. These libraries solve problems that Hotwire's model does not address: selection state that spans multiple paragraphs, undo/redo with operational transforms, inline mentions, embedded media, collaborative editing.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The reason Hotwire does not fit here is not lack of capability but mismatch of scope. A rich editor's state is dense, granular, and constantly mutating in response to keystrokes and arrow keys. Sending an HTTP request on each character is not viable. Even broadcasting the whole document body on save and morph-replacing it loses the cursor, the selection, the open mention popover. <strong>The state of a rich editor lives in the editor, not in the server's view of it.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The right shape is to use a JavaScript editor library, post the resulting document (often as JSON or a structured format) to the server when the user saves, and let Rails own the persistence and rendering of the saved document everywhere else in the app. Hotwire can still own the list view, the search, the settings page. The editor is its own island.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Drag-and-drop with persistent state</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Sortable lists work fine in Hotwire. A library like SortableJS handles the drag interaction, the drop fires a form submit, the server updates the sort_order column, the page updates. The pattern is well-trodden and Basecamp ships it across their products.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Drag-and-drop gets hard when the state being dragged is itself complex. A Trello-style kanban where cards move between columns, retain their internal state (assignees, due dates, attachments) across the drag, can be undone, and might be repositioned again before the server response lands. A Figma-style canvas where elements are dragged in continuous space and their position is part of a larger document. A spreadsheet where dragging the bottom-right corner of a selection fills cells with computed values.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        In these cases the drag interaction needs to read and write client state continuously, optimistically render the result of the in-progress drag, and only commit to the server at the end. Hotwire's "submit a form on drop" model produces visible lag and loses the undo. The right tool is a frontend framework that owns the drag-and-drop state locally and reconciles with the server at meaningful checkpoints (drag end, autosave, explicit save).
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Real-time multi-user collaboration</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Turbo broadcasts can show two users that something happened: a comment was added, a status changed, a like was registered. That works because the events are discrete and the order does not matter much.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Real-time collaboration on shared state is a different problem entirely. Two users editing the same paragraph at the same time. Cursors visible across users. Conflict resolution when both users typed at byte 47. Operational transforms or CRDTs that guarantee both users see the same result regardless of the order updates arrived. <strong>Hotwire has no primitive for this.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The tools that solve it (Yjs, Automerge, Liveblocks) live in JavaScript, on the client, with their own state model and their own networking layer. Building this on top of Turbo Streams is theoretically possible and practically not done, because the cost of inventing a CRDT layer in Ruby plus a synchronization protocol on top of ActionCable is the cost of a small startup. If your product needs real-time multi-user editing, expect to bring in a specialised tool for that part.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Offline-first applications</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Hotwire is server-rendered. Every interaction is, at root, an HTTP request to a Rails app that has to be reachable. The framework has no concept of "the server is unreachable; queue this mutation locally; sync when we come back." That is exactly what offline-first apps need.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The pattern offline-first apps follow involves a local database (IndexedDB or SQLite via WASM), a sync engine that resolves conflicts between local and remote state, a service worker that intercepts requests when offline, and UI that does not treat the network as a precondition for action. <strong>All four of those are outside Hotwire's scope.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        If "must work on a plane" or "must work in a hospital basement" are real product requirements, you are building a different shape of app and the JavaScript framework choice should reflect it. Tools like Replicache and Linear's sync engine are designed for exactly this case. Hotwire can power the marketing site, the admin panel, and any always-online surface; the offline-first part lives in its own application.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The alternatives, ranked</h2>
+      <p class="text-gray-700 leading-relaxed">
+        When you have crossed one of these lines, the next tool depends on how far across you are.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Stay with Hotwire for the rest of the app, embed an island.</strong> The rich editor, the kanban canvas, the collaborative whiteboard. Each one is a React or Svelte component mounted into a div, fed initial props by Rails, and posting back to Rails on save. The rest of the app stays Hotwire. This is the lowest-overhead option and almost always the right first step.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Inertia.js + React/Vue/Svelte.</strong> Rails controllers still own routing and data fetching. Views are full components. Client-side navigation feels SPA-like, server-side rendering happens through Inertia's adapter. This is the right step when more than a few isolated islands need rich frontend behavior, but you still want Rails to own data, routing, and authentication.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Rails JSON API + a separate SPA.</strong> The frontend is its own codebase, the backend is a JSON server. Two repositories, two deploy pipelines, two debug environments, two teams' worth of expertise to maintain. The reward is full control of the client-side experience, no compromises forced by the server-rendering model. <strong>This is the right shape when the product's UX is the product itself</strong> (Linear, Notion, Figma) rather than a way to interact with a backend.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>4. Hotwire Native</strong> is a side option, not a step up. It wraps server-rendered HTML inside a native iOS or Android shell, with native chrome and gestures. Useful when "we need a mobile app" lands on the roadmap and the team wants one codebase instead of three.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">How to know you have outgrown it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Most teams do not migrate off Hotwire on day one. They notice the friction over weeks. Signs to watch for:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Stimulus controllers that look like React components.</strong> Twenty targets, ten values, a state machine in <code class="bg-gray-100 px-2 py-1 rounded">connect()</code>. Covered in the previous lesson.</li>
+        <li><strong>Broadcasts that need ordering guarantees.</strong> Two simultaneous broadcasts must arrive in a specific order, and the team is writing application-level sequence numbers to enforce it.</li>
+        <li><strong>Pages that fight Turbo's morph.</strong> The team has added <code class="bg-gray-100 px-2 py-1 rounded">data-turbo-permanent</code>, <code class="bg-gray-100 px-2 py-1 rounded">data-turbo="false"</code>, and custom JavaScript to opt out of Turbo on the pages that matter most. At some point, "Turbo is opt-in on this app" is a sign you should re-evaluate.</li>
+        <li><strong>State management libraries appearing in the JavaScript bundle.</strong> Redux, Zustand, MobX, or even a custom store class. The presence of these means client-side state has grown beyond what the DOM can hold.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Each of these in isolation is fine. All four together, on the same surface, are a signal that you are paying Hotwire's overhead without gaining its benefits. <strong>Migrating that surface to Inertia or a small embedded SPA is usually the cheaper path than continuing to bend Hotwire around the problem.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Knowing what a tool is for is more senior than knowing how to use it. Mid-level frontend judgment is "I can build this with Hotwire" or "I can build this with React." Senior judgment is "this problem's shape is X, so the tool I reach for is Y, and here is why the alternatives would cost more."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Hotwire is a strong default for Rails apps. It is not the only tool and it is not always the right one. The teams that get the most out of it are also the teams most willing to step out of it when the problem demands. That willingness is built out of seeing the limits clearly: rich editors, complex drag-and-drop, real-time multi-user editing, offline-first. Those four shapes are where Hotwire was never designed to win.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The Senior Track's six Hotwire lessons end here because the last and hardest call in this series is "this is not the right tool for this part of the app." Recognising it early saves a quarter of engineering time on a project that would otherwise drag for six months. Recognising it never, or recognising it after the rewrite, is the cost of treating tools as identity.
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Pick a feature on the roadmap for the next two quarters that is more JavaScript-heavy than what your app currently has. Map it against the four shapes (rich editor, complex drag-and-drop, real-time multi-user, offline-first). Does it fit one of them?</li>
+        <li>If it does, sketch the feature three ways: as pure Hotwire, as an embedded island inside the Hotwire app, and as an Inertia route. Estimate the lines of code, the risks, and the months to ship for each.</li>
+        <li><strong>If the embedded-island estimate is half the pure-Hotwire estimate</strong> and one-tenth of the SPA estimate, the embedded island is almost always the right answer. Save that decision in writing.</li>
+        <li>Search the codebase for <code class="bg-gray-100 px-2 py-1 rounded">data-turbo="false"</code> and <code class="bg-gray-100 px-2 py-1 rounded">data-turbo-permanent</code>. Each one is a point where Hotwire's defaults stopped fitting. Look at the surrounding code. Is this a small accommodation, or a sign the whole surface should be rethought?</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-hotwire-morphing" class="text-ruby hover:text-ruby-dark transition-colors">← Turbo morphing in Rails 8</a>
+      <a href="/hotwire" class="text-ruby hover:text-ruby-dark transition-colors">Back to Hotwire series →</a>
+    </div>
+  </article>
+</Layout>

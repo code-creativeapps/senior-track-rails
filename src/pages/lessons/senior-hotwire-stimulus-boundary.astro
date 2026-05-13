@@ -1,0 +1,176 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="The Stimulus boundary in Real Rails Code" description="Where Stimulus came from, why a Stimulus controller with twenty fields is a sign you have crossed the boundary, and the rule of thumb seniors use to decide when to stay with Stimulus or graduate to a real frontend framework.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Hotwire Series · 4 of 6</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:scissors" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">The Stimulus boundary</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where Stimulus came from, why a controller with twenty fields and a state machine signals you have crossed the line, and the rule seniors use to decide whether to stay in Stimulus or graduate to a real frontend framework.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Stimulus was open-sourced by Sam Stephenson and the Basecamp team in 2018. The design premise was that most JavaScript on most web pages is small behavioral glue: open a dropdown, copy to clipboard, animate a panel, validate an input client-side. The dominant tools at the time (React, Vue, Angular) assumed JavaScript owned the page. Stimulus assumed the server owned the page, and JavaScript layered on top.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The mechanics reflect that premise. A Stimulus controller is attached to a DOM element via <code class="bg-gray-100 px-2 py-1 rounded">data-controller="foo"</code>. It can read inputs (<code class="bg-gray-100 px-2 py-1 rounded">data-foo-target</code>), write outputs (mutating the DOM directly), and respond to events (<code class="bg-gray-100 px-2 py-1 rounded">data-action="click-&gt;foo#bar"</code>). It does not render templates, manage virtual DOM, or own application state.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        That smaller scope is the feature. <strong>A team that adopts Stimulus is choosing not to manage two state models</strong>: the server's authoritative data and the client's mirror of it. The server renders the HTML, the controller animates and validates the HTML, and when something has to persist, a form submission round-trips to the server.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The rule that follows is straightforward to state and hard to feel. <strong>If state has to live somewhere other than the DOM, you are past Stimulus's sweet spot.</strong> The next sections are about what crossing that line looks like, and where you go when you do.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: Stimulus controllers as components</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team that knows React reaches for Stimulus and writes it as if it were React. Each controller has fifteen target references, ten value bindings, a connect() method that initializes a state machine, computed values derived from other values, and event listeners that fire across other controllers via global pub-sub.
+      </p>
+      <CodeBlock code={`// app/javascript/controllers/checkout_controller.js — anti-pattern
+import { Controller } from "@hotwired/stimulus"
+
+export default class extends Controller {
+  static targets = [
+    "addressForm", "shippingMethod", "paymentMethod",
+    "subtotal", "tax", "shipping", "discount", "total",
+    "stepIndicator", "submitButton", "errorPanel",
+    "summaryEmail", "summaryAddress", "summaryItems"
+  ]
+  static values = {
+    step:        { type: Number, default: 0 },
+    cart:        Object,
+    user:        Object,
+    addresses:   Array,
+    promoCode:   String,
+    pendingTax:  Boolean,
+    canCheckout: Boolean
+  }
+
+  connect() {
+    this.recomputeTotals()
+    this.updateStepIndicator()
+    this.subscribeToCartChanges()
+    this.boundOnCartChange = this.onCartChange.bind(this)
+    document.addEventListener("cart:changed", this.boundOnCartChange)
+  }
+
+  // ...80 more lines of methods that compute, mutate, and reconcile state
+}`} language="javascript" />
+      <p class="text-gray-700 leading-relaxed">
+        Three things are wrong with this. The state lives in the controller's JavaScript fields, not in the DOM. The reconciliation logic between cart, user, addresses, and the visible totals is now in two places: the server (where it has to be authoritative for charging the card) and the client (where it has to render fast). Bugs come from these two implementations diverging.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The second symptom is cross-controller event bus. Once you have a <code class="bg-gray-100 px-2 py-1 rounded">cart:changed</code> custom event, you have re-invented Redux's action dispatcher, badly. Stimulus does not give you message ordering guarantees, type safety, or replayable state. You are paying React's complexity tax without React's tooling.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The third symptom is the connect() initializer that runs ten things in sequence and depends on order. Stimulus controllers can reconnect (when Turbo morphs the DOM, when a turbo-frame swaps in new HTML), and a controller that has thirty bytes of internal state and an order-dependent setup will re-initialize wrong, lose state, or duplicate event listeners.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The shape Stimulus actually fits</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A well-fitting Stimulus controller does one thing, reads state from the DOM, and writes state back to the DOM. Examples that have been shipping in 37signals products for years:
+      </p>
+      <CodeBlock code={`// Toggle a panel open and closed
+export default class extends Controller {
+  static targets = ["panel"]
+
+  toggle() {
+    this.panelTarget.classList.toggle("hidden")
+  }
+}`} language="javascript" />
+      <CodeBlock code={`// Copy a value to the clipboard
+export default class extends Controller {
+  static targets = ["source", "feedback"]
+
+  async copy() {
+    await navigator.clipboard.writeText(this.sourceTarget.value)
+    this.feedbackTarget.textContent = "Copied"
+    setTimeout(() => { this.feedbackTarget.textContent = "" }, 1500)
+  }
+}`} language="javascript" />
+      <CodeBlock code={`// Auto-resize a textarea as the user types
+export default class extends Controller {
+  resize() {
+    this.element.style.height = "auto"
+    this.element.style.height = this.element.scrollHeight + "px"
+  }
+}`} language="javascript" />
+      <p class="text-gray-700 leading-relaxed">
+        Each controller is under 20 lines. Each has one or two targets. None of them manage state that persists beyond the visible DOM. None of them coordinate with other controllers via custom events. <strong>If a controller starts looking different from these shapes, it is a signal to step back.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Signs you have crossed the boundary</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The line is not always sharp, but a few signals show up reliably:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>State persists across navigations.</strong> An undo history that survives a Turbo Drive visit. A multi-step wizard where step state has to be remembered between page transitions. A client-side cache of data that the user pre-loaded.</li>
+        <li><strong>Multiple controllers coordinate.</strong> When changing a value in controller A has to update controller B, and controller B has to recompute against controller C, you have built an event-driven app inside Stimulus and the wiring will rot.</li>
+        <li><strong>Computed values from server data.</strong> A live total that depends on three server-rendered numbers. A character count that has to stay under a limit. These are bearable at small scale; at large scale they become reconciliation bugs.</li>
+        <li><strong>Offline-first behavior.</strong> The app needs to work without a network, queue mutations, sync when back online. Stimulus has no concept of this; you will end up reinventing IndexedDB, conflict resolution, and a service worker.</li>
+        <li><strong>Real-time multi-user editing.</strong> Two users on the same document, seeing each other's cursors, with operational transforms keeping the state consistent. Hotwire broadcasts are not the same shape as this problem.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        None of these are inherent flaws in Stimulus. They are signs that the problem you are solving is shaped differently from what Stimulus was designed for. The next section is about where to go when you see them.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where to go when you cross it</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The graduation path from Hotwire, when one is needed, looks like a ladder. Each step adds complexity in exchange for handling a more JavaScript-heavy problem shape.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Inertia.js</strong> is the smallest step up. Rails controllers still own routing and data fetching. Views become React (or Vue, or Svelte) components instead of ERB partials. The server renders the page shell, Inertia hands props to the component, and client-side navigation gets you SPA-style transitions while keeping the controller model. Jobboard apps that need richer UI than Hotwire offers (search-as-you-type with complex filtering, drag-and-drop with persistent state) often land here.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>A full SPA with a Rails JSON API</strong> is the next step. The frontend is its own application, the backend is only a JSON server. You pay for two repositories of code that have to evolve together, two deployment pipelines, two debug environments. The reward is full ownership of the client-side experience. This is the right shape for apps where the UX itself is the product (Notion, Linear, Figma) and the backend is in service of it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Hotwire Native</strong> sits to the side, not above. It lets you reuse server-rendered HTML inside a native iOS or Android shell, with native chrome and gestures. Useful when "I want a mobile app" appears on the roadmap and you do not want to maintain three codebases.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Tool fit, not tool loyalty. Stimulus is excellent for the problems it was designed for: behavior-on-top-of-server-rendered-HTML, single-purpose controllers, DOM-as-state. It is not designed for client-owned state, multi-controller coordination, or offline-capable apps. <strong>Recognising the line keeps you out of the "Stimulus controller as React component" trap that wastes weeks and gets you back to where you should have started.</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior version of this judgment is not that Stimulus is good or bad. It is the willingness to step out of Stimulus the moment the problem shape demands something else, and to step back in the moment that demand disappears. Apps with simple pages, complex pages, and a few really-complex screens can use Stimulus for the first, Inertia for the middle, and a small embedded SPA for the last. That kind of pragmatism is what separates senior frontend judgment in a Rails app from "we use Hotwire" or "we use React" as identity.
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>List the Stimulus controllers in a Rails app you maintain. For each, count: number of targets, number of values, number of methods, lines of code.</li>
+        <li>Any controller with more than 50 lines is suspect. Open it. <strong>Where does its state live?</strong> If the answer is "in JavaScript fields that mirror server data," you have a candidate for extraction or rewrite.</li>
+        <li>Find a controller that uses custom events to coordinate with another controller. Trace the event flow. If two controllers fire and listen to each other through more than one event, you have implicit state that the team will eventually have to make explicit.</li>
+        <li>Pick the most complex UI on the roadmap for the next quarter. Sketch how it would look in Stimulus, in Inertia + React, and in a small embedded SPA. <strong>The right tool is rarely the one you used last time;</strong> it is the one whose shape matches the problem.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-hotwire-optimistic-ui" class="text-ruby hover:text-ruby-dark transition-colors">← Optimistic UI without state management</a>
+      <a href="/lessons/senior-hotwire-morphing" class="text-ruby hover:text-ruby-dark transition-colors">Turbo morphing in Rails 8 →</a>
+    </div>
+  </article>
+</Layout>

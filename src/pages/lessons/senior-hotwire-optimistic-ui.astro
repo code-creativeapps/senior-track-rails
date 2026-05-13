@@ -1,0 +1,140 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+---
+
+<Layout title="Optimistic UI without state management" description="Where optimistic UI came from, why a like-button without it feels broken in 2026, and how to do it in a Hotwire app without reaching for Redux. Includes the reconciliation pattern and the cases where optimistic is wrong.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Hotwire Series · 3 of 6</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:zap-off" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Optimistic UI without state management</h1>
+      </div>
+      <p class="text-xl text-gray-600">Where optimistic UI came from, why a like-button without it feels broken in 2026, and how to do it in a Hotwire app without reaching for Redux. Plus the reconciliation pattern and the cases where optimistic UI is the wrong call.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "Optimistic UI" names the pattern where the browser updates the visible state before the server confirms it. The click on the heart icon shows the heart filled in immediately, the network request fires in the background, and if the request fails the UI reverts.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The pattern's pedigree runs through Gmail's star button in 2004, every social network since 2010, and most modern productivity tools. The reason it became default is psychological. A 200ms gap between click and feedback registers as "the app is broken" or "the click did not land." Eliminating that gap is worth a small amount of inconsistency under failure.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        React popularised heavy state-management tooling for this kind of UI. Redux, Zustand, and Recoil all exist partly to manage the question of "what is the optimistic state, what is the confirmed state, and how do they reconcile." The Hotwire answer is smaller: the DOM is the state, mutate it directly, and let the server response replace what got mutated.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The anti-pattern: spinners on every click</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A team builds a like-button as a plain form submit. The heart icon is a button. The button submits to <code class="bg-gray-100 px-2 py-1 rounded">POST /posts/:id/likes</code>. The server creates the Like record and renders a Turbo Stream that swaps the button for its filled-heart version.
+      </p>
+      <CodeBlock code={`<button type="submit" form="like_<%= post.id %>" class="like-button">
+  <%= post.liked_by?(current_user) ? "♥" : "♡" %>
+</button>`} language="erb" />
+      <p class="text-gray-700 leading-relaxed">
+        The flow takes 200ms on a good network, longer on a bad one. The user clicks the heart and watches it not change. Some users click again, generating a duplicate request. Some assume the button is broken and reload. Many give up and stop liking content.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The team's first fix is a loading spinner. The button shows a spinner while the request is in flight, then swaps to the filled heart. The spinner is honest, the user sees something happen, the bug report stops. But the basic problem remains: a click that takes 200ms to acknowledge feels broken, spinner or no.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The optimistic shape with Hotwire</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A small Stimulus controller mutates the DOM on click. The controller flips the heart character, increments the count, and submits the form. The server response (a Turbo Stream) overwrites whatever the client did, with the authoritative version.
+      </p>
+      <CodeBlock code={`// app/javascript/controllers/like_controller.js
+import { Controller } from "@hotwired/stimulus"
+
+export default class extends Controller {
+  static targets = ["icon", "count"]
+  static values  = { liked: Boolean }
+
+  toggle(event) {
+    // Optimistic update — instant visual feedback.
+    this.likedValue = !this.likedValue
+    this.iconTarget.textContent = this.likedValue ? "♥" : "♡"
+    this.countTarget.textContent = parseInt(this.countTarget.textContent) + (this.likedValue ? 1 : -1)
+
+    // Submit the form — server response will replace this frame
+    // with the authoritative state, correcting if we guessed wrong.
+    this.element.querySelector("form").requestSubmit()
+  }
+}`} language="javascript" />
+      <CodeBlock code={`<%# app/views/posts/_like_button.html.erb %>
+<turbo-frame id="like_<%= post.id %>"
+             data-controller="like"
+             data-like-liked-value="<%= post.liked_by?(current_user) %>">
+  <%= form_with model: [post, Like.new], data: { turbo_stream: true } do |f| %>
+    <button type="button" data-action="click->like#toggle" class="like-button">
+      <span data-like-target="icon"><%= post.liked_by?(current_user) ? "♥" : "♡" %></span>
+      <span data-like-target="count"><%= post.likes_count %></span>
+    </button>
+  <% end %>
+</turbo-frame>`} language="erb" />
+      <p class="text-gray-700 leading-relaxed">
+        The click is acknowledged in zero milliseconds. The form submits in the background. When the server response (a Turbo Stream that replaces the frame's content) arrives, Turbo applies it. If the optimistic update was right, the user sees no change at that moment. If it was wrong (the request failed, the user already liked the post in another tab, the post was deleted between page-load and click), the server's version replaces what the client guessed and the UI corrects itself.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What reconciliation means</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Reconciliation is the moment the optimistic guess meets the authoritative answer. With Hotwire, that moment is the Turbo Stream response. The stream replaces the frame's contents, and whatever was inside (the optimistic update) is gone. If the optimistic guess matched the server's truth, the visible state does not change. If it did not match, the server's version wins.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        This is what makes the Hotwire variant of optimistic UI work without a state library. There is no client-side store of "pending mutations" that has to be reconciled against incoming server state. The DOM is the store. The server response overwrites the DOM. <strong>The reconciliation logic is "the server's last response is right; the client's guess was a hint."</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The cost of this approach is that any client-only data inside the optimistically-mutated region gets blown away when the response arrives. If you put a typing cursor or a half-filled form inside the frame that was optimistically updated, the server's replacement will erase it. The fix is structural: optimistic regions are narrow (a single button, a single counter), and the wider page state lives outside them.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Where optimistic UI does not fit</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The pattern works when the action is low-stakes and the failure mode is benign. Liking a post that turns out to be deleted is fine: the heart un-fills and the user moves on. Adding a tag that turns out to violate a permission rule is fine: the tag disappears.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Optimistic UI is wrong when the action is high-stakes or irreversible. <strong>Submitting a payment, finalizing a deletion, sending a message that another user will see</strong>: these should show real loading state, succeed only on confirmation, and never give the user a false positive. The cost of optimistic UI is that the user trusts the immediate feedback. If the action then fails silently, the user thinks they paid for something they did not.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The decision rule is one sentence. If the user would feel deceived by a successful-looking action that turned out not to happen, do not use optimistic UI. The like-button is fine. The Stripe-charge button is not.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Feedback latency matters more than consistency for low-risk actions. The user's perception of responsiveness is built out of small interactions: clicks that respond instantly, scrolls that do not stutter, typing that does not lag. Each one is a vote on whether the app feels alive or feels broken.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The Hotwire approach to optimistic UI gives you that responsiveness without the architecture overhead of a state library. The DOM is the store. The server response is the reconciliation. The Stimulus controller is fifteen lines and does one thing. Reach for a heavier framework only when the state itself is heavier than a handful of toggle flags, not because optimistic UI requires it.
+      </p>
+    </section>
+
+    <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
+      <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
+      <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
+        <li>Find a like-button, follow-button, or mark-as-read action in a Rails app you maintain. Time the click-to-feedback latency in a real browser session.</li>
+        <li>Wrap the button in a Stimulus controller that mutates the DOM on click and submits the form in the background.</li>
+        <li>Verify the server response (Turbo Stream) cleanly replaces the optimistic state. Try forcing a server error and confirm the UI reverts to the truth.</li>
+        <li>List every action in the app that uses a spinner. <strong>For each one, ask: would the user feel deceived if it failed silently?</strong> If no, it is a candidate for optimistic UI. If yes, keep the spinner.</li>
+      </ol>
+    </section>
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/senior-hotwire-lazy-frames" class="text-ruby hover:text-ruby-dark transition-colors">← Lazy-loaded Turbo Frames</a>
+      <a href="/lessons/senior-hotwire-stimulus-boundary" class="text-ruby hover:text-ruby-dark transition-colors">The Stimulus boundary →</a>
+    </div>
+  </article>
+</Layout>
