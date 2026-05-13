@@ -2,44 +2,81 @@
 import { Icon } from 'astro-icon/components';
 import Layout from '../layouts/Layout.astro';
 
-const lessons = [
-  { slug: 'interview-approach',       icon: 'lucide:compass', label: 'How Senior Rails Interviews Actually Work', n: 1 },
-  { slug: 'interview-system-design',  icon: 'lucide:building-2', label: 'System Design for Rails Interviews',       n: 2 },
-  { slug: 'interview-behavioral',     icon: 'lucide:message-square', label: 'Behavioral Stories for Senior Roles',      n: 3 },
-  { slug: 'interview-modern-stack',   icon: 'lucide:zap', label: 'The Modern Rails Stack (Rails 8+)',         n: 4 },
+const framingLessons = [
+  { slug: 'interview-approach',       icon: 'lucide:compass',         label: 'How Senior Rails Interviews Actually Work' },
+  { slug: 'interview-system-design',  icon: 'lucide:building-2',      label: 'System Design for Rails Interviews' },
+  { slug: 'interview-behavioral',     icon: 'lucide:message-square',  label: 'Behavioral Stories for Senior Roles' },
+  { slug: 'interview-modern-stack',   icon: 'lucide:zap',             label: 'The Modern Rails Stack (Rails 8+)' },
+];
+
+const qaLessons = [
+  { slug: 'interview-question-n-plus-one',             icon: 'lucide:database',     label: '"How do you find and fix N+1 queries?"' },
+  { slug: 'interview-question-request-cycle',          icon: 'lucide:network',      label: '"Walk me through a Rails request"' },
+  { slug: 'interview-question-rails-magic',            icon: 'lucide:wand',         label: '"What happens when belongs_to runs?"' },
+  { slug: 'interview-question-service-objects',        icon: 'lucide:cog',          label: '"Tell me about service objects"' },
+  { slug: 'interview-question-includes-preload-joins', icon: 'lucide:layers',       label: '"includes vs preload vs eager_load vs joins"' },
+  { slug: 'interview-question-caching',                icon: 'lucide:database-zap', label: '"How would you cache an expensive query?"' },
+  { slug: 'interview-question-session-cookies',        icon: 'lucide:cookie',       label: '"How do sessions and cookies work in Rails?"' },
+  { slug: 'interview-question-active-record-callbacks', icon: 'lucide:zap-off',     label: '"When would you avoid Active Record callbacks?"' },
+  { slug: 'interview-question-background-jobs',        icon: 'lucide:timer',        label: '"How do you handle long-running tasks?"' },
+  { slug: 'interview-question-asset-pipeline',         icon: 'lucide:package-2',    label: '"How does asset compilation work in Rails 8?"' },
 ];
 ---
 
-<Layout title="Interview Prep — Senior Track" description="Four lessons on the senior Rails interview: how it actually works, system design framing, behavioral stories, and the modern-stack questions interviewers ask in 2026.">
-  <article class="max-w-7xl mx-auto px-6 py-12 space-y-8">
+<Layout title="Interview Prep — Rails Senior Developer Questions and Answers" description="Senior Rails interview prep. Four framing lessons on how the interview actually works, plus ten Q&A drills on the questions you'll be asked. Mid-level vs senior answers, the follow-ups to expect, and what signals what.">
+  <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> Back to Course
       </a>
-      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Senior Track</p>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">rails/learn</p>
       <h1 class="text-4xl font-bold text-ruby-dark mb-4">Interview Prep</h1>
-      <p class="text-xl text-gray-600 leading-relaxed">Most Rails interview prep teaches the syntax. Senior interviews don't test syntax. They test calibration, judgment, and how you defend technical decisions. These four lessons cover what interviewers are actually scoring on, then the practice cards drill the questions you'll get asked.</p>
+      <p class="text-xl text-gray-600 leading-relaxed">Most Rails interview prep teaches the syntax. Senior interviews do not test syntax. They test calibration, judgment, and how you defend technical decisions. Four framing lessons on how the interview actually works, plus ten Q&A drills on the questions you will be asked.</p>
     </div>
 
-    <div class="grid gap-3">
-      {lessons.map((lesson) => (
-        <a href={`/lessons/${lesson.slug}`} class="flex items-center gap-4 bg-white rounded-lg border border-gray-200 p-4 hover:border-ruby/40 hover:shadow-sm transition-all group">
-          <Icon name={lesson.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
-          <span class="text-sm text-gray-500 w-6 tabular-nums font-semibold">{lesson.n}.</span>
-          <span class="text-gray-900 font-medium group-hover:text-ruby-dark transition-colors">{lesson.label}</span>
-        </a>
-      ))}
-    </div>
+    <section class="space-y-4">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">Framing</h2>
+        <p class="text-gray-600">How senior interviews actually work, what to prepare, and the topics interviewers reach for in 2026.</p>
+      </div>
+      <div class="grid gap-3">
+        {framingLessons.map((lesson, i) => (
+          <a href={`/lessons/${lesson.slug}`} class="flex items-center gap-4 bg-white rounded-lg border border-gray-200 p-4 hover:border-ruby/40 hover:shadow-sm transition-all group">
+            <Icon name={lesson.icon} class="w-7 h-7 inline-block" aria-hidden="true" />
+            <span class="text-sm text-gray-500 w-6 tabular-nums font-semibold">{i + 1}.</span>
+            <span class="text-gray-900 font-medium group-hover:text-ruby-dark transition-colors">{lesson.label}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <section class="space-y-4">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">Q&A drills</h2>
+        <p class="text-gray-600">Each lesson takes one common interview question. What the interviewer is checking, the mid-level answer, the senior answer, the follow-ups to expect, and what signals what.</p>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        {qaLessons.map((lesson, i) => (
+          <a href={`/lessons/${lesson.slug}`} class="flex items-start gap-3 bg-white rounded-lg border border-gray-200 p-4 hover:border-ruby/40 hover:shadow-sm transition-all group">
+            <Icon name={lesson.icon} class="w-6 h-6 inline-block flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <div class="min-w-0 flex-1">
+              <div class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Q{i + 1}</div>
+              <span class="text-gray-900 text-sm font-medium leading-snug group-hover:text-ruby-dark transition-colors">{lesson.label}</span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
 
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-6">
       <p class="text-sm text-gray-700 leading-relaxed">
-        <strong>Want to drill the questions?</strong> The matching <a href="/practice/interview" class="text-ruby hover:text-ruby-dark font-medium">Practice cards</a> turn common interview questions into multiple-choice scenarios with answer rubrics.
+        <strong>Want to drill the questions live?</strong> The matching <a href="/practice/interview" class="text-ruby hover:text-ruby-dark font-medium">Practice cards</a> turn common interview questions into multiple-choice scenarios with answer rubrics, so you can commit to an answer before the explanation appears.
       </p>
     </div>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
-      <span class="text-gray-400 text-sm">Senior Track · Interview Prep · 4 lessons</span>
+      <span class="text-gray-400 text-sm">rails/learn · Interview Prep · 4 framing + 10 Q&A</span>
     </div>
   </article>
 </Layout>
