@@ -115,6 +115,27 @@ const breadcrumbSchema = {
     )}
     <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
   </head>
+  <script>
+    // OpenPanel analytics: page view on initial load, plus a one-shot
+    // 'lesson_read_complete' event when the reader scrolls past 75% of a
+    // lesson (proxy for "this person actually engaged with the content").
+    import { trackPageView, trackEvent } from '../lib/openpanel';
+    trackPageView();
+
+    if (window.location.pathname.startsWith('/lessons/')) {
+      let fired = false;
+      const slug = window.location.pathname.replace(/^\/lessons\//, '').replace(/\/$/, '');
+      window.addEventListener('scroll', () => {
+        if (fired) return;
+        const scrolled = window.scrollY + window.innerHeight;
+        const total    = document.documentElement.scrollHeight;
+        if (scrolled / total >= 0.75) {
+          fired = true;
+          trackEvent('lesson_read_complete', { slug });
+        }
+      }, { passive: true });
+    }
+  </script>
   <body class="bg-gray-50 text-gray-900 antialiased">
     <header class="border-b border-black/[0.06] sticky top-0 z-50 bg-white">
       <nav class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-6">

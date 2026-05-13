@@ -12,6 +12,7 @@
   "dependencies": {
     "@astrojs/sitemap": "^3.2.1",
     "@iconify-json/lucide": "^1.2.107",
+    "@openpanel/web": "^1.4.1",
     "@ruby/3.3-wasm-wasi": "^2.9.3-2.9.4",
     "@ruby/wasm-wasi": "^2.9.3-2.9.4",
     "astro": "^4.16.19",
