@@ -1,0 +1,136 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview: "Tell me about service objects in Rails"' description="One of the most-asked Rails interview questions because every team has an opinion. What service objects solve, the two-schools framing, the patterns that work, and the smells that signal a team is over-using them.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:cog" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"Tell me about service objects"</h1>
+      </div>
+      <p class="text-xl text-gray-600">Every Rails team has an opinion on service objects. What they solve, the two-schools framing seniors are expected to hold, the shape that works, and the smells that signal over-use.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Service objects are a contested pattern. The DHH and 37signals camp argues they are usually unnecessary and a sign that the developer has not learned to make Active Record models work harder. The "Rails at scale" camp (Shopify, GitLab, Discourse) argues they are essential for keeping large applications navigable. Both camps ship production Rails apps successfully.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The interviewer is testing whether the candidate can hold both views, explain when each is right, and avoid sounding like they read one blog post. A flat "I always use service objects" or "service objects are bad" answer signals limited exposure. The senior answer engages with the trade-off.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Behind the question is also a check on naming, code organization, and whether the candidate has internalized SRP beyond the textbook level. The full deep-dive is in <a href="/lessons/senior-srp-service-objects" class="text-ruby underline hover:text-ruby-dark">Service Objects in Real Rails Code</a>.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Typical mid-level:
+      </p>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "Service objects are plain Ruby classes for complex business logic. You put them in <code class="bg-gray-100 px-2 py-1 rounded">app/services/</code> and call them with <code class="bg-gray-100 px-2 py-1 rounded">SomeService.call(...)</code>. They are good because they keep controllers thin and keep business logic out of models. I use them when an action is too complex for a controller."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        This is the textbook answer. It is not wrong, but it sounds memorised. Three problems with stopping here: it does not acknowledge the controversy, it does not say what "too complex" means, and it does not address what makes a service object good versus bad.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For a senior role, this answer signals "uses the pattern reflexively without thinking about whether it fits."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four points: what the pattern is for, the trade-off, the shape that works, and the failure modes.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>What it is for.</strong> "A service object isolates a domain operation that spans multiple models, has multiple steps, or needs to compose with other operations. Charging a customer's card is a service: it touches Payment, Order, User, an external API, and a notification job. It does not naturally live on one model. Naming it <code class="bg-gray-100 px-2 py-1 rounded">ChargeCustomer</code> and putting it in <code class="bg-gray-100 px-2 py-1 rounded">app/services/</code> gives it a place and a clear interface."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The trade-off.</strong> "DHH's argument against service objects is that they often duplicate what well-designed models could do. If <code class="bg-gray-100 px-2 py-1 rounded">CreateUser</code> wraps <code class="bg-gray-100 px-2 py-1 rounded">User.create!</code> with a callback, the service is mostly noise; the model could own it. The argument for service objects is that real domain operations often span multiple models in ways that do not fit cleanly into a single model's responsibility, and that scoping them as their own object keeps the codebase navigable as it grows. Both arguments have merit. The right answer for a specific operation depends on whether it lives within one model's natural scope or crosses many."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The shape.</strong> "A working service object has a clear, single-method public interface (<code class="bg-gray-100 px-2 py-1 rounded">call</code> or a verb-named method), explicit inputs as constructor args or method args, returns a value or raises (not 'returns success/failure as a struct' as the only mechanism), and is testable without mocking the world. The 37signals counter-pattern is to put the same operation as an instance method on the model that 'owns' the operation, which is fine when the operation does own to one model. Both are valid; the smell is when service objects multiply without a clear domain story behind them."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The failure modes.</strong> "Three common smells. First, services that wrap one model method with no added value. <code class="bg-gray-100 px-2 py-1 rounded">UpdateUser.call(user, attrs)</code> that only calls <code class="bg-gray-100 px-2 py-1 rounded">user.update(attrs)</code> adds friction without buying composability. Second, services that take ten optional arguments because they grew over time. Third, services that compose with each other in ways nobody documented, creating a hidden call graph. Each of these signals the pattern has been adopted as identity rather than as a design choice."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What naming convention do you use?"</strong> The right answer names a specific convention and the reason. Most teams pick verb-named classes (<code class="bg-gray-100 px-2 py-1 rounded">ChargeCustomer</code>, <code class="bg-gray-100 px-2 py-1 rounded">SendInvoice</code>) with a single public method (<code class="bg-gray-100 px-2 py-1 rounded">call</code> or the verb itself). Some teams use suffixed names (<code class="bg-gray-100 px-2 py-1 rounded">CustomerCharger</code>); both work. The bad answer is "we use whatever name feels right" because it signals no convention.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How do you handle failure?"</strong> Three valid patterns. Raising domain-specific exceptions and letting callers rescue. Returning a result object (a struct with success/failure plus payload). Using a gem like <code class="bg-gray-100 px-2 py-1 rounded">dry-monads</code> for Result types. Each has costs: exceptions are simple but couple control flow; result objects are explicit but verbose; dry-monads is rigorous but learning-curve heavy. The senior answer picks one and explains the trade-off, not the pattern.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"When would you NOT use a service object?"</strong> This is the key follow-up. The right answer: when the operation is small and lives within one model's responsibility, when an Active Record callback or method captures it cleanly, when the team's existing convention is to use the model and adding a service is friction. The pattern is one of many; the senior call is when to reach for it and when not.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How do you test them?"</strong> The right answer: like ordinary Ruby classes. Stub external collaborators at the boundary (HTTP clients, payment APIs); do not mock the world. The service should be testable with three or four fakes injected via the constructor. If a service requires 15 mocks to test, it is too coupled.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The two-schools framing</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Senior Rails developers in 2026 are expected to be aware that the community splits on this question.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The 37signals school</strong>: fat models, controllers that route, very few service objects. Operations that span models go on the parent model or in concerns. The codebase stays small because the team is small and the domain is well-known.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The Rails-at-scale school</strong>: thin models, thin controllers, service objects for any operation that spans models or has multiple steps. The codebase stays navigable because new engineers can read <code class="bg-gray-100 px-2 py-1 rounded">app/services/</code> and see all the domain operations as named units.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Both ship great Rails apps. The pattern that fails is mixing schools without intention: half the operations on models, half in services, no rule about which goes where. <strong>The senior answer acknowledges the split and names which school the candidate's previous team used and why.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What signals what</h2>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"I always use service objects for any complex operation."</strong> Mid. Pattern as identity.</li>
+        <li><strong>"DHH says service objects are unnecessary; I agree."</strong> Mid in a different direction. Borrowed opinion.</li>
+        <li><strong>"On my last team we used them for cross-model operations. Single-model ops stayed on the model."</strong> Senior. Has a rule and applied it consistently.</li>
+        <li><strong>"We tried service objects in year one, ended up with 200 of them and a hidden call graph, then refactored to a smaller set named by domain operations rather than CRUD actions."</strong> Senior+. Has lived through the pattern's failure mode and learned.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The signal is whether the candidate treats the pattern as a tool with trade-offs or as a rule that defines good Rails code.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The right answer to most Rails design questions is "it depends, and here is the trade-off." Service objects are a clean example. The candidates who do best on this question are the ones who have shipped Rails apps in both schools and can name the smells of each. The candidates who do worst are the ones who picked a side reading a blog post and never tested the position against contrary evidence.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The interview reframing: when you get this question, lead with "what is the operation actually like?" Some operations want to be service objects. Some want to be model methods. The skill is telling them apart and committing to a convention either way.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-srp-service-objects",     title: "Service Objects in Real Rails Code",         blurb: "the full pattern with Forem and Discourse anchors" },
+      { href: "/lessons/senior-srp-concerns",            title: "Rails Concerns",                             blurb: "the 37signals alternative for cross-model behavior" },
+      { href: "/lessons/senior-srp-policy-objects",      title: "Policy Objects in Rails",                    blurb: "the other 'extract a thing' SRP pattern" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/interview-question-rails-magic" class="text-ruby hover:text-ruby-dark transition-colors">← "What happens when belongs_to runs?"</a>
+      <a href="/lessons/interview-question-includes-preload-joins" class="text-ruby hover:text-ruby-dark transition-colors">"includes vs preload vs joins?" →</a>
+    </div>
+  </article>
+</Layout>

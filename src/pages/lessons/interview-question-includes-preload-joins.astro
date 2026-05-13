@@ -1,0 +1,127 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview: "includes vs preload vs eager_load vs joins" (Rails)' description='The Active Record interview question that tests how deep the candidate has gone into the four loading methods. The actual SQL each one generates, when each is right, and the implementation knowledge that signals senior understanding.'>
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:layers" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"includes vs preload vs eager_load vs joins"</h1>
+      </div>
+      <p class="text-xl text-gray-600">The Active Record interview question that tests how deeply the candidate has gone into the four loading methods. The SQL each one generates, when each is right, and the implementation knowledge that signals senior depth.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Every Rails developer has used <code class="bg-gray-100 px-2 py-1 rounded">includes</code>. Fewer have used all four and understand the differences. The question filters for whether the candidate has ever opened the Rails log and read the SQL, ever hit a case where the wrong loading method made a query 100x slower, ever debugged the "expected JOIN, got two queries" surprise.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The strong signal is whether the candidate can describe the SQL each method generates without prompting. A mid-level answer covers <code class="bg-gray-100 px-2 py-1 rounded">includes</code> and stops at "Rails handles it." A senior answer enumerates the four, names the SQL shape, and gives an opinion about which one to default to.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Behind the question is a check on whether the candidate is comfortable reading Active Record's generated SQL, which is required for any non-trivial production Rails work.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "<code class="bg-gray-100 px-2 py-1 rounded">includes</code> loads associations to avoid N+1. <code class="bg-gray-100 px-2 py-1 rounded">joins</code> does a SQL JOIN for filtering but does not load the records. <code class="bg-gray-100 px-2 py-1 rounded">preload</code> and <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> are alternatives to <code class="bg-gray-100 px-2 py-1 rounded">includes</code> but I do not really use them; <code class="bg-gray-100 px-2 py-1 rounded">includes</code> works for most cases."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        Partially correct, but skips the details that matter. <code class="bg-gray-100 px-2 py-1 rounded">includes</code> is not a single behavior; it switches between preload and eager_load at runtime. Knowing that switch and when to override it is the senior part of the answer.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Walk the four methods, name the SQL each generates, and give an opinion.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>preload.</strong> "Always two queries. One for the parent collection, one for the children with <code class="bg-gray-100 px-2 py-1 rounded">WHERE parent_id IN (...)</code>. The associations are loaded but the queries are independent; the parent SQL is unaffected by the preload."
+      </p>
+      <CodeBlock code={`Post.preload(:author).limit(50)
+# SELECT * FROM posts LIMIT 50
+# SELECT * FROM authors WHERE id IN (1, 2, 3, ...)`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>eager_load.</strong> "Single query with a LEFT OUTER JOIN, plus column-aliasing so Active Record can hydrate both the parent and child records from one result row."
+      </p>
+      <CodeBlock code={`Post.eager_load(:author).where("users.role = ?", "admin")
+# SELECT posts.id AS t0_r0, ... users.name AS t1_r1, ...
+# FROM posts LEFT OUTER JOIN users ON users.id = posts.author_id
+# WHERE users.role = 'admin'`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>includes.</strong> "Switches between the two at runtime. Default is preload. If Active Record detects that the query references the joined table from a string condition or with <code class="bg-gray-100 px-2 py-1 rounded">references()</code>, it silently upgrades to eager_load. The runtime decision is the source of the 'why is includes generating one query here and two there?' confusion."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>joins.</strong> "INNER JOIN, no record loading. The associated table is in the FROM but its columns are not selected. Useful only for filtering or sorting by the association without needing the records afterward. If you call <code class="bg-gray-100 px-2 py-1 rounded">post.author.name</code> on a result, that fires a new query because the author was not loaded."
+      </p>
+      <CodeBlock code={`Post.joins(:author).where(users: { role: "admin" })
+# SELECT posts.* FROM posts
+# INNER JOIN users ON users.id = posts.author_id
+# WHERE users.role = 'admin'
+
+# Now: post.author.name still triggers a separate query.`} language="ruby" />
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The opinion.</strong> "I default to explicit <code class="bg-gray-100 px-2 py-1 rounded">preload</code> when I do not need to filter by the association, and explicit <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> when I do. <code class="bg-gray-100 px-2 py-1 rounded">includes</code> is convenient but the runtime switch can surprise you when the same scope is used in two different chains. The pattern I have seen most often biting teams in production is <code class="bg-gray-100 px-2 py-1 rounded">includes</code> that was expected to preload but quietly upgraded to a JOIN with multiplied result rows."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What does <code class="bg-gray-100 px-2 py-1 rounded">references</code> do?"</strong> The right answer: it tells <code class="bg-gray-100 px-2 py-1 rounded">includes</code> that you will reference the joined table from a string condition, even though Active Record cannot parse the string. <code class="bg-gray-100 px-2 py-1 rounded">Post.includes(:author).where("users.role = ?", "admin")</code> works fine because the string mentions <code class="bg-gray-100 px-2 py-1 rounded">users</code>. <code class="bg-gray-100 px-2 py-1 rounded">Post.includes(:author).where("LOWER(users.name) = ?", n)</code> may fail because Active Record cannot always parse complex SQL; <code class="bg-gray-100 px-2 py-1 rounded">.references(:author)</code> forces the upgrade.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"When would <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> be wrong?"</strong> The right answer: when the join multiplies result rows in a way that explodes memory. If a Post has 1000 Comments and you <code class="bg-gray-100 px-2 py-1 rounded">eager_load(:comments).limit(50)</code>, the SQL JOIN can return 50,000 rows where Active Record then deduplicates the 50 Posts and attaches the 1000 Comments to each. The two-query <code class="bg-gray-100 px-2 py-1 rounded">preload</code> avoids the explosion: one query gets 50 Posts, the second gets up to 50,000 Comments with a single <code class="bg-gray-100 px-2 py-1 rounded">WHERE post_id IN (...)</code>, no duplication.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How would you detect which one Rails is using?"</strong> The right answer: read the development log. The SQL is right there. Either one query with a LEFT OUTER JOIN (eager_load) or two queries (preload). Confirm by counting the queries on a specific request.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What about <code class="bg-gray-100 px-2 py-1 rounded">left_outer_joins</code>?"</strong> Bonus topic. <code class="bg-gray-100 px-2 py-1 rounded">left_outer_joins</code> is like <code class="bg-gray-100 px-2 py-1 rounded">joins</code> but with a LEFT OUTER JOIN instead of INNER. Useful when you want to filter "posts with no author" via <code class="bg-gray-100 px-2 py-1 rounded">left_outer_joins(:author).where(users: &#123; id: nil &#125;)</code>. Does not load the association either.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What signals what</h2>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"<code class="bg-gray-100 px-2 py-1 rounded">includes</code> handles it."</strong> Junior.</li>
+        <li><strong>"<code class="bg-gray-100 px-2 py-1 rounded">includes</code> is preload or eager_load depending on context."</strong> Mid. Aware of the switch but has not internalized when it bites.</li>
+        <li><strong>"I default to explicit preload because of result-set multiplication."</strong> Senior. Has hit the failure mode and developed a heuristic.</li>
+        <li><strong>"And in production I use pg_stat_statements to find queries where one slow JOIN matters more than the eager-loading shape."</strong> Senior+. Thinks in terms of production diagnosis, not only the API.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Active Record's loading methods are not interchangeable. Each generates different SQL with different cost and different memory profiles. The senior reflex is to look at the generated SQL, not only call the method and hope. Rails 7.1's <code class="bg-gray-100 px-2 py-1 rounded">.explain(:analyze)</code> integration makes this easier than it used to be.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The interview reframing: when you get this question, do not stop at enumerating the methods. Name the SQL each produces. The candidates who do best at this question are the ones who clearly have an internal model of what the framework is doing in the database, not only what the Ruby API is.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-eager-loading",         title: "Rails Eager Loading (full deep dive)",       blurb: "the four methods with decision tree" },
+      { href: "/lessons/senior-db-explain-analyze",    title: "EXPLAIN ANALYZE for Rails developers",       blurb: "the way to confirm which plan Rails picked" },
+      { href: "/lessons/interview-question-n-plus-one", title: '"How do you find and fix N+1?"',            blurb: "the question this often follows in interviews" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/interview-question-service-objects" class="text-ruby hover:text-ruby-dark transition-colors">← "Tell me about service objects"</a>
+      <a href="/lessons/interview-question-caching" class="text-ruby hover:text-ruby-dark transition-colors">"How would you cache an expensive query?" →</a>
+    </div>
+  </article>
+</Layout>

@@ -1,0 +1,154 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview: "How would you cache an expensive query?" (Rails)' description="The Rails interview question that tests caching depth. The mid-level answer is one line; the senior answer walks fragment caches, Russian-doll patterns, cache invalidation, key design, and the production failure modes that teach the lesson.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:database-zap" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"How would you cache an expensive query?"</h1>
+      </div>
+      <p class="text-xl text-gray-600">The Rails interview question that tests caching depth. The mid-level answer is one line. The senior answer walks fragment caches, Russian-doll patterns, cache invalidation, key design, and the production failure modes that teach the lesson.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Caching is one of the two hardest problems in software (the other is naming, and arguably both are caching). The interview question filters for whether the candidate has hit cache invalidation in production, whether they understand the layers Rails offers (Russian-doll fragment caching, low-level Rails.cache, HTTP caching with ETag), and whether they can design a cache key that does not poison the cache or return stale data.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The strong signal: the candidate fixes the underlying query first, then caches what is left expensive. The weak signal: the candidate jumps to caching without asking why the query is slow.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Behind the question is also a check on whether the candidate has heard of Solid Cache (Rails 8 default) and has an opinion on Postgres-backed cache vs Memcached vs Redis.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "I would use <code class="bg-gray-100 px-2 py-1 rounded">Rails.cache.fetch</code> with a key based on the query parameters. Set an expiration and return the cached result if it is there."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        The answer is mechanically correct and stops there. The senior answer adds three things: why caching might be the wrong fix; how to design the cache key so it invalidates correctly; what layer of cache to use depending on what is being cached.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four points: ask why first, design the key, pick the layer, plan the invalidation.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. Ask why first.</strong> "Before caching, I would EXPLAIN the query and see why it is slow. If it is slow because of an N+1, missing index, or stale stats, the right fix is to make it fast, not to cache the slow version. Caching the wrong query gives you correct caching on incorrect work. <a href='/lessons/senior-db-explain-analyze' class='text-ruby underline hover:text-ruby-dark'>EXPLAIN ANALYZE</a> is the first tool, not the last."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Pick the right layer.</strong> "Three options in Rails:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>HTTP caching</strong>: <code class="bg-gray-100 px-2 py-1 rounded">ETag</code> and <code class="bg-gray-100 px-2 py-1 rounded">Last-Modified</code> headers. Best when the response is the whole answer; the request returns 304 with no body. Browsers and CDNs handle it automatically.</li>
+        <li><strong>Fragment caching</strong>: cache rendered HTML for a partial. Right when the view is expensive and the data is stable. The Russian-doll pattern nests fragments so invalidating an inner record automatically invalidates the outer wrapping.</li>
+        <li><strong>Low-level Rails.cache</strong>: the generic <code class="bg-gray-100 px-2 py-1 rounded">Rails.cache.fetch(key) { expensive_computation }</code> wrapper. Right for computed values that are expensive but not view-coupled."</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Design the key so invalidation is automatic.</strong> "I want the cache key to change when the underlying data changes. Active Record's <code class="bg-gray-100 px-2 py-1 rounded">cache_key_with_version</code> gives you a key that includes the record's <code class="bg-gray-100 px-2 py-1 rounded">updated_at</code>. <code class="bg-gray-100 px-2 py-1 rounded">cache @user</code> in a view picks that up automatically. For collection caches, I would use a max of <code class="bg-gray-100 px-2 py-1 rounded">updated_at</code> across the collection. The senior trap is keys that include something expensive to compute (a SQL count, a sort key); the key derivation itself becomes the bottleneck."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>4. Plan the invalidation.</strong> "Russian-doll caching invalidates by changing keys. Manual invalidation (<code class="bg-gray-100 px-2 py-1 rounded">Rails.cache.delete</code>) is the right shape when keys do not change automatically. The Phil Karlton aphorism applies: invalidation is the hard part. I prefer key-based invalidation (where the key changes when the data does) over explicit deletion."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Russian-doll caching, named</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "If the question is about caching views specifically, I would walk through the Russian-doll pattern, which is the canonical Rails answer."
+      </p>
+      <CodeBlock code={`<%# views/posts/show.html.erb %>
+<% cache @post do %>
+  <h1><%= @post.title %></h1>
+
+  <% cache @post.author do %>
+    <%= render @post.author %>
+  <% end %>
+
+  <% @post.comments.each do |comment| %>
+    <% cache comment do %>
+      <%= render comment %>
+    <% end %>
+  <% end %>
+<% end %>`} language="erb" />
+      <p class="text-gray-700 leading-relaxed">
+        "Each fragment's cache key includes the inner records' <code class="bg-gray-100 px-2 py-1 rounded">updated_at</code>. When a comment is edited, its <code class="bg-gray-100 px-2 py-1 rounded">updated_at</code> changes, which changes its fragment key. The outer post fragment's key depends on the comments collection's max <code class="bg-gray-100 px-2 py-1 rounded">updated_at</code>, so it also changes, and the cascade invalidates up the tree. Touch helpers (<code class="bg-gray-100 px-2 py-1 rounded">touch: true</code> on belongs_to) ensure the cascade propagates even when only a child changes."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The cache stampede problem</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "The senior follow-up: what happens when the cache expires? If <code class="bg-gray-100 px-2 py-1 rounded">Rails.cache.fetch</code> is called by 1000 concurrent requests right after expiry, all 1000 fire the expensive computation. That is a <strong>cache stampede</strong>. The fix: pass <code class="bg-gray-100 px-2 py-1 rounded">race_condition_ttl</code> to <code class="bg-gray-100 px-2 py-1 rounded">fetch</code>. One request rebuilds the cache; others get the stale value for the duration of the race window. This pattern is detailed in <a href='/lessons/senior-scaling-caching' class='text-ruby underline hover:text-ruby-dark'>Scaling: Caching, Properly</a>."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The cache store choice</h2>
+      <p class="text-gray-700 leading-relaxed">
+        "In Rails 8, the default is Solid Cache (Postgres-backed). For most apps, this is fine and removes the Memcached or Redis dependency. For very-high-traffic apps where cache writes themselves stress the database, Memcached or Redis is still the right call. The senior view: pick Solid Cache by default; switch to Memcached/Redis when the cache traffic shows up as Postgres load."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How do you invalidate a cache when one record in a collection changes?"</strong> Right answer: use <code class="bg-gray-100 px-2 py-1 rounded">touch: true</code> on the parent's belongs_to, so changing the child touches the parent. Or use a fragment cache keyed by the collection's max updated_at, which is invalidated implicitly when the max changes.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What about caching a query result that does not map to a model?"</strong> Right answer: use <code class="bg-gray-100 px-2 py-1 rounded">Rails.cache.fetch</code> with a manually-versioned key. Include a version number in the key so changes to the computation invalidate everything at once. <code class="bg-gray-100 px-2 py-1 rounded">"reports/dashboard/v3/user_#{user.id}"</code>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How do you debug a cache miss that should have been a hit?"</strong> Right answer: log the cache key being generated. Confirm two requests with the same intent produce the same key. Common causes of unexpected misses: a key that includes a timestamp that varies, a key that depends on a memoization order, a key that includes a serialized hash whose key order is unstable.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"When would HTTP caching beat fragment caching?"</strong> When the entire response is cacheable and a CDN can serve it. Marketing pages, public posts, API endpoints with versioned URLs. <code class="bg-gray-100 px-2 py-1 rounded">stale?(@post)</code> in the controller returns 304 if the browser already has the latest version, saving the entire render.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What signals what</h2>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"I would use Rails.cache.fetch."</strong> Mid. The mechanical answer.</li>
+        <li><strong>"I would EXPLAIN the query first."</strong> Senior. Diagnoses before caching.</li>
+        <li><strong>"I prefer key-based invalidation over manual delete because it stays correct under concurrency."</strong> Senior+. Has dealt with invalidation race conditions.</li>
+        <li><strong>"Cache stampede is the production failure mode for naive caching; race_condition_ttl is the fix."</strong> Senior+. Has hit the failure mode.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Caching is rarely the first answer to a slow query. Caching is correct when the underlying computation is fundamentally expensive (image processing, complex aggregation, paid API calls) and the inputs are stable. For everything else, fix the underlying code first. <strong>The senior reflex is "make it fast first, cache what is left expensive."</strong>
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The interview reframing: leading with EXPLAIN and "why is the query slow" signals you have shipped Rails apps in production where the wrong caching fix bit you. Leading with Rails.cache.fetch signals you have caught the question in a study guide. Both end up using cache eventually; the order matters for the interviewer.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-scaling-caching",       title: "Scaling: Caching, Properly",                  blurb: "the deep-dive this question samples" },
+      { href: "/lessons/senior-db-explain-analyze",    title: "EXPLAIN ANALYZE for Rails developers",        blurb: "the diagnostic step before caching" },
+      { href: "/lessons/rails-8-features",             title: "Rails 8 Features: Solid Cache",               blurb: "the cache store choice in 2026" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/interview-question-includes-preload-joins" class="text-ruby hover:text-ruby-dark transition-colors">← "includes vs preload vs joins"</a>
+      <a href="/interview" class="text-ruby hover:text-ruby-dark transition-colors">Back to Interview Prep →</a>
+    </div>
+  </article>
+</Layout>

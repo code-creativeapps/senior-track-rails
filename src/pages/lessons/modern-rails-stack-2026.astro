@@ -1,0 +1,210 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title="The Modern Rails Stack: What Senior Teams Ship in 2026" description="What a senior Rails app looks like in 2026: Ruby 3.3 with YJIT, Rails 8, Postgres 16, Solid Queue or Sidekiq, Solid Cache, Hotwire, Kamal or Heroku. Each pick justified, alternatives named, and what changed since 2020.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">2026 Reference</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:layers" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">The Modern Rails Stack (2026)</h1>
+      </div>
+      <p class="text-xl text-gray-600">What a senior Rails app looks like in 2026. Each layer named, the pick justified, alternatives mentioned, and the shifts since 2020 made explicit.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The stack at a glance</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A senior Rails app in 2026 looks like this:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Language:</strong> Ruby 3.3 or 3.4 with YJIT enabled.</li>
+        <li><strong>Framework:</strong> Rails 8.x.</li>
+        <li><strong>Database:</strong> Postgres 16 (or MySQL 8 for teams with the expertise).</li>
+        <li><strong>Background jobs:</strong> Solid Queue for new apps under ~5,000 jobs/sec; Sidekiq otherwise.</li>
+        <li><strong>Cache:</strong> Solid Cache (Postgres-backed) for most; Redis if cache pressure is high.</li>
+        <li><strong>WebSockets:</strong> ActionCable on Redis for high-fanout broadcasts; Solid Cable for light usage.</li>
+        <li><strong>Frontend:</strong> Hotwire (Turbo + Stimulus) as the default; Inertia + React for richer surfaces; full SPA only when frontend is the product.</li>
+        <li><strong>Asset bundling:</strong> Importmap (default), Vite, or esbuild.</li>
+        <li><strong>Styling:</strong> Tailwind CSS.</li>
+        <li><strong>Deployment:</strong> Heroku, Render, Fly.io, or Kamal-on-Hetzner.</li>
+        <li><strong>Testing:</strong> Minitest or RSpec with factory_bot.</li>
+        <li><strong>Observability:</strong> lograge + AppSignal/Datadog/Honeybadger + Sentry.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The rest of this lesson walks each layer in detail and names the live questions seniors are still arguing about in 2026.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Language: Ruby 3.3+ with YJIT</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Ruby 3.3 (December 2023) was the version where YJIT graduated from "interesting experiment" to "turn it on in production." Real Rails workloads see 20% to 40% faster response times with the flag enabled. Ruby 3.4 (December 2024) refined YJIT further and is the production target for most apps in 2026.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The flag: <code class="bg-gray-100 px-2 py-1 rounded">RUBY_YJIT_ENABLE=1</code> in the environment, or <code class="bg-gray-100 px-2 py-1 rounded">--yjit</code> on the command line. New Rails 8 apps enable it by default in the boot script. Older apps only need to pass the flag.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The Ruby 3.4 changes worth noting: pattern matching is stable, the syntax for nil-safe navigation is tighter, and the standard library has fewer surprise removals than 3.3 did. Most apps upgrading from 3.2 or 3.3 hit zero issues.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Framework: Rails 8</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 8.0 (September 2024) was the values release covered in <a href="/lessons/rails-8-features" class="text-ruby underline hover:text-ruby-dark">Rails 8 Features Explained</a>. Rails 8.1 and 8.2 through 2025 refined the rough edges. Rails 9 is on the horizon for early 2026, expected to be incremental rather than another values shift.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Most senior apps run Rails 7.1 or 8.x. The cutoff for "modern" is Rails 7.0 in 2026. Apps on Rails 6 or older are paying compound interest on the upgrade debt and should plan a migration.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Database: Postgres 16 (or MySQL 8)</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Postgres remains the senior Rails default. The 16 release (September 2023) added logical replication improvements, parallel query refinements, and explicit support for the operations Rails apps perform under load. The 17 release (September 2024) added incremental backup, better partitioning, and faster vacuum. Either is fine in 2026.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        MySQL 8 is the right pick when the team has serious operational MySQL expertise, when the hosting platform favors it (PlanetScale), or when the app needs Vitess-style horizontal scaling out of the gate. <a href="/lessons/postgres-vs-mysql-for-rails" class="text-ruby underline hover:text-ruby-dark">Postgres vs MySQL for Rails</a> covers the decision in depth.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        SQLite is the Rails 8 default but is a viable production choice only for narrow cases (single-server, low write contention, content-heavy). Most senior teams override it on day one.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Background jobs: Solid Queue or Sidekiq</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Queue is the new default and the right pick for most new apps. Sidekiq remains the choice when throughput exceeds ~5,000 jobs/sec or the team has years of Sidekiq expertise. <a href="/lessons/sidekiq-vs-solid-queue" class="text-ruby underline hover:text-ruby-dark">Sidekiq vs Solid Queue</a> walks the decision axis-by-axis.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        good_job is still around, mostly in apps that started with it pre-Rails 8 and have not migrated. Resque is mostly legacy. delayed_job is older still and rarely picked for new work.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Cache: Solid Cache for most</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Cache benchmarks well enough against Memcached that most teams adopt it on Rails 8 to drop a piece of infrastructure. Redis remains the right pick when cache traffic is extreme (millions of operations per minute) or when the team uses Redis for other reasons anyway.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior heuristic: if Redis is in the stack only for caching, replace with Solid Cache. If Redis is in the stack for caching plus rate limiting plus pubsub, keeping it is reasonable.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Frontend: Hotwire (or Inertia, rarely SPA)</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Hotwire is the default for new Rails apps and the right choice when the app's frontend complexity is "rich CRUD plus some real-time updates." For apps with one or two genuinely complex surfaces (rich text editor, kanban canvas), embedding a React component into the Hotwire-rendered page is the cheapest upgrade.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Inertia + React is the second tier: Rails routing and authentication stay; the view layer becomes React components. The right pick for apps where Hotwire keeps falling short on more than a few screens. Full SPA with a Rails API is the rare third tier, reserved for apps where the frontend is the product (Linear, Notion, Figma).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The full comparison is in <a href="/lessons/hotwire-vs-inertia-vs-react" class="text-ruby underline hover:text-ruby-dark">Hotwire vs Inertia vs React</a>.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Asset bundling: Importmap, Vite, or esbuild</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Importmap is the Rails 8 default for new apps. No bundler, no node_modules, no transpilation. Right when the app is mostly Stimulus + Turbo + a handful of small JS files.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Vite is the right pick when the app uses React or Vue components (with Inertia), TypeScript, or needs HMR for rapid iteration. The <code class="bg-gray-100 px-2 py-1 rounded">vite-rails</code> gem handles the Rails integration cleanly.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        esbuild via <code class="bg-gray-100 px-2 py-1 rounded">jsbundling-rails</code> is the middle ground. Right when Importmap is too thin but Vite feels heavy.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Sprockets is legacy. Apps still on it should plan a PropShaft migration on the next major release.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Styling: Tailwind CSS</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Tailwind has won the Rails styling default by 2026. <code class="bg-gray-100 px-2 py-1 rounded">tailwindcss-rails</code> handles installation cleanly; the v4 release in 2024 made the bundle size and compilation story even better.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Sass and PostCSS remain valid for teams that prefer them, but new Rails apps in 2026 default to Tailwind almost universally. Component frameworks (Bootstrap, Bulma) are rare in the modern Rails stack.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Deployment: PaaS or Kamal</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Four credible options in 2026.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Heroku, Render, Fly.io.</strong> Managed PaaS, pay for convenience. Heroku is the most expensive and most polished. Render is the price-performance sweet spot for many teams. Fly is the right pick for apps needing edge deployment or multi-region from day one.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Kamal on a VPS (Hetzner, Digital Ocean, OVH).</strong> The Rails 8 self-hosted path. Roughly 5x to 10x cheaper than PaaS at the same scale. Higher ops cost. Right for teams that want infrastructure cost control and have someone willing to own it.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>AWS / GCP / Azure.</strong> Right for teams already in those ecosystems, or with compliance requirements. Higher engineering overhead than PaaS. Lower than Kamal once the team is fluent.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Kubernetes.</strong> The right pick if the team already runs Kubernetes at the company. Almost always the wrong pick if you would be the only Rails app on a new cluster.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Testing and observability</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Testing: Minitest or RSpec; both are fine. factory_bot for fixtures. WebMock or VCR for HTTP stubs. Capybara for system tests, which Rails 8 polished significantly.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Observability: lograge for clean logs. Sentry, Honeybadger, or Bugsnag for error tracking. AppSignal, Datadog, Skylight, or Scout for APM. The pick is mostly about pricing and platform familiarity; all the tools do the basics well.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For production-grade infrastructure metrics on self-hosted Kamal deploys, Prometheus + Grafana is the open-source path. PaaS providers ship their own metrics, usually good enough that you do not need to wire anything separately.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What changed since 2020</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The 2020 senior Rails stack looked different in five concrete ways.
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>Ruby was 2.7 or 3.0, without YJIT.</strong> Response times in 2026 are measurably faster on the same hardware.</li>
+        <li><strong>Frontend was Webpacker and React (or jQuery on older apps).</strong> Hotwire did not exist publicly. Most apps had a heavier JavaScript layer than they would adopt today.</li>
+        <li><strong>Background jobs meant Sidekiq, which meant Redis.</strong> The "Redis is part of the stack" assumption was universal.</li>
+        <li><strong>Deployment meant Heroku for most teams.</strong> Kamal was not yet a credible option; "self-hosted on VPS" was a fringe choice that meant Capistrano.</li>
+        <li><strong>Postgres was already the default</strong>, but with less of the JSONB-centric design that became common as the type matured.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The compound effect of these shifts: Rails apps in 2026 are simpler to operate than their 2020 equivalents. Fewer pieces of infrastructure, less frontend complexity, and a faster runtime. The framework's bet on "one server, fewer dependencies" paid off.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The senior Rails stack is not about adopting every new feature. It is about picking the boring-by-2026 defaults that have proven themselves, and being deliberate about the few places you deviate. Hotwire is the default frontend. Solid Queue is the default queue. Postgres is the default database. Kamal is a credible deploy option but not the only one. Tailwind has won styling. YJIT is on.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The teams that get the most out of this stack are the ones that picked it for clear reasons and would replace any layer when the reasons changed. The teams that struggle are the ones that mix the 2026 defaults with 2018 patterns: Webpacker, Devise everywhere, Sidekiq with no Redis plan, custom asset pipelines. Stack debt is real and the senior call is to keep paying it down.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/rails-8-features",          title: "Rails 8 Features Explained",         blurb: "the framework-level changes powering this stack" },
+      { href: "/lessons/best-rails-gems-2026",      title: "The Best Rails Gems (2026)",         blurb: "the specific gem picks layer by layer" },
+      { href: "/lessons/hotwire-vs-inertia-vs-react", title: "Hotwire vs Inertia vs React",      blurb: "the frontend decision in depth" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">2026 Reference</span>
+    </div>
+  </article>
+</Layout>

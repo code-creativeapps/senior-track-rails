@@ -1,0 +1,167 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title="Rails 8 Features Explained (2026 Senior Developer Guide)" description="What Rails 8 actually shipped in September 2024, what landed quietly in the point releases through 2026, what seniors adopted in production, and what they passed on. Solid Queue, Solid Cache, Kamal 2, the auth generator, Turbo 8 morphing.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">2026 Reference</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:rocket" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">Rails 8 Features Explained</h1>
+      </div>
+      <p class="text-xl text-gray-600">What Rails 8 actually shipped, what landed quietly in the point releases through 2026, what seniors adopted in production, and what they passed on.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The Rails 8 release in context</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 8.0 shipped in September 2024 with the framing "build modern Rails apps from one server." DHH and the core team pushed the version around three goals: remove infrastructure dependencies (Redis, dedicated cache servers), make deployment simpler (Kamal 2 baked in), and tighten the default stack so a fresh app feels production-ready without ten gems and three external services.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The version was opinionated even by Rails standards. SQLite became the default database for new apps. The Solid Suite (Queue, Cache, Cable) replaced Redis-dependent libraries as defaults. Kamal 2 became the recommended deploy path. Some of these picks made sense for the 80% of Rails apps; some required active opt-out for the other 20%.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Through 2025 and into 2026, the point releases (8.1, 8.2) refined the story. What follows is the senior view of what shipped: not the release-notes summary, but what teams actually adopted and why.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Solid Queue: Redis is no longer required</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Queue is the database-backed queue adapter that replaced the assumption "Rails apps run Sidekiq, which means Rails apps run Redis." Jobs are rows in the primary database; workers poll and process them; failed jobs land in a separate table for inspection.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior question is whether to use it. The full <a href="/lessons/sidekiq-vs-solid-queue" class="text-ruby underline hover:text-ruby-dark">Sidekiq vs Solid Queue</a> lesson covers the answer in detail. Short version: Solid Queue is the right default for new Rails 8 apps under ~5,000 jobs/sec; Sidekiq remains the right call above that threshold or when the team has years of Sidekiq expertise.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Adoption in 2026 is mixed. Greenfield Rails 8 apps default to it and tend to stay. Apps migrating from Rails 6 or 7 with established Sidekiq setups mostly do not bother; the migration cost outweighs the simplification.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Solid Cache: caching against Postgres</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Cache is to Memcached/Redis what Solid Queue is to Sidekiq: a database-backed cache that ships as the new Rails 8 default. Cache entries are rows in a dedicated table; expiry and eviction run as background work.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The technical claim that surprised many engineers: Solid Cache benchmarks similarly to Memcached on Rails-style cache patterns, because modern Postgres with SSD storage is fast at point-lookups. The architectural claim: removing one piece of infrastructure (Memcached or Redis-as-cache) is worth a small performance trade.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Adoption is wider than Solid Queue's. Many teams that did not migrate their queue did migrate their cache, because the cost of running Redis-only-for-caching is real and Solid Cache eats that line item. <strong>If you run Redis only for caching, Solid Cache is the cleanest infrastructure simplification on the table.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Solid Cable: ActionCable on the database</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Solid Cable is the third Solid Suite member: ActionCable backed by the database instead of Redis. Used to power Turbo broadcasts and any custom WebSocket logic, it removes the last common Redis dependency in a Rails app.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The performance tradeoff is sharper here than with Queue or Cache. Database-backed pubsub is slower than Redis pubsub at high broadcast rates, and the lag compounds when many subscribers receive the same message. For apps with light broadcast traffic (a few thousand messages per minute), Solid Cable is fine. For chat platforms or live dashboards with thousands of concurrent subscribers, Redis Pub/Sub remains better.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Adoption is the lightest of the three.</strong> Many teams kept ActionCable on Redis even when they moved Queue and Cache off. The lesson: removing infrastructure is good, but performance-critical paths are worth keeping on the right tool.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Kamal 2: deploys without Capistrano</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Kamal is the deployment tool 37signals built to replace Heroku for their own products. Kamal 2 shipped with Rails 8 as the recommended path for deploying Rails apps to any Linux servers, including VPS providers like Hetzner.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The pitch: <code class="bg-gray-100 px-2 py-1 rounded">kamal deploy</code> takes your app from local working tree to running on production VMs in under five minutes, including zero-downtime container swaps, secrets management, and SSL via Let's Encrypt. The architecture is Docker containers plus Traefik for routing plus SSH for orchestration. No Kubernetes, no AWS console clicking, no per-request fees beyond raw compute cost.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Adoption depends entirely on where the team was already deploying. Teams on Heroku, Render, or Fly mostly stayed put: the operational simplicity of a PaaS is worth the cost premium. Teams that wanted off Heroku because of pricing increases over the last few years went hard on Kamal: a 10x cost reduction (Heroku Performance dynos to Hetzner CCX VMs running Kamal) is real and the operational story is acceptable. <strong>The senior view is that Kamal is a credible third option between "managed PaaS" and "full Kubernetes," not a replacement for either.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The auth generator</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 8 shipped <code class="bg-gray-100 px-2 py-1 rounded">bin/rails generate authentication</code>, which scaffolds a complete auth system (users, sessions, password reset, email confirmation) using <code class="bg-gray-100 px-2 py-1 rounded">has_secure_password</code> and standard Rails patterns. No Devise, no gem dependency, ~200 lines of code you can read and modify.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The release framing was "you do not need Devise for most Rails apps." That framing is mostly right and slightly oversold. For apps with standard email-password auth, the generator is the right starting point. For apps that need OAuth integrations, magic links, multi-factor, SCIM, account locking, or anything else Devise handles via plugins, you will end up reaching for Devise or rodauth anyway.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Adoption pattern: new greenfield apps tend to start with the generator and stay until they need an OAuth provider or MFA. Mature apps almost never migrate off Devise.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">SQLite as the default database</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The most controversial Rails 8 decision. New apps default to SQLite for development, test, and production. The argument: modern SQLite is genuinely production-ready for many Rails apps (Litestack, the Hatchbox use case, several public examples). The counterargument: Postgres remains the right default for any app expected to scale beyond one machine.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior view is that SQLite is a viable production database for a narrow set of cases: single-server deployments, low write contention, content-heavy apps with high read-to-write ratios. For SaaS products, multi-tenant apps, or anything with serious write traffic, Postgres remains the right pick from day one (covered in <a href="/lessons/postgres-vs-mysql-for-rails" class="text-ruby underline hover:text-ruby-dark">Postgres vs MySQL for Rails</a>).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The default exists to lower the on-ramp friction for solo developers and side projects, not because SQLite is right for production SaaS. <strong>Switch to Postgres on day one for anything you expect to scale.</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Turbo 8 and morphing</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Turbo 8 (which shipped alongside Rails 8) added morph mode for page updates. Instead of wholesale DOM replacement, Turbo walks the old and new DOM trees and applies the minimum diff. Focus survives. Scrollbars stay. Stimulus controllers do not re-mount. Animations do not restart.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The full treatment is in <a href="/lessons/senior-hotwire-morphing" class="text-ruby underline hover:text-ruby-dark">Turbo Morphing in Rails 8</a>. Short version: morph mode is opt-in per page, and the Rails apps that benefit most are search pages, filter sidebars, and any surface where the same page updates frequently. The gotchas (stable ids, Stimulus lifecycle, CSS animations) are real but manageable.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">PropShaft and the asset story</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 8 cemented PropShaft as the asset pipeline for new apps, with Sprockets remaining available for older codebases. PropShaft does less: no precompilation, no asset transformation, no Sass. It fingerprints files and serves them. JavaScript bundling is handled separately by Importmap (the default), esbuild, or Vite. CSS is bundled by Tailwind, CSS bundling, or Vite.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The split is cleaner than Sprockets' all-in-one approach. The cost is one more tool in the build pipeline for teams that need bundling. Most teams in 2026 picked one of: Importmap (smallest setup), Vite (richer dev experience), or esbuild (middle ground).
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What did not land or did not get adopted</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Two notable absences from real-world Rails 8 adoption.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Litestream-style SQLite replication.</strong> Discussed in the Rails 8 release, but the production story for SQLite-replicated apps remains thin. Most teams that wanted multi-region either stayed on Postgres or used managed Postgres providers (Fly Postgres, Supabase, Crunchy).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Hotwire Native for everyone.</strong> Heavy push at launch; modest adoption through 2026. The teams shipping mobile apps either stuck with native (React Native, Flutter, or fully native) or accepted that Hotwire Native works well for traditional content apps but not for ones with rich mobile-first interactions.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior takeaway for 2026</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails 8 was a values release. The framework took a position on infrastructure simplification and pushed it through every default. Some of the picks are universally right (Solid Cache for most apps removing Redis-for-caching). Some are right with caveats (Solid Queue for the under-5,000-jobs/sec range). Some are clearly wrong as defaults but exist for ideological reasons (SQLite for production).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior approach is to treat each default as a recommendation, not a constraint. <strong>Adopt Solid Cache. Evaluate Solid Queue. Skip Solid Cable until traffic justifies it. Pick Postgres on day one. Use the auth generator until OAuth or MFA forces Devise. Consider Kamal if Heroku pricing has become painful.</strong> The framework gave you good defaults; you still pick which ones to keep.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/sidekiq-vs-solid-queue",         title: "Sidekiq vs Solid Queue",            blurb: "deeper on the queue decision" },
+      { href: "/lessons/postgres-vs-mysql-for-rails",    title: "Postgres vs MySQL for Rails",       blurb: "why SQLite default does not mean SQLite is right for production" },
+      { href: "/lessons/senior-hotwire-morphing",        title: "Turbo Morphing in Rails 8",          blurb: "what morph mode actually does" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">2026 Reference</span>
+    </div>
+  </article>
+</Layout>

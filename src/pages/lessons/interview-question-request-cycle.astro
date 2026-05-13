@@ -1,0 +1,135 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview: "Walk me through a Rails request from HTTP to response"' description='The Rails interview question that tests how much the candidate actually knows about the framework. The right answer names every layer: Rack, middleware, routing, controllers, views, ActiveRecord, the rendering pipeline. Plus what most candidates miss.'>
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:network" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"Walk me through a Rails request"</h1>
+      </div>
+      <p class="text-xl text-gray-600">The interview question that tests how much the candidate actually knows about Rails. The right answer names every layer the framework runs through, and the wrong answer makes the request sound like magic.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Most Rails developers can describe controllers and views. Far fewer can name Rack, walk the middleware stack, explain where the routing happens in the boot sequence, or describe what Active Record does between <code class="bg-gray-100 px-2 py-1 rounded">User.find(1)</code> and the result coming back.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The interviewer is checking how much of the framework you can actually name. The depth signal is "how many distinct layers can you describe without prompting." A mid-level candidate covers three. A senior candidate covers seven or eight, in order, with at least one detail per layer that goes beyond the official tutorial.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        This question also acts as a warm-up for follow-ups: "where would you put a global rate limit?", "how does session state survive across requests?", "what happens if the view raises?". A candidate who can sketch the full request path can answer those quickly. A candidate who skipped layers cannot.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The typical answer:
+      </p>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "The browser sends an HTTP request. Rails routes it to a controller action. The controller fetches data using Active Record, then renders a view. The view's HTML gets sent back to the browser."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        Correct, but skips most of the actual framework. No Rack. No middleware. No mention of how routing is parsed. Nothing about asset serving, session loading, parameter parsing, view rendering, response building.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For a senior role this answer signals "treats the framework as a black box." It tells the interviewer the candidate would struggle to debug anything that does not happen in user code.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The senior version names eight layers in order.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>1. The web server.</strong> "Puma (in 2026 Rails defaults) accepts the TCP connection, parses the HTTP request into a Rack env hash. Multiple threads serve requests in parallel inside one process; multiple processes scale horizontally."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>2. Rack middleware.</strong> "The env hash flows down the middleware stack. <code class="bg-gray-100 px-2 py-1 rounded">bin/rails middleware</code> lists them: things like <code class="bg-gray-100 px-2 py-1 rounded">ActionDispatch::HostAuthorization</code>, <code class="bg-gray-100 px-2 py-1 rounded">Rack::Sendfile</code>, <code class="bg-gray-100 px-2 py-1 rounded">ActionDispatch::Static</code>, the cookies middleware, session middleware, then the Rails router. Each one wraps the next."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>3. Routing.</strong> "The router walks <code class="bg-gray-100 px-2 py-1 rounded">config/routes.rb</code> for the first match. It parses the path, sets <code class="bg-gray-100 px-2 py-1 rounded">params</code> from URL segments and query string, identifies the controller class and action method to call. If nothing matches, a 404 comes back from the router."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>4. Controller instantiation.</strong> "Rails instantiates the matched controller. <code class="bg-gray-100 px-2 py-1 rounded">before_action</code> filters run in order. If one halts (renders or redirects), the action method never runs. Strong parameters get applied to whitelist permitted attributes."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>5. The action body.</strong> "Application code runs. Most actions hit Active Record, which translates Ruby method calls into SQL via Arel and the database adapter, sends it to Postgres, hydrates the result into model objects. Connections come from a pool managed by <code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::ConnectionPool</code>."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>6. View rendering.</strong> "If the action does not explicitly render, Rails picks a template by convention (<code class="bg-gray-100 px-2 py-1 rounded">app/views/posts/show.html.erb</code> for <code class="bg-gray-100 px-2 py-1 rounded">PostsController#show</code>). The template is compiled to Ruby code once on first hit, cached. ERB or Hotwire stream templates render against the controller's instance variables. The result is a string of HTML."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>7. Layout wrapping.</strong> "Unless disabled, the rendered template is yielded into the layout template (default <code class="bg-gray-100 px-2 py-1 rounded">app/views/layouts/application.html.erb</code>). Layout fragments like the navbar and footer get rendered too. The final string is the full HTML response body."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>8. Response and unwinding.</strong> "<code class="bg-gray-100 px-2 py-1 rounded">after_action</code> filters run. The response (status, headers, body) flows back up through the middleware stack. Each middleware can transform it: setting cookies, adding security headers, compressing, logging. Puma writes the HTTP response to the socket."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        Eight named layers, in order, with one detail per layer that goes beyond the rendered surface. That is a senior answer.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Three common pressure-tests after the headline answer.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"Where would you add a global rate limit?"</strong> The right answer is middleware. <code class="bg-gray-100 px-2 py-1 rounded">rack-attack</code> is the canonical gem. It sits in the middleware stack before the router, so rate-limited requests get a 429 without ever touching application code. A controller filter is the wrong answer because rate-limited traffic still incurs full controller dispatch.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"Walk me through what happens if the action raises."</strong> The right answer names the <code class="bg-gray-100 px-2 py-1 rounded">ActionDispatch::DebugExceptions</code> and <code class="bg-gray-100 px-2 py-1 rounded">ActionDispatch::ShowExceptions</code> middleware. In development, the debug exceptions page renders. In production, the show exceptions middleware catches the raise and renders the matching error page (404, 500). Bonus points for naming <code class="bg-gray-100 px-2 py-1 rounded">rescue_from</code> in controllers as the application-level alternative.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"How does session state survive across requests?"</strong> The right answer names the session middleware and the default cookie store. The session is serialised, signed, and stored as a cookie on the browser; each request includes it; the middleware deserialises and verifies the signature. For larger session payloads or higher security, alternatives are the Active Record store (sessions in a database table) or Redis store.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What signals what</h2>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"The router calls the controller."</strong> Mid-level. Skips middleware entirely.</li>
+        <li><strong>"There is some middleware stack..."</strong> Better. Acknowledges Rack but does not enumerate.</li>
+        <li><strong>"<code class="bg-gray-100 px-2 py-1 rounded">bin/rails middleware</code> lists them; the first few I usually open during debugging are..."</strong> Senior. Has actually looked at the stack.</li>
+        <li><strong>"And the response flows back up through the stack, so middleware can modify it on the way out."</strong> Senior+. Knows that middleware is bidirectional.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The signal that matters: candidates who have debugged a Rails app in production, encountered "the request never reached my controller" or "the response had unexpected headers," and traced through the middleware stack to find the cause. That experience leaks into the answer naturally.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails is not magic. Every framework feature has a layer, a file, an interface. The senior version of any Rails answer is one that names the layer and the responsibility. The junior version is one that treats the layer as implicit.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For this question specifically: knowing the eight layers above gives you a vocabulary for almost every follow-up the interviewer can throw. Rate limiting, error handling, authentication, asset serving, CORS, security headers, websocket upgrades, response streaming. All of these have a specific layer where the answer lives. <strong>Name the layer, and the rest of the answer is easier to find.</strong>
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/source-routing",                  title: "How Rails routing actually works",          blurb: "the deep dive on layer 3" },
+      { href: "/lessons/source-before-action",            title: "How before_action chains run",              blurb: "the layer 4 detail interviewers test" },
+      { href: "/lessons/source-view-rendering",           title: "How a view gets rendered",                  blurb: "the layer 6 mechanics" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/interview-question-n-plus-one" class="text-ruby hover:text-ruby-dark transition-colors">← "How do you find and fix N+1?"</a>
+      <a href="/lessons/interview-question-rails-magic" class="text-ruby hover:text-ruby-dark transition-colors">"What happens when belongs_to runs?" →</a>
+    </div>
+  </article>
+</Layout>

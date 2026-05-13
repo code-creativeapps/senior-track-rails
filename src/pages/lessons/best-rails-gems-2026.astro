@@ -1,0 +1,230 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title="The Best Ruby on Rails Gems Senior Teams Use (2026)" description="A hand-curated, opinionated list of the Rails gems shipping in production at senior teams in 2026. Organized by category, each pick justified, alternatives named. Plus the gems most teams actually removed.">
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">2026 Reference</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:package" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">The Best Rails Gems (2026)</h1>
+      </div>
+      <p class="text-xl text-gray-600">A hand-curated, opinionated list of the Rails gems senior teams ship in production. Organized by category, each pick justified, alternatives named. Plus the gems most teams quietly removed.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The framework first</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Most Rails apps have too many gems. Each one is a transitive dependency, a security surface, an upgrade burden, a place future-you will hesitate to debug. The senior reflex is to use Rails defaults aggressively and reach for a gem only when there is a concrete reason the framework alone does not handle.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        With that lens, the list below is short. Each gem earned its spot because the senior teams running production Rails apps reach for it consistently, and the cost of writing the equivalent in-house outweighs the dependency cost. Gems that did not earn their spot are listed at the end with the reason most teams removed them.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The recommendations apply to Rails 8 in 2026. Older apps may have different rational defaults.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Authentication</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Default: Rails 8's <code class="bg-gray-100 px-2 py-1 rounded">bin/rails generate authentication</code>.</strong> Scaffolds users, sessions, password reset, and email confirmation in plain Rails code using <code class="bg-gray-100 px-2 py-1 rounded">has_secure_password</code>. ~200 lines you own and can modify. Right for any app with standard email-password auth.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>When you outgrow it: <code class="bg-gray-100 px-2 py-1 rounded">devise</code>.</strong> Still the dominant choice when OAuth integrations, magic links, MFA, account locking, or unusual flows enter the picture. The plugin ecosystem is unmatched. Devise's reputation for complexity is fair, but every alternative has the same complexity if you actually need its features.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Niche alternative: <code class="bg-gray-100 px-2 py-1 rounded">rodauth-rails</code>.</strong> A different architectural take: framework-agnostic auth with thoroughness Devise's plugins approximate. Adoption is small but growing. Worth a look if you found Devise's plugin model frustrating in a previous app.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Authorization</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Default: <code class="bg-gray-100 px-2 py-1 rounded">pundit</code>.</strong> Per-class policy objects. Tiny API, quick to test, plays well with Rails service objects. The pattern is unchanged across years of evolution. Most senior Rails apps either use Pundit or use the same pattern by hand.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>For complex authorization (role-based or tenant-based): <code class="bg-gray-100 px-2 py-1 rounded">action_policy</code>.</strong> Newer, more features (rules with arguments, namespaces, pre-checks). The right pick when authorization itself is non-trivial.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Mostly abandoned: <code class="bg-gray-100 px-2 py-1 rounded">cancancan</code>.</strong> The Ability-class-with-everything pattern aged poorly. Apps that still use it usually inherited it; new apps almost never reach for it.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Background jobs</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Default: <code class="bg-gray-100 px-2 py-1 rounded">solid_queue</code> (Rails 8 built-in).</strong> Right for new apps under ~5,000 jobs/sec. Removes the Redis dependency. Detailed reasoning in <a href="/lessons/sidekiq-vs-solid-queue" class="text-ruby underline hover:text-ruby-dark">Sidekiq vs Solid Queue</a>.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Right for high throughput: <code class="bg-gray-100 px-2 py-1 rounded">sidekiq</code>.</strong> Still the gold standard above ~5,000 jobs/sec, when ops teams have deep Redis experience, or when the Sidekiq Web UI's depth is load-bearing.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Companion for both: <code class="bg-gray-100 px-2 py-1 rounded">good_job</code>.</strong> Database-backed like Solid Queue, but predates it and has its own ecosystem. Some teams stayed on it through the Rails 8 transition.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>For management UI on Solid Queue: <code class="bg-gray-100 px-2 py-1 rounded">mission_control-jobs</code>.</strong> 37signals's queue inspector. Production-ready in 2026.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Caching</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Default: <code class="bg-gray-100 px-2 py-1 rounded">solid_cache</code> (Rails 8 built-in).</strong> Postgres-backed cache that benchmarks competitively with Memcached. The easiest infrastructure simplification on the Rails 8 table. Adoption is wide.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>If Solid Cache underperforms: <code class="bg-gray-100 px-2 py-1 rounded">redis</code> (via <code class="bg-gray-100 px-2 py-1 rounded">redis-rails</code> or direct).</strong> For extremely high cache traffic or when Redis is already in the stack for other reasons.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Forms</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Default: Rails 7+ native form helpers.</strong> <code class="bg-gray-100 px-2 py-1 rounded">form_with</code> plus partials covers most cases cleanly. With Tailwind, the styling story is fine.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>When forms are the product: <code class="bg-gray-100 px-2 py-1 rounded">simple_form</code>.</strong> Still used in apps where forms appear constantly and consistency matters. The DSL is concise. Active maintenance.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Mostly removed: <code class="bg-gray-100 px-2 py-1 rounded">formtastic</code>.</strong> Older syntax, dwindling community, no compelling advantage over simple_form or native helpers in 2026.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Admin interfaces</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>For most teams: <code class="bg-gray-100 px-2 py-1 rounded">avo</code>.</strong> Modern, well-maintained, Hotwire-native, paid pro tier. The right pick for a team that wants admin shipped this week without configuring forty things.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Open-source alternative: <code class="bg-gray-100 px-2 py-1 rounded">administrate</code>.</strong> Thoughtbot's take. Lighter weight, more code in your repo, slower to iterate. Good if you want full control of the admin views.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The DIY pattern.</strong> Many senior teams skip admin gems entirely: they ship internal pages as ordinary Rails resources with a basic authorization scope. Less magic, more control. Sustainable if the admin surface is small.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Mostly abandoned: <code class="bg-gray-100 px-2 py-1 rounded">rails_admin</code> and <code class="bg-gray-100 px-2 py-1 rounded">activeadmin</code>.</strong> Both still ship, both still get used in mature apps. New apps in 2026 rarely pick them.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Testing</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The split: Minitest vs RSpec.</strong> Minitest is Rails default; RSpec dominates open source and many large companies. Both work. The senior position is "use what your team already knows; do not migrate without a clear reason." New apps in 2026 increasingly default to Minitest because Rails 8 polished the integration.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>System tests: built into Rails.</strong> Capybara + Selenium are bundled. For most teams this is enough. Add <code class="bg-gray-100 px-2 py-1 rounded">webdrivers</code> if you need browser automation that survives Chrome updates.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Factories: <code class="bg-gray-100 px-2 py-1 rounded">factory_bot</code>.</strong> Still dominant. Fixtures get used in performance-sensitive test suites but lose the readability war.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>For HTTP stubs: <code class="bg-gray-100 px-2 py-1 rounded">webmock</code> or <code class="bg-gray-100 px-2 py-1 rounded">vcr</code>.</strong> WebMock for fine-grained stubs; VCR for recording real responses to disk. Most teams use both.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Code quality and security</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">rubocop</code> + <code class="bg-gray-100 px-2 py-1 rounded">rubocop-rails</code> + <code class="bg-gray-100 px-2 py-1 rounded">rubocop-rspec</code>.</strong> Universal. Configure to match the team's actual taste, not the defaults.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">brakeman</code>.</strong> Static security scanner. Runs in CI on every PR for security-critical apps.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">strong_migrations</code>.</strong> Blocks unsafe migrations in development before they hit production. Detailed reasoning in <a href="/lessons/senior-db-zero-downtime-migrations" class="text-ruby underline hover:text-ruby-dark">Zero-Downtime Rails Migrations</a>. Recommended for any app deploying to a production with real data.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">bundler-audit</code>.</strong> Checks Gemfile.lock against the vulnerability database. Add to CI.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Observability</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">lograge</code>.</strong> Replaces Rails's noisy multi-line log output with one line per request. Still essential for any app shipping logs to an external service. Pair with structured-JSON output if you ship to Datadog, Honeycomb, or similar.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">prometheus_exporter</code> or platform-native instrumentation.</strong> If you run on Render, Fly, or similar, use their built-in metrics. For self-hosted Kamal deploys, Prometheus + Grafana is the open-source path.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Application performance monitoring: AppSignal, Datadog, Honeybadger, Skylight, or Scout.</strong> All work. Pick by pricing and team familiarity. AppSignal is the Rails-niche default.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">sentry-ruby</code>.</strong> Default error reporter for most Rails apps. Honeybadger and Rollbar are competing alternatives with similar features.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">JSON API rendering</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">alba</code> or <code class="bg-gray-100 px-2 py-1 rounded">panko_serializer</code> for performance.</strong> Both significantly faster than <code class="bg-gray-100 px-2 py-1 rounded">jbuilder</code> for large payloads. Alba has the cleaner DSL; Panko is the speed king.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">jbuilder</code> for simple cases.</strong> Built into Rails. Fine for small payloads. Pay the migration cost only when serialization is a measured bottleneck.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Mostly abandoned: <code class="bg-gray-100 px-2 py-1 rounded">active_model_serializers</code>.</strong> Long unmaintained. Apps still using it should plan a migration to alba or panko when convenient.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Frontend tooling</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">turbo-rails</code> + <code class="bg-gray-100 px-2 py-1 rounded">stimulus-rails</code>.</strong> Rails 8 defaults. Covers most Rails frontends.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">view_component</code>.</strong> GitHub's component framework. Useful in apps with significant view reuse. Pair with Lookbook for design-system visibility.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">tailwindcss-rails</code> or <code class="bg-gray-100 px-2 py-1 rounded">cssbundling-rails</code>.</strong> Tailwind has won as the default styling approach in the Rails community.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong><code class="bg-gray-100 px-2 py-1 rounded">inertia-rails</code> for SPA-style apps.</strong> The middle-ground option covered in <a href="/lessons/hotwire-vs-inertia-vs-react" class="text-ruby underline hover:text-ruby-dark">Hotwire vs Inertia vs React</a>.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">Gems most teams removed</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Five categories where senior teams quietly dropped the gem and lived with native Rails or wrote a few lines themselves.
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>State machines.</strong> <code class="bg-gray-100 px-2 py-1 rounded">aasm</code> and <code class="bg-gray-100 px-2 py-1 rounded">state_machines</code> add complexity that a hand-rolled state column with validation often handles cleaner. Most apps that started with state-machine gems eventually removed them.</li>
+        <li><strong>Pagination.</strong> <code class="bg-gray-100 px-2 py-1 rounded">kaminari</code> and <code class="bg-gray-100 px-2 py-1 rounded">will_paginate</code> still work, but for apps that grew past offset pagination (see <a href="/lessons/senior-scaling-pagination" class="text-ruby underline hover:text-ruby-dark">Pagination at Scale</a>), the gem becomes a constraint and is replaced by cursor-based logic.</li>
+        <li><strong>Soft delete.</strong> <code class="bg-gray-100 px-2 py-1 rounded">paranoia</code> and <code class="bg-gray-100 px-2 py-1 rounded">discard</code> get added early and removed later. A <code class="bg-gray-100 px-2 py-1 rounded">deleted_at</code> column plus a default scope and a few model methods is usually enough.</li>
+        <li><strong>Settings / configuration gems.</strong> <code class="bg-gray-100 px-2 py-1 rounded">rails-settings-cached</code> and similar. Most teams that use them eventually replace with explicit config classes or feature flags.</li>
+        <li><strong>API documentation auto-gen.</strong> <code class="bg-gray-100 px-2 py-1 rounded">rswag</code>, <code class="bg-gray-100 px-2 py-1 rounded">apipie-rails</code>. Maintenance burden usually outweighs the auto-generated docs. Teams revert to writing OpenAPI by hand or using Postman.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The pattern: each of these solves a problem in a way that feels like help at first and becomes a constraint at scale. <strong>The senior heuristic is to add gems for problems that are genuinely hard (auth, background jobs, observability) and write code for problems that are only verbose (state, pagination, soft delete).</strong>
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Every gem is a debt. Maintainable for now, frozen later, deprecated eventually, plus a security review on every CVE. The teams that move fastest are the ones who use gems for the load-bearing parts of an app (auth, async work, persistence) and write the rest themselves. The teams that move slowest are the ones whose Gemfile is 80 lines long and whose <code class="bg-gray-100 px-2 py-1 rounded">bundle update</code> is a six-hour event.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The 2026 default is shorter than the 2020 default. Rails 8 absorbed several common gem categories (auth, queue, cache, deploy) into the framework itself. The senior reflex is to use what the framework offers, and to add gems only when the framework's option does not fit the actual problem.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/rails-8-features",               title: "Rails 8 Features Explained",                 blurb: "what the framework absorbed that used to need gems" },
+      { href: "/lessons/modern-rails-stack-2026",        title: "The Modern Rails Stack",                     blurb: "the gem picks in their actual deployment context" },
+      { href: "/lessons/sidekiq-vs-solid-queue",         title: "Sidekiq vs Solid Queue",                     blurb: "the headline gem decision in any new Rails app" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Back to Course</a>
+      <span class="text-gray-400 text-sm">2026 Reference</span>
+    </div>
+  </article>
+</Layout>

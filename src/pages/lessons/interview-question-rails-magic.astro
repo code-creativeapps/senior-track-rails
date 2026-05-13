@@ -1,0 +1,125 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview: "What happens when belongs_to runs?" (Rails Magic Explained)' description='The Rails interview question that tests whether the candidate has actually read the source. What belongs_to generates, why it is a method call and not magic, and the depth that signals senior understanding.'>
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:wand" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"What happens when belongs_to runs?"</h1>
+      </div>
+      <p class="text-xl text-gray-600">The Rails interview question that separates candidates who treat the framework as magic from candidates who have read its source. What belongs_to actually generates, why it is a method call, and the depth that signals senior understanding.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Most Rails developers use <code class="bg-gray-100 px-2 py-1 rounded">belongs_to</code> dozens of times before they think about what it does. Active Record declarations look like configuration: a special line that magically adds an association. The senior question is whether the candidate has crossed the line from "I write this and Rails handles it" to "this is Ruby code that runs at class load time and defines methods."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The reason it matters in production: when an association behaves unexpectedly (optional vs required, the foreign key column is named oddly, the inverse_of warning fires), the developer who knows what <code class="bg-gray-100 px-2 py-1 rounded">belongs_to</code> generates can debug it in minutes. The developer who treats it as magic ends up in a four-hour rabbit hole.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The follow-ups extend the same test to <code class="bg-gray-100 px-2 py-1 rounded">has_many</code>, <code class="bg-gray-100 px-2 py-1 rounded">enum</code>, <code class="bg-gray-100 px-2 py-1 rounded">has_secure_password</code>, and the rest of the macro-style declarations Rails apps rely on.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Typical mid-level response:
+      </p>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "<code class="bg-gray-100 px-2 py-1 rounded">belongs_to :user</code> tells Rails that this model has a foreign key called <code class="bg-gray-100 px-2 py-1 rounded">user_id</code> and that it can fetch the associated user. So if I have a Post, I can call <code class="bg-gray-100 px-2 py-1 rounded">post.user</code> and Rails will run a query to find the user."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        This is correct at the user-facing level. What it misses is that <code class="bg-gray-100 px-2 py-1 rounded">belongs_to</code> is itself a Ruby method, that it runs when the class is loaded, and that it defines several methods on the class. The mid-level answer treats <code class="bg-gray-100 px-2 py-1 rounded">belongs_to</code> as a declaration; the senior answer treats it as a method call with side effects.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The senior response covers three points: it is a method call, what methods it generates, and what configuration it tracks for the rest of the framework.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>It is a method call.</strong> "<code class="bg-gray-100 px-2 py-1 rounded">belongs_to</code> is a class method defined in <code class="bg-gray-100 px-2 py-1 rounded">ActiveRecord::Associations::ClassMethods</code>. When Rails loads the Post model, it evaluates the class body line by line. When it hits <code class="bg-gray-100 px-2 py-1 rounded">belongs_to :user</code>, that calls the method on the class with <code class="bg-gray-100 px-2 py-1 rounded">:user</code> as an argument. It is not a special declaration; it is plain Ruby."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>What it generates.</strong> "The method builds a Reflection object that holds the association's metadata (the name, the foreign key, the target class, the options) and stores it on the class. Then it uses <code class="bg-gray-100 px-2 py-1 rounded">define_method</code> to add several methods to the model:
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><code class="bg-gray-100 px-2 py-1 rounded">user</code>: returns the associated User, loading it lazily on first call, memoizing the result.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">user=</code>: assigns a new User to the association, updating the foreign key.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">build_user</code>: instantiates a new User without saving, linked via the foreign key.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">create_user</code>: instantiates and saves a User, linked via the foreign key.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">create_user!</code>: the bang version, raising on validation failure.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">reload_user</code>: re-fetches the User from the database, bypassing the memoization.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        Plus a validation (presence of the foreign key, default in Rails 5+, can be turned off with <code class="bg-gray-100 px-2 py-1 rounded">optional: true</code>) and an autosave hook that saves the associated record if it has been modified."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The reflection metadata.</strong> "The Reflection object stays on the class and is used by other parts of the framework. Eager loading (<code class="bg-gray-100 px-2 py-1 rounded">includes</code>, <code class="bg-gray-100 px-2 py-1 rounded">preload</code>, <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code>) reads it to know what to join. The route helpers for nested resources read it. Form builders use it. <code class="bg-gray-100 px-2 py-1 rounded">Post.reflect_on_association(:user)</code> exposes it for application code; it is the same object Rails internals read."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What is the difference between <code class="bg-gray-100 px-2 py-1 rounded">optional: true</code> and the old <code class="bg-gray-100 px-2 py-1 rounded">required: false</code>?"</strong> The right answer: pre-Rails 5, belongs_to was optional by default; you opted in to required with <code class="bg-gray-100 px-2 py-1 rounded">required: true</code>. Rails 5 flipped the default: required by default; you opt out with <code class="bg-gray-100 px-2 py-1 rounded">optional: true</code>. The old API still works but is discouraged. A senior who has upgraded a pre-Rails-5 app will mention this.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What does <code class="bg-gray-100 px-2 py-1 rounded">inverse_of</code> do?"</strong> The right answer: it tells Active Record that two associations on different models reference each other, so memoization is bidirectional. Without it, <code class="bg-gray-100 px-2 py-1 rounded">post.user.posts</code> would re-query the posts even though Post is already loaded. Rails 4+ infers <code class="bg-gray-100 px-2 py-1 rounded">inverse_of</code> automatically in most cases; explicit <code class="bg-gray-100 px-2 py-1 rounded">inverse_of</code> is needed for non-conventional associations (custom <code class="bg-gray-100 px-2 py-1 rounded">foreign_key</code>, <code class="bg-gray-100 px-2 py-1 rounded">class_name</code>, scope).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"Where does the SQL come from?"</strong> The right answer walks the relevant layers. The association proxy (when you call <code class="bg-gray-100 px-2 py-1 rounded">post.user</code>) checks if the target is loaded; if not, it builds a Relation, then Arel (Rails's SQL AST) converts the Relation to a SQL string, the database adapter sends it to Postgres. The result rows hydrate into a User object via <code class="bg-gray-100 px-2 py-1 rounded">Post::reflections[:user].build_record(...)</code>. The whole flow is in <code class="bg-gray-100 px-2 py-1 rounded">activerecord/lib/active_record/associations/</code> in the Rails source.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What happens at <code class="bg-gray-100 px-2 py-1 rounded">post.user_id = 42</code>?"</strong> The right answer: setting the foreign key directly does <em>not</em> change the cached <code class="bg-gray-100 px-2 py-1 rounded">user</code>. The next call to <code class="bg-gray-100 px-2 py-1 rounded">post.user</code> returns the old memoized User, not the user with id 42. To force a reload, call <code class="bg-gray-100 px-2 py-1 rounded">post.reload</code> or <code class="bg-gray-100 px-2 py-1 rounded">post.user(true)</code> (deprecated) or <code class="bg-gray-100 px-2 py-1 rounded">post.reload_user</code>. This is one of the most common N+1-adjacent bugs in production Rails apps.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What signals what</h2>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"It adds an association."</strong> Junior. Tautological.</li>
+        <li><strong>"It tells Rails about the foreign key."</strong> Mid. Mechanical but surface-level.</li>
+        <li><strong>"It is a method call that adds reader/writer/build/create methods, plus a reflection, plus a validation."</strong> Senior. Has crossed from declarations to code.</li>
+        <li><strong>"And the reflection is what eager loading and the form builders read; that is why <code class="bg-gray-100 px-2 py-1 rounded">reflect_on_association</code> is part of the public API."</strong> Senior+. Has read the source and used the public reflection API.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The strongest signal: a candidate who has at some point opened the Rails source to figure something out and can mention which file or directory they looked at. "I once had a weird inverse_of issue and ended up reading <code class="bg-gray-100 px-2 py-1 rounded">activerecord/lib/active_record/associations/builder/</code>" is the kind of detail that makes interviewers relax.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Rails declarations are method calls. <code class="bg-gray-100 px-2 py-1 rounded">belongs_to</code>, <code class="bg-gray-100 px-2 py-1 rounded">has_many</code>, <code class="bg-gray-100 px-2 py-1 rounded">enum</code>, <code class="bg-gray-100 px-2 py-1 rounded">has_secure_password</code>, <code class="bg-gray-100 px-2 py-1 rounded">delegated_type</code>, <code class="bg-gray-100 px-2 py-1 rounded">before_action</code>: every one of these is a class method that runs at load time and defines other methods or registers callbacks. Knowing this turns the framework from magic into Ruby.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The senior reflex is to ask, when something behaves unexpectedly: what did this declaration generate, and where is that code? The answer is almost always findable in 30 minutes if you know to look. Candidates who can demonstrate that reflex in an interview signal they will not be stuck when Rails surprises them in production.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/source-belongs-to",         title: "What belongs_to actually adds",              blurb: "the deep dive this question samples" },
+      { href: "/lessons/source-has-many",           title: "What has_many actually adds",                blurb: "the inverse declaration, same shape" },
+      { href: "/lessons/source-enum",               title: "What enum generates",                        blurb: "another Rails 'magic' macro decoded" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/lessons/interview-question-request-cycle" class="text-ruby hover:text-ruby-dark transition-colors">← "Walk me through a Rails request"</a>
+      <a href="/lessons/interview-question-service-objects" class="text-ruby hover:text-ruby-dark transition-colors">"Tell me about service objects" →</a>
+    </div>
+  </article>
+</Layout>

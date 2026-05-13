@@ -27,6 +27,8 @@ function inferSection(pathname: string): { name: string; href: string } | null {
   const rules: Array<[RegExp, { name: string; href: string }]> = [
     [/^hotwire-vs-/,                              { name: 'Hotwire',                 href: '/hotwire' }],
     [/^sidekiq-vs-solid-queue|^postgres-vs-/,     { name: 'rails/learn',             href: '/' }],
+    [/^rails-8-features$|^best-rails-gems-|^modern-rails-stack-/, { name: '2026 Reference',  href: '/' }],
+    [/^interview-question-/,                      { name: 'Interview Prep',          href: '/interview' }],
     [/^senior-hotwire-/,  { name: 'Hotwire',                 href: '/hotwire' }],
     [/^senior-db-/,       { name: 'Databases in Production', href: '/databases' }],
     [/^senior-scaling-/,  { name: 'Scaling Rails Apps',      href: '/scaling' }],

@@ -1,0 +1,123 @@
+---
+import { Icon } from 'astro-icon/components';
+import Layout from '../../layouts/Layout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import RelatedLessons from '../../components/RelatedLessons.astro';
+---
+
+<Layout title='Interview Question: "How do you find and fix N+1 queries in Rails?"' description='The Rails interview question that separates mid from senior. What the interviewer is checking, what mid-level answers sound like, the senior answer that demonstrates depth, and the follow-ups to expect.'>
+  <article class="max-w-3xl mx-auto px-6 py-12 space-y-10">
+    <div class="text-center">
+      <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
+        <span>←</span> Back to Course
+      </a>
+      <p class="text-sm uppercase tracking-wider text-ruby font-semibold mb-2">Interview Question</p>
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <Icon name="lucide:mic" class="w-12 h-12 inline-block" aria-hidden="true" />
+        <h1 class="text-4xl font-bold text-gray-900">"How do you find and fix N+1 queries?"</h1>
+      </div>
+      <p class="text-xl text-gray-600">One of the most-asked Rails interview questions, and one of the best at separating mid from senior. What the interviewer is checking, the mid-level answer, the senior answer, and the follow-ups they will reach for.</p>
+    </div>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What the interviewer is actually checking</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The N+1 question is a load-bearing question for Rails interviews because it tests four things at once. Mechanical understanding of how Active Record generates SQL. Operational instinct for spotting performance problems in code review. Tooling familiarity (the right gems, the right log signals). Depth on the underlying SQL behavior, not only the Rails surface.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        A weak answer mentions <code class="bg-gray-100 px-2 py-1 rounded">includes</code> and stops. A strong answer covers detection, the four loading methods, the planner behavior, and the follow-up issues (eager loading the wrong shape, exploding result sets, memory cost on large preloads).
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The interviewer is looking for someone who would actually solve the problem on the team's codebase, not someone who memorised the answer in a prep guide.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The mid-level answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A typical mid-level response looks like this:
+      </p>
+      <blockquote class="border-l-4 border-gray-300 pl-4 italic text-gray-700 leading-relaxed">
+        "N+1 is when you have one query to fetch a list, then one more query per row to fetch an associated record. You fix it with <code class="bg-gray-100 px-2 py-1 rounded">includes</code> — like <code class="bg-gray-100 px-2 py-1 rounded">Post.includes(:author)</code>. That tells Rails to load the authors in advance so it does not fire a query per post."
+      </blockquote>
+      <p class="text-gray-700 leading-relaxed">
+        This is correct as far as it goes. What it misses is everything that makes the question interesting: how you would detect the problem in the first place, what <code class="bg-gray-100 px-2 py-1 rounded">includes</code> actually does, when it is the wrong tool, and what happens when the preload itself becomes a performance problem.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        For a senior position, this answer signals "knows the textbook fix, not what to do when the textbook fix has issues."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The senior answer</h2>
+      <p class="text-gray-700 leading-relaxed">
+        A senior answer covers four points: detection, the four loading methods, choosing the right one for the access pattern, and the failure modes seniors actually hit.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Detection.</strong> "I look at the Rails log in development and watch for repeated similar SQL in a single request. Three signals: a sequence of <code class="bg-gray-100 px-2 py-1 rounded">SELECT * FROM authors WHERE id = ?</code> with different ids; the <code class="bg-gray-100 px-2 py-1 rounded">bullet</code> gem flagging unused or missing eager-loads; <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code> in production showing one query with very high <code class="bg-gray-100 px-2 py-1 rounded">calls</code> count. In an unfamiliar codebase, I would add bullet, run through the slow pages once, and let it report what is missing."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>The four loading methods.</strong> "Active Record has four. <code class="bg-gray-100 px-2 py-1 rounded">preload</code> always does two queries: one for the parent, one for the children with <code class="bg-gray-100 px-2 py-1 rounded">WHERE parent_id IN (...)</code>. <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> does one query with a LEFT OUTER JOIN. <code class="bg-gray-100 px-2 py-1 rounded">includes</code> picks one of the two based on whether the WHERE clause references the associated table; it is preload by default and upgrades to eager_load when needed. <code class="bg-gray-100 px-2 py-1 rounded">joins</code> does an INNER JOIN but does not load the associated records into memory; useful only for filtering."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Choosing.</strong> "If I am only filtering by the associated table, <code class="bg-gray-100 px-2 py-1 rounded">joins</code> is right. If I need to read the association after the query, <code class="bg-gray-100 px-2 py-1 rounded">preload</code> is usually safer because the two-query shape avoids JOIN-induced row multiplication on collections. <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> is right when I need to filter or sort by the association and read it after. <code class="bg-gray-100 px-2 py-1 rounded">includes</code> is fine for simple cases but I lean toward explicit <code class="bg-gray-100 px-2 py-1 rounded">preload</code> or <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code> when correctness matters."
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>Failure modes.</strong> "Two come up. First, eager loading a has_many that explodes: a Post with 1000 comments preloaded into memory uses 1000× the memory of the single Post row. <code class="bg-gray-100 px-2 py-1 rounded">extract_associated</code> or a separate scoped query is better when the per-record collection is large. Second, eager loading a polymorphic association without specifying the types loads every concrete class, which can be wrong; use <code class="bg-gray-100 px-2 py-1 rounded">includes(:owner).where(owner_type: ...)</code> or explicit polymorphic preloading."
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The follow-ups</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Most interviewers will press on three areas after the headline answer.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"What does <code class="bg-gray-100 px-2 py-1 rounded">includes</code> actually do under the hood?"</strong> This is testing whether you know about the runtime decision between preload and eager_load. The right answer names the heuristic: Active Record checks if the SQL references the joined table; if yes, it generates a JOIN; if no, two queries. Mention <code class="bg-gray-100 px-2 py-1 rounded">references</code> as the explicit hint for when the heuristic gets it wrong.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"You eager-loaded but the query is still slow. What now?"</strong> This is testing whether you can read the actual SQL. The right answer: open <a href="/lessons/senior-db-explain-analyze" class="text-ruby underline hover:text-ruby-dark">EXPLAIN ANALYZE</a> on the generated query. Look at row estimates vs actual. Consider whether the JOIN is producing exploded result sets that need to be reorganised into preload-style two queries.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        <strong>"Tell me about counter caches."</strong> Sometimes the interviewer wants to test whether you know the alternative to repeatedly querying for <code class="bg-gray-100 px-2 py-1 rounded">post.comments.count</code>. Counter caches store the count denormalised on the parent; <code class="bg-gray-100 px-2 py-1 rounded">belongs_to :post, counter_cache: true</code> on the child. Cheap reads, slightly more complicated writes (covered in <a href="/lessons/senior-scaling-hot-rows" class="text-ruby underline hover:text-ruby-dark">Hot Rows & Contention</a> when counters become a contention point).
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">What signals what</h2>
+      <p class="text-gray-700 leading-relaxed">
+        Some phrases in candidate answers carry strong signal.
+      </p>
+      <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
+        <li><strong>"I would add <code class="bg-gray-100 px-2 py-1 rounded">includes</code>."</strong> Junior. Knows the textbook answer, not the trade-offs.</li>
+        <li><strong>"I use bullet in development."</strong> Mid. Has shipped enough to have hit the problem and reached for tooling.</li>
+        <li><strong>"<code class="bg-gray-100 px-2 py-1 rounded">includes</code> is fine, but I prefer explicit preload because of the JOIN-multiplication issue."</strong> Senior. Has hit edge cases and developed a heuristic.</li>
+        <li><strong>"I look at pg_stat_statements first because the production version of this problem is the one that matters."</strong> Senior+. Thinks in terms of where the problem is observable, not only where it is in code.</li>
+      </ul>
+      <p class="text-gray-700 leading-relaxed">
+        The pattern: depth comes from having hit the failure modes, not from having read about the textbook fix. A candidate who can name one specific N+1 they fixed in a previous job, with the symptom and the actual change, is more convincing than one who recites the loading methods perfectly.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-3xl font-bold text-gray-900">The principle at play</h2>
+      <p class="text-gray-700 leading-relaxed">
+        The N+1 question is short but it covers a wide surface: Rails internals, SQL, profiling tools, production debugging, and the trade-offs of denormalised counters. A senior answer threads through all of them in 60 to 90 seconds.
+      </p>
+      <p class="text-gray-700 leading-relaxed">
+        The interview reframing: when you get this question, do not optimise for completeness. Optimise for showing one specific war story plus the heuristic you took from it. That signals "this person has shipped Rails apps and learned from production" more reliably than reciting four loading methods.
+      </p>
+    </section>
+
+    <RelatedLessons lessons={[
+      { href: "/lessons/senior-eager-loading",       title: "Rails Eager Loading",                        blurb: "the full deep-dive this question samples" },
+      { href: "/lessons/senior-db-explain-analyze",  title: "EXPLAIN ANALYZE for Rails developers",       blurb: "the production-debugging skill behind the answer" },
+      { href: "/lessons/interview-question-includes-preload-joins", title: "includes vs preload vs joins", blurb: "the follow-up question, expanded" },
+    ]} />
+
+    <div class="flex justify-between items-center pt-8 border-t border-gray-200">
+      <a href="/interview" class="text-ruby hover:text-ruby-dark transition-colors">← Interview Prep</a>
+      <a href="/lessons/interview-question-request-cycle" class="text-ruby hover:text-ruby-dark transition-colors">"Walk me through a Rails request" →</a>
+    </div>
+  </article>
+</Layout>
