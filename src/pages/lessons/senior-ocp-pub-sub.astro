@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="OCP 4 of 5 — The Pub-Sub Pattern in Real Rails Code" description="Where pub-sub comes from, why every team eventually wants to react to events without the publisher knowing, and how Rails' ActiveSupport::Notifications powers a stable extension point across the whole framework.">
+<Layout title="OCP 4 of 5: The Pub-Sub Pattern in Real Rails Code" description="Where pub-sub comes from, why every team eventually wants to react to events without the publisher knowing, and how Rails' ActiveSupport::Notifications powers a stable extension point across the whole framework.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -117,11 +117,11 @@ end`} language="ruby" />
         ActiveSupport::Notifications is not only for your code. <strong>Rails core publishes events for almost every interesting operation it performs.</strong> You can subscribe to these to add behavior without modifying Rails:
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><code class="bg-gray-100 px-2 py-1 rounded">"sql.active_record"</code> — every SQL query Rails issues. The Rails log line "User Load (1.2ms) SELECT…" is a subscriber on this event.</li>
-        <li><code class="bg-gray-100 px-2 py-1 rounded">"process_action.action_controller"</code> — every controller action that completes (or fails). Payload includes status, duration, view runtime, DB runtime, allocations.</li>
-        <li><code class="bg-gray-100 px-2 py-1 rounded">"deliver.action_mailer"</code> — every email sent. Payload includes recipient, subject, body size.</li>
-        <li><code class="bg-gray-100 px-2 py-1 rounded">"cache_read.active_support"</code>, <code class="bg-gray-100 px-2 py-1 rounded">"cache_write.active_support"</code>, <code class="bg-gray-100 px-2 py-1 rounded">"cache_delete.active_support"</code> — every cache operation.</li>
-        <li><code class="bg-gray-100 px-2 py-1 rounded">"render_template.action_view"</code> — every view template render.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">"sql.active_record"</code>, every SQL query Rails issues. The Rails log line "User Load (1.2ms) SELECT…" is a subscriber on this event.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">"process_action.action_controller"</code>, every controller action that completes (or fails). Payload includes status, duration, view runtime, DB runtime, allocations.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">"deliver.action_mailer"</code>, every email sent. Payload includes recipient, subject, body size.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">"cache_read.active_support"</code>, <code class="bg-gray-100 px-2 py-1 rounded">"cache_write.active_support"</code>, <code class="bg-gray-100 px-2 py-1 rounded">"cache_delete.active_support"</code>, every cache operation.</li>
+        <li><code class="bg-gray-100 px-2 py-1 rounded">"render_template.action_view"</code>, every view template render.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
         <strong>This is the most under-used extension point in Rails.</strong> Want to log slow SQL queries to a separate file? Subscribe to <code class="bg-gray-100 px-2 py-1 rounded">"sql.active_record"</code>, filter on duration, write to a logger. Want to send your N+1 detector data to your APM? Subscribe and forward. Want to add request tracing? Subscribe to <code class="bg-gray-100 px-2 py-1 rounded">"process_action"</code> and emit spans.
@@ -161,7 +161,7 @@ end`} language="ruby" />
       </ul>
       <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p class="text-gray-700 text-sm">
-          <strong>The right time to reach for pub-sub is when an event has three or more independent reactions, each owned by a different team, and the publisher does not need to know whether any of them succeeded.</strong> Order creation, user signup, payment captured, content published — all of these tend to grow into the multi-subscriber shape.
+          <strong>The right time to reach for pub-sub is when an event has three or more independent reactions, each owned by a different team, and the publisher does not need to know whether any of them succeeded.</strong> Order creation, user signup, payment captured, content published, all of these tend to grow into the multi-subscriber shape.
         </p>
       </div>
     </section>
@@ -183,13 +183,13 @@ end`} language="ruby" />
         <li>Open your three largest models. Count the <code class="bg-gray-100 px-2 py-1 rounded">after_*</code> callbacks (after_create, after_update, after_commit, after_destroy). <strong>Each one is a place where the model is doing something for someone else's team.</strong></li>
         <li>For each callback, ask: <strong>does the model need to know whether this side effect succeeded?</strong> If yes, keep it as a callback (or move it into a service object). If no, it is a pub-sub candidate.</li>
         <li>Sketch the event name and payload for the strongest candidate. <strong>Event names follow the convention "&#123;noun&#125;.&#123;past_tense_verb&#125;"</strong>: <code class="bg-gray-100 px-2 py-1 rounded">order.created</code>, <code class="bg-gray-100 px-2 py-1 rounded">user.signed_up</code>, <code class="bg-gray-100 px-2 py-1 rounded">subscription.canceled</code>. The payload is a hash of the data subscribers need.</li>
-        <li>Bonus: run this in a Rails console — <code class="bg-gray-100 px-2 py-1 rounded">ActiveSupport::Notifications.subscribe("sql.active_record") &#123; |*, payload| puts payload[:sql] &#125;</code> — then load a page in your dev app. <strong>Every query Rails ran will print.</strong> That is the extension point Rails itself uses, available to you for free.</li>
+        <li>Bonus: run this in a Rails console, <code class="bg-gray-100 px-2 py-1 rounded">ActiveSupport::Notifications.subscribe("sql.active_record") &#123; |*, payload| puts payload[:sql] &#125;</code>, then load a page in your dev app. <strong>Every query Rails ran will print.</strong> That is the extension point Rails itself uses, available to you for free.</li>
       </ol>
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-ocp-middleware" class="text-ruby hover:text-ruby-dark transition-colors">← OCP 3 — Middleware</a>
-      <a href="/lessons/senior-ocp-delegated-type" class="text-ruby hover:text-ruby-dark transition-colors">OCP 5 — delegated_type →</a>
+      <a href="/lessons/senior-ocp-middleware" class="text-ruby hover:text-ruby-dark transition-colors">← OCP 3, Middleware</a>
+      <a href="/lessons/senior-ocp-delegated-type" class="text-ruby hover:text-ruby-dark transition-colors">OCP 5, delegated_type →</a>
     </div>
   </article>
 </Layout>

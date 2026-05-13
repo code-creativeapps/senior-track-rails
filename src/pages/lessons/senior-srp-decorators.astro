@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="SRP 5 of 7 — Decorators in Real Rails Code" description="Where decorators come from, why display logic keeps creeping into models, and how Forem uses OrganizationDecorator to keep view concerns out of its data layer.">
+<Layout title="SRP 5 of 7: Decorators in Real Rails Code" description="Where decorators come from, why display logic keeps creeping into models, and how Forem uses OrganizationDecorator to keep view concerns out of its data layer.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -160,8 +160,8 @@ end
         Rails ships with helpers (<code class="bg-gray-100 px-2 py-1 rounded">app/helpers/</code>) for view-layer utilities. <strong>Helpers and decorators overlap, and the choice between them matters.</strong> The rule of thumb:
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong>Helper</strong> — for view-layer utilities that do not center on a specific model. Formatting a money amount, rendering a flash message, building a navigation list, generating a CSS class from a status string.</li>
-        <li><strong>Decorator</strong> — for display logic <em>about a specific record</em>. Anything that would otherwise have been a method on the model named <code class="bg-gray-100 px-2 py-1 rounded">&#123;model&#125;.formatted_x_for_view</code> or <code class="bg-gray-100 px-2 py-1 rounded">&#123;model&#125;.display_y</code>.</li>
+        <li><strong>Helper</strong>, for view-layer utilities that do not center on a specific model. Formatting a money amount, rendering a flash message, building a navigation list, generating a CSS class from a status string.</li>
+        <li><strong>Decorator</strong>, for display logic <em>about a specific record</em>. Anything that would otherwise have been a method on the model named <code class="bg-gray-100 px-2 py-1 rounded">&#123;model&#125;.formatted_x_for_view</code> or <code class="bg-gray-100 px-2 py-1 rounded">&#123;model&#125;.display_y</code>.</li>
       </ul>
       <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p class="text-gray-700 text-sm">
@@ -186,14 +186,14 @@ end
       <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
         <li>Open your largest model. Search for methods that exist only to be called from a view: anything ending in <code class="bg-gray-100 px-2 py-1 rounded">_for_display</code>, <code class="bg-gray-100 px-2 py-1 rounded">_html</code>, <code class="bg-gray-100 px-2 py-1 rounded">_text</code>, <code class="bg-gray-100 px-2 py-1 rounded">formatted_*</code>, <code class="bg-gray-100 px-2 py-1 rounded">display_*</code>, or that return HTML-safe strings.</li>
         <li>For each one, ask the question: <strong>"Would I ever call this from a Sidekiq job, a Rake task, or an importer?"</strong> If the answer is no, it is display logic and it belongs in a decorator.</li>
-        <li>Sketch the decorator. Common name pattern: <code class="bg-gray-100 px-2 py-1 rounded">&#123;Model&#125;Decorator</code>. List the methods that move over. <strong>Visualize the model file with those methods gone — that is the version of the model you actually want.</strong></li>
+        <li>Sketch the decorator. Common name pattern: <code class="bg-gray-100 px-2 py-1 rounded">&#123;Model&#125;Decorator</code>. List the methods that move over. <strong>Visualize the model file with those methods gone, that is the version of the model you actually want.</strong></li>
         <li>Bonus: open <code class="bg-gray-100 px-2 py-1 rounded">app/views/</code> and look for ternary expressions, inline hex colors, or <code class="bg-gray-100 px-2 py-1 rounded">if/else</code> branches choosing what to display. <strong>Each of those is presentation logic that escaped into the markup.</strong> Decorators are usually the better home.</li>
       </ol>
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-srp-policy-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 4 — Policy Objects</a>
-      <a href="/lessons/senior-srp-concerns" class="text-ruby hover:text-ruby-dark transition-colors">SRP 6 — Concerns →</a>
+      <a href="/lessons/senior-srp-policy-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 4, Policy Objects</a>
+      <a href="/lessons/senior-srp-concerns" class="text-ruby hover:text-ruby-dark transition-colors">SRP 6, Concerns →</a>
     </div>
   </article>
 </Layout>

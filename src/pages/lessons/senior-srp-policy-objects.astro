@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="SRP 4 of 7 — Policy Objects in Real Rails Code" description="Where policy objects come from, why authorization keeps escaping into the wrong files, and how Forem uses ListingPolicy to keep auth rules co-located with the resources they protect.">
+<Layout title="SRP 4 of 7: Policy Objects in Real Rails Code" description="Where policy objects come from, why authorization keeps escaping into the wrong files, and how Forem uses ListingPolicy to keep auth rules co-located with the resources they protect.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -21,7 +21,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
       <p class="text-gray-700 leading-relaxed">
-        Authorization in Rails has been through several generations. The earliest apps put it on the user model — <code class="bg-gray-100 px-2 py-1 rounded">user.admin?</code>, <code class="bg-gray-100 px-2 py-1 rounded">user.can_edit?(post)</code>, <code class="bg-gray-100 px-2 py-1 rounded">user.can_destroy?(comment)</code>. <strong>Every "who is allowed to do what" question became a predicate method on User.</strong> When the app had three resources, this was manageable. When it had thirty, the User model had hundreds of methods named after every other model in the codebase.
+        Authorization in Rails has been through several generations. The earliest apps put it on the user model, <code class="bg-gray-100 px-2 py-1 rounded">user.admin?</code>, <code class="bg-gray-100 px-2 py-1 rounded">user.can_edit?(post)</code>, <code class="bg-gray-100 px-2 py-1 rounded">user.can_destroy?(comment)</code>. <strong>Every "who is allowed to do what" question became a predicate method on User.</strong> When the app had three resources, this was manageable. When it had thirty, the User model had hundreds of methods named after every other model in the codebase.
       </p>
       <p class="text-gray-700 leading-relaxed">
         The first generation of authorization gems tried to fix this by giving the rules their own home. <strong>CanCan</strong>, released by Ryan Bates in 2009, introduced a single <code class="bg-gray-100 px-2 py-1 rounded">Ability</code> class that contained every authorization rule in the system. The rules used a DSL: <code class="bg-gray-100 px-2 py-1 rounded">can :update, Post, user_id: user.id</code>. <strong>It pulled the rules off User, but it put them all into one file</strong>, which became its own kind of problem at scale. A rule change for listings meant editing the same file that owned rules for comments, articles, and reactions.
@@ -154,16 +154,16 @@ end`} language="ruby" />
         Four benefits, each one addressing a specific failure of the no-policy version.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>User stops being the answer to every authorization question.</strong> The User model describes who the user is — the columns, the associations, the account state. The ListingPolicy describes what someone can do to a listing. <strong>A new resource means a new policy file, not a User edit.</strong> The number of teams editing User collapses back to one.
+        <strong>User stops being the answer to every authorization question.</strong> The User model describes who the user is, the columns, the associations, the account state. The ListingPolicy describes what someone can do to a listing. <strong>A new resource means a new policy file, not a User edit.</strong> The number of teams editing User collapses back to one.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>The same policy is consulted from every caller.</strong> Controller, API endpoint, GraphQL resolver, background importer, console session — every one of them asks <code class="bg-gray-100 px-2 py-1 rounded">ListingPolicy.new(user, listing).edit?</code>. <strong>There is no risk of the API and the web UI enforcing different rules</strong>, because there is only one rule and every caller routes through it.
+        <strong>The same policy is consulted from every caller.</strong> Controller, API endpoint, GraphQL resolver, background importer, console session, every one of them asks <code class="bg-gray-100 px-2 py-1 rounded">ListingPolicy.new(user, listing).edit?</code>. <strong>There is no risk of the API and the web UI enforcing different rules</strong>, because there is only one rule and every caller routes through it.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>Tests get fast.</strong> A policy spec instantiates the policy with a user and a record and asserts on the predicates. No HTTP, no DB transactions, no controller cycle. <strong>"Alice can edit her own listing, Alice cannot edit Bob's, an org admin can edit any listing in their org"</strong> is three test cases, three assertions, milliseconds each.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Auditability is built in.</strong> "Who can edit a listing?" is one file. Compliance audits, security reviews, new-hire onboarding — all benefit from this kind of locality. <strong>The question "where do we enforce permissions for X?" has a one-word answer: <code class="bg-gray-100 px-2 py-1 rounded">XPolicy</code>.</strong>
+        <strong>Auditability is built in.</strong> "Who can edit a listing?" is one file. Compliance audits, security reviews, new-hire onboarding, all benefit from this kind of locality. <strong>The question "where do we enforce permissions for X?" has a one-word answer: <code class="bg-gray-100 px-2 py-1 rounded">XPolicy</code>.</strong>
       </p>
     </section>
 
@@ -185,8 +185,8 @@ end`} language="ruby" />
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
         <p><strong>Authorization is not a property of the user, and it is not a property of the resource.</strong> It is a relationship between the two of them, evaluated in a specific context. That relationship has its own reasons to change (new compliance rules, new role types, new business logic), and those reasons are separate from "who is the user" and "what is the resource." Giving the relationship its own class is the SRP move.</p>
-        <p>What Pundit got right, in retrospect, was sizing the unit of code to match the unit of change. CanCan had one Ability class for the whole app — one file, every team's rules. Pundit has one policy class per resource — one file, one team's rules. <strong>Smaller scope, less coordination between teams, fewer regressions when one team's rule moves.</strong></p>
-        <p>The pattern generalizes. <strong>Any time a question is asked across many places in your codebase about a specific resource — visibility, billing, eligibility, validation — extract a class whose name names the resource and whose methods name the questions.</strong> Authorization is the most common case, but the technique is the same for anything that has the same "asked everywhere, owned by one team" shape.</p>
+        <p>What Pundit got right, in retrospect, was sizing the unit of code to match the unit of change. CanCan had one Ability class for the whole app, one file, every team's rules. Pundit has one policy class per resource, one file, one team's rules. <strong>Smaller scope, less coordination between teams, fewer regressions when one team's rule moves.</strong></p>
+        <p>The pattern generalizes. <strong>Any time a question is asked across many places in your codebase about a specific resource, visibility, billing, eligibility, validation, extract a class whose name names the resource and whose methods name the questions.</strong> Authorization is the most common case, but the technique is the same for anything that has the same "asked everywhere, owned by one team" shape.</p>
       </div>
     </section>
 
@@ -202,8 +202,8 @@ end`} language="ruby" />
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-srp-query-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 3 — Query Objects</a>
-      <a href="/lessons/senior-srp-decorators" class="text-ruby hover:text-ruby-dark transition-colors">SRP 5 — Decorators →</a>
+      <a href="/lessons/senior-srp-query-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 3, Query Objects</a>
+      <a href="/lessons/senior-srp-decorators" class="text-ruby hover:text-ruby-dark transition-colors">SRP 5, Decorators →</a>
     </div>
   </article>
 </Layout>

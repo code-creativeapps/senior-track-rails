@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="OCP 1 of 5 — The Registry Pattern in Real Rails Code" description="Where the Open/Closed Principle comes from, how the registry pattern applies it, and how Gumroad's PayoutProcessorType lets the team add a new payment processor without touching the existing ones.">
+<Layout title="OCP 1 of 5: The Registry Pattern in Real Rails Code" description="Where the Open/Closed Principle comes from, how the registry pattern applies it, and how Gumroad's PayoutProcessorType lets the team add a new payment processor without touching the existing ones.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -30,7 +30,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
         The Open/Closed Principle says: structure your code so that <strong>new variants arrive as new files, not as edits to existing files</strong>. The existing code stays closed to modification; the system stays open to extension by addition.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        In Rails, the most common shape of this rule is the <strong>registry pattern</strong>. You have an attribute on a record — <code class="bg-gray-100 px-2 py-1 rounded">payment.processor</code>, <code class="bg-gray-100 px-2 py-1 rounded">user.subscription_tier</code>, <code class="bg-gray-100 px-2 py-1 rounded">notification.kind</code> — and at runtime you need to behave differently depending on the value. The wrong move is a <code class="bg-gray-100 px-2 py-1 rounded">case</code> statement scattered across many files. The right move is a single registry class that maps each value to the class that handles it.
+        In Rails, the most common shape of this rule is the <strong>registry pattern</strong>. You have an attribute on a record, <code class="bg-gray-100 px-2 py-1 rounded">payment.processor</code>, <code class="bg-gray-100 px-2 py-1 rounded">user.subscription_tier</code>, <code class="bg-gray-100 px-2 py-1 rounded">notification.kind</code>, and at runtime you need to behave differently depending on the value. The wrong move is a <code class="bg-gray-100 px-2 py-1 rounded">case</code> statement scattered across many files. The right move is a single registry class that maps each value to the class that handles it.
       </p>
     </section>
 
@@ -57,7 +57,7 @@ end`} language="ruby" />
         <strong>This works.</strong> The problem is that the same <code class="bg-gray-100 px-2 py-1 rounded">case payment.processor</code> statement starts appearing in other files. The user model has a "show their default payout method" method. The admin dashboard has a "format the processor name for display" helper. The mailer that sends payout receipts has different copy per processor. The CSV export labels rows by processor. The reporting service computes processor-specific fees.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>By the time the team wants to add Wise as a third processor for international creators, the same logical change needs to land in six different files.</strong> Each one needs a new <code class="bg-gray-100 px-2 py-1 rounded">when "wise"</code> branch. Miss any of them, and a payment to a Wise creator gets the wrong status email, the wrong CSV label, or — worst case — the wrong fee calculation. <strong>Adding one new processor is a six-file pull request, with six chances to introduce a bug.</strong>
+        <strong>By the time the team wants to add Wise as a third processor for international creators, the same logical change needs to land in six different files.</strong> Each one needs a new <code class="bg-gray-100 px-2 py-1 rounded">when "wise"</code> branch. Miss any of them, and a payment to a Wise creator gets the wrong status email, the wrong CSV label, or, worst case, the wrong fee calculation. <strong>Adding one new processor is a six-file pull request, with six chances to introduce a bug.</strong>
       </p>
     </section>
 
@@ -94,7 +94,7 @@ end`} language="ruby" />
         <strong>String constants for each variant.</strong> <code class="bg-gray-100 px-2 py-1 rounded">PAYPAL = "PAYPAL"</code>, <code class="bg-gray-100 px-2 py-1 rounded">STRIPE = "STRIPE"</code>. These are the values stored on the Payment row's <code class="bg-gray-100 px-2 py-1 rounded">processor</code> column. Defining them as constants means the rest of the codebase refers to <code class="bg-gray-100 px-2 py-1 rounded">PayoutProcessorType::STRIPE</code> instead of bare strings, so a typo is a NameError, not a silent miss.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>A private hash mapping each constant to a class.</strong> <code class="bg-gray-100 px-2 py-1 rounded">ALL</code> is the registry. <code class="bg-gray-100 px-2 py-1 rounded">private_constant :ALL</code> means callers cannot reach in and modify it from outside — the only way to look up a class is through the public methods.
+        <strong>A private hash mapping each constant to a class.</strong> <code class="bg-gray-100 px-2 py-1 rounded">ALL</code> is the registry. <code class="bg-gray-100 px-2 py-1 rounded">private_constant :ALL</code> means callers cannot reach in and modify it from outside, the only way to look up a class is through the public methods.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>Two class methods: <code class="bg-gray-100 px-2 py-1 rounded">.get(type)</code> and <code class="bg-gray-100 px-2 py-1 rounded">.all</code>.</strong> <code class="bg-gray-100 px-2 py-1 rounded">.get</code> returns the class that handles a given type, and <code class="bg-gray-100 px-2 py-1 rounded">.all</code> returns the list of supported types. These two methods are the entire public surface of the registry.
@@ -116,7 +116,7 @@ end`} language="ruby" />
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">The contract that makes it work</h2>
       <p class="text-gray-700 leading-relaxed">
-        For the registry to dispatch correctly, <strong>every class it can return must expose the same public methods</strong>. <code class="bg-gray-100 px-2 py-1 rounded">StripePayoutProcessor</code> and <code class="bg-gray-100 px-2 py-1 rounded">PaypalPayoutProcessor</code> have completely different internals — different API libraries, different error mappings, different timing. But their public surface is identical:
+        For the registry to dispatch correctly, <strong>every class it can return must expose the same public methods</strong>. <code class="bg-gray-100 px-2 py-1 rounded">StripePayoutProcessor</code> and <code class="bg-gray-100 px-2 py-1 rounded">PaypalPayoutProcessor</code> have completely different internals, different API libraries, different error mappings, different timing. But their public surface is identical:
       </p>
       <CodeBlock code={`class StripePayoutProcessor
   def self.is_user_payable(user, amount_cents, ...)
@@ -186,16 +186,16 @@ ALL = {
         <span aria-hidden="true">💡</span> The principle at play
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
-        <p>The Open/Closed Principle is a structural answer to a coupling problem. <strong>When the knowledge "what processors do we support" lives in many files, every file is coupled to every processor.</strong> Adding a new processor breaks that coupling by requiring N edits. A registry collapses the coupling into one place — one file knows the list, every other file looks up by identifier and stops caring.</p>
+        <p>The Open/Closed Principle is a structural answer to a coupling problem. <strong>When the knowledge "what processors do we support" lives in many files, every file is coupled to every processor.</strong> Adding a new processor breaks that coupling by requiring N edits. A registry collapses the coupling into one place, one file knows the list, every other file looks up by identifier and stops caring.</p>
         <p>The deeper move, going back to Meyer in 1988, is that <strong>code that depends on an abstraction (the registry's contract) is stable when implementations change</strong>. Code that depends on concrete classes is fragile. The registry mediates between the two: callers know about the contract, the contract knows about the classes, the classes do not know about each other.</p>
-        <p>The registry is the most basic OCP pattern in Rails. The next four lessons in this series build on the same idea — <strong>adding behavior by adding a file</strong> — applied to different shapes of variation: configured backends, pipeline stages, observed events, typed subclasses. All of them are the same instinct: keep the existing code closed, make new behavior additive.</p>
+        <p>The registry is the most basic OCP pattern in Rails. The next four lessons in this series build on the same idea, <strong>adding behavior by adding a file</strong>, applied to different shapes of variation: configured backends, pipeline stages, observed events, typed subclasses. All of them are the same instinct: keep the existing code closed, make new behavior additive.</p>
       </div>
     </section>
 
     <section class="bg-ruby/10 border border-ruby rounded-lg p-6 space-y-4">
       <h3 class="text-xl font-bold text-gray-900">Practice exercise</h3>
       <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
-        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "case " app/ | wc -l</code> to count the case statements in your app. They are not all bugs — some are exhaustive matches over a closed set. But each one is worth a glance.</li>
+        <li>Run <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "case " app/ | wc -l</code> to count the case statements in your app. They are not all bugs, some are exhaustive matches over a closed set. But each one is worth a glance.</li>
         <li>Pick one <code class="bg-gray-100 px-2 py-1 rounded">case</code> statement that switches on a string field (<code class="bg-gray-100 px-2 py-1 rounded">kind</code>, <code class="bg-gray-100 px-2 py-1 rounded">type</code>, <code class="bg-gray-100 px-2 py-1 rounded">status</code>, <code class="bg-gray-100 px-2 py-1 rounded">provider</code>). Note the file.</li>
         <li>Search for the same field elsewhere: <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "field_name" app/</code>. <strong>Count the files that have a <code class="bg-gray-100 px-2 py-1 rounded">case</code> or <code class="bg-gray-100 px-2 py-1 rounded">if</code> branching on that field.</strong></li>
         <li>If the count is one, the code is fine. If it is three or more, there is a registry-shaped opportunity. Sketch the registry: what would the constants be, what would the public contract look like, could every existing variant honor it?</li>
@@ -205,7 +205,7 @@ ALL = {
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Course Home</a>
-      <a href="/lessons/senior-ocp-adapter" class="text-ruby hover:text-ruby-dark transition-colors">OCP 2 — Adapter →</a>
+      <a href="/lessons/senior-ocp-adapter" class="text-ruby hover:text-ruby-dark transition-colors">OCP 2, Adapter →</a>
     </div>
   </article>
 </Layout>

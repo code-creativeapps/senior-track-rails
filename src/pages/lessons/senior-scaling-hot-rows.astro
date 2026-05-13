@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="Scaling 4 of 8 — Hot Rows & Contention" description="Where race conditions on counter caches come from, why the increment! you ship in year one is the deadlock in year three, and how senior Rails apps handle concurrent writes to the same row.">
+<Layout title="Scaling 4 of 8: Hot Rows & Contention" description="Where race conditions on counter caches come from, why the increment! you ship in year one is the deadlock in year three, and how senior Rails apps handle concurrent writes to the same row.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -21,13 +21,13 @@ import CodeBlock from '../../components/CodeBlock.astro';
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
       <p class="text-gray-700 leading-relaxed">
-        Relational databases were designed in the 1970s with one of the strongest correctness guarantees in computing: <strong>ACID transactions</strong>. The "I" stands for Isolation — concurrent transactions cannot see each other's intermediate state. Postgres, MySQL, and every other major database invest enormous engineering effort to make Isolation work efficiently.
+        Relational databases were designed in the 1970s with one of the strongest correctness guarantees in computing: <strong>ACID transactions</strong>. The "I" stands for Isolation, concurrent transactions cannot see each other's intermediate state. Postgres, MySQL, and every other major database invest enormous engineering effort to make Isolation work efficiently.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        Isolation is not free. When two transactions try to update the same row at the same time, the database has to pick one to wait. <strong>For most rows, this is invisible — the lock is held for microseconds and the second transaction waits a moment.</strong> But certain rows in every app are <em>hot</em>: dozens, sometimes hundreds, of transactions per second all want to write to them. Counter caches. Inventory rows. Vote totals. The "current week's leaderboard" record. When a row gets hot, the small per-write lock wait stacks up into seconds of latency, then deadlocks, then production incidents.
+        Isolation is not free. When two transactions try to update the same row at the same time, the database has to pick one to wait. <strong>For most rows, this is invisible, the lock is held for microseconds and the second transaction waits a moment.</strong> But certain rows in every app are <em>hot</em>: dozens, sometimes hundreds, of transactions per second all want to write to them. Counter caches. Inventory rows. Vote totals. The "current week's leaderboard" record. When a row gets hot, the small per-write lock wait stacks up into seconds of latency, then deadlocks, then production incidents.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        Ruby developers learn early that <code class="bg-gray-100 px-2 py-1 rounded">user.posts_count += 1</code> is wrong because of the lost-update problem. The senior version of this knowledge goes further: <strong>even when you use <code class="bg-gray-100 px-2 py-1 rounded">increment!</code> correctly, certain rows become bottlenecks at scale, and the fix is structural — not "be more careful"</strong>.
+        Ruby developers learn early that <code class="bg-gray-100 px-2 py-1 rounded">user.posts_count += 1</code> is wrong because of the lost-update problem. The senior version of this knowledge goes further: <strong>even when you use <code class="bg-gray-100 px-2 py-1 rounded">increment!</code> correctly, certain rows become bottlenecks at scale, and the fix is structural, not "be more careful"</strong>.
       </p>
       <p class="text-gray-700 leading-relaxed">
         This lesson covers the three concrete shapes of hot-row contention in Rails, how to spot them in production, and the patterns senior codebases use to avoid them. <strong>The thread that ties them together: concurrent writes to the same row are physics, not philosophy</strong>. You cannot wish them away with better code; you have to design around them.
@@ -71,7 +71,7 @@ class PostsController < ApplicationController
   end
 end`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        Atomic SQL fixes the lost update. <strong>It does not fix the lock contention.</strong> Every view of the same post takes a row-level lock on the post for the duration of the UPDATE. At 100 views per second on the same post, the UPDATEs serialize — each one waits for the previous one to commit. The database starts logging lock waits. <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_activity</code> fills with rows in the <code class="bg-gray-100 px-2 py-1 rounded">wait_event = "transactionid"</code> state. Latency on every endpoint touching that post climbs.
+        Atomic SQL fixes the lost update. <strong>It does not fix the lock contention.</strong> Every view of the same post takes a row-level lock on the post for the duration of the UPDATE. At 100 views per second on the same post, the UPDATEs serialize, each one waits for the previous one to commit. The database starts logging lock waits. <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_activity</code> fills with rows in the <code class="bg-gray-100 px-2 py-1 rounded">wait_event = "transactionid"</code> state. Latency on every endpoint touching that post climbs.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>Flavor three: deadlock from update order.</strong>
@@ -94,7 +94,7 @@ end
 # Postgres detects the deadlock, aborts one transaction.
 # Application code sees PG::TRDeadlockDetected, raised at random.`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        Each of these is a different shape of the same underlying problem: <strong>shared mutable state in the database, written from multiple concurrent transactions</strong>. The fixes are different, but they all live in the structural-design space — not in "write more careful Ruby."
+        Each of these is a different shape of the same underlying problem: <strong>shared mutable state in the database, written from multiple concurrent transactions</strong>. The fixes are different, but they all live in the structural-design space, not in "write more careful Ruby."
       </p>
     </section>
 
@@ -137,7 +137,7 @@ order.save!
   end
 end`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        <strong>The trick is the <code class="bg-gray-100 px-2 py-1 rounded">.sort</code> on the IDs.</strong> By always locking the lower ID first, all concurrent transfers — regardless of direction — request locks in the same order. Deadlocks become impossible because the cycle in the lock graph cannot form.
+        <strong>The trick is the <code class="bg-gray-100 px-2 py-1 rounded">.sort</code> on the IDs.</strong> By always locking the lower ID first, all concurrent transfers, regardless of direction, request locks in the same order. Deadlocks become impossible because the cycle in the lock graph cannot form.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>Fix 3: aggregation outside the hot row for high-traffic counters.</strong>
@@ -182,7 +182,7 @@ end
 #   UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?
 # Atomic. Safe under concurrency.`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        <strong>counter_cache is the senior-friendly default</strong> as long as the row is not so hot that even the atomic UPDATE becomes contended. When it does — typically at hundreds of writes per second on the same parent — switch to the aggregation pattern in fix 3.
+        <strong>counter_cache is the senior-friendly default</strong> as long as the row is not so hot that even the atomic UPDATE becomes contended. When it does, typically at hundreds of writes per second on the same parent, switch to the aggregation pattern in fix 3.
       </p>
     </section>
 
@@ -211,13 +211,13 @@ WHERE wait_event = 'transactionid' OR wait_event LIKE 'Lock%';
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">What real teams have written</h2>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Shopify's IdentityCache gem</strong> (open-sourced) is partly a response to hot-row contention. By caching frequently-read parent records in memcached, IdentityCache reduces the number of SELECTs that hit the hot row in the first place, which reduces lock contention indirectly. <strong>The lesson worth absorbing is not "use IdentityCache" — it is that Shopify hit this problem at scale and the architectural answer was to read around the database, not to write into it differently.</strong>
+        <strong>Shopify's IdentityCache gem</strong> (open-sourced) is partly a response to hot-row contention. By caching frequently-read parent records in memcached, IdentityCache reduces the number of SELECTs that hit the hot row in the first place, which reduces lock contention indirectly. <strong>The lesson worth absorbing is not "use IdentityCache", it is that Shopify hit this problem at scale and the architectural answer was to read around the database, not to write into it differently.</strong>
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>Artsy Engineering's</strong> public posts on counter caches walk through the same evolution: started with naive <code class="bg-gray-100 px-2 py-1 rounded">user.update(count: count + 1)</code>, hit data drift, migrated to atomic SQL, hit lock contention on hot artworks, moved aggregation to a separate side table. <strong>The blog post traces a single counter through three rewrites over two years</strong>, which is approximately the real-world timeline for any team hitting this class of problem.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>GitHub's engineering writing</strong> on hot-row contention focuses on the issue of "hot rooms" in their notification system — a small number of repositories whose notification rows received vastly more writes than the median. Their architectural answer involved partitioning: routing writes for the hottest repositories to dedicated tables that could be tuned for their write pattern. <strong>Most Rails apps will never need this; the lesson is that even GitHub's solution started with measuring exactly which rows were hot, then designing around them — not preemptively partitioning everything.</strong>
+        <strong>GitHub's engineering writing</strong> on hot-row contention focuses on the issue of "hot rooms" in their notification system, a small number of repositories whose notification rows received vastly more writes than the median. Their architectural answer involved partitioning: routing writes for the hottest repositories to dedicated tables that could be tuned for their write pattern. <strong>Most Rails apps will never need this; the lesson is that even GitHub's solution started with measuring exactly which rows were hot, then designing around them, not preemptively partitioning everything.</strong>
       </p>
     </section>
 
@@ -242,7 +242,7 @@ WHERE wait_event = 'transactionid' OR wait_event LIKE 'Lock%';
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
         <p>Concurrency on shared state is one of the oldest problems in computing, and the database has spent fifty years working on it. <strong>The patterns in this lesson are not Rails-specific; they are translations of database-systems theory into Rails idiom</strong>. Optimistic locking is the version-clock pattern. Lock ordering is deadlock-avoidance. Aggregation tables are sharding-in-miniature. None of them are new ideas; they are old ideas that show up exactly when an app reaches the scale where the textbook problems become real.</p>
-        <p>The deeper move is that <strong>row contention is not a code bug; it is a design constraint imposed by the database's correctness guarantees</strong>. The database is doing its job — keeping the data consistent under concurrent writes. The application's job is to design data structures so that hot rows do not happen, and when they do happen, to provide aggregation points that absorb the load.</p>
+        <p>The deeper move is that <strong>row contention is not a code bug; it is a design constraint imposed by the database's correctness guarantees</strong>. The database is doing its job, keeping the data consistent under concurrent writes. The application's job is to design data structures so that hot rows do not happen, and when they do happen, to provide aggregation points that absorb the load.</p>
         <p>The pragmatic value: <strong>most apps that have a hot-row problem hit it in production with no warning</strong>, because the contention does not appear until traffic crosses a threshold. The senior who has internalized this lesson watches for the early signs (<code class="bg-gray-100 px-2 py-1 rounded">pg_stat_activity</code> waits, occasional deadlock errors) and ships a structural fix before the second incident. The intermediate who has not internalized it adds retries until the deadlocks become "expected behavior."</p>
       </div>
     </section>
@@ -259,8 +259,8 @@ WHERE wait_event = 'transactionid' OR wait_event LIKE 'Lock%';
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-scaling-concurrency" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 3 — Concurrency Model</a>
-      <a href="/lessons/senior-scaling-caching" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 5 — Caching →</a>
+      <a href="/lessons/senior-scaling-concurrency" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 3, Concurrency Model</a>
+      <a href="/lessons/senior-scaling-caching" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 5, Caching →</a>
     </div>
   </article>
 </Layout>

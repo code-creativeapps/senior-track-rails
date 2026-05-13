@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="OCP 3 of 5 — The Middleware Pattern in Real Rails Code" description="Where middleware comes from, why it's the Rack convention that runs the entire Rails stack, and how Sidekiq uses the same shape to let teams add behavior to every job without modifying the worker.">
+<Layout title="OCP 3 of 5: The Middleware Pattern in Real Rails Code" description="Where middleware comes from, why it's the Rack convention that runs the entire Rails stack, and how Sidekiq uses the same shape to let teams add behavior to every job without modifying the worker.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -21,7 +21,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
       <p class="text-gray-700 leading-relaxed">
-        The middleware pattern in Ruby comes from <strong>Rack</strong>, the web server interface specification written by Christian Neukirchen in 2007. Rack defines what it means for a Ruby object to be a "web application": <strong>it must respond to <code class="bg-gray-100 px-2 py-1 rounded">#call(env)</code> and return a three-element array of <code class="bg-gray-100 px-2 py-1 rounded">[status, headers, body]</code></strong>. Every Rack-compatible framework — Rails, Sinatra, Roda, Hanami — speaks this protocol.
+        The middleware pattern in Ruby comes from <strong>Rack</strong>, the web server interface specification written by Christian Neukirchen in 2007. Rack defines what it means for a Ruby object to be a "web application": <strong>it must respond to <code class="bg-gray-100 px-2 py-1 rounded">#call(env)</code> and return a three-element array of <code class="bg-gray-100 px-2 py-1 rounded">[status, headers, body]</code></strong>. Every Rack-compatible framework, Rails, Sinatra, Roda, Hanami, speaks this protocol.
       </p>
       <p class="text-gray-700 leading-relaxed">
         The trick Rack pulled off was making the interface <strong>composable</strong>. A middleware is itself a Rack app: it implements <code class="bg-gray-100 px-2 py-1 rounded">#call(env)</code> and returns a status/headers/body triple. <strong>The only difference is that it wraps another Rack app and gets a chance to act before and after the inner app runs.</strong> A middleware that logs requests calls the inner app, measures the time, and adds a header to the response. A middleware that handles authentication checks the request, and either short-circuits with a 401 or delegates to the inner app.
@@ -61,7 +61,7 @@ end`} language="ruby" />
         <strong>The application controller is now the world's largest pipeline.</strong> Every team that wants something to happen on every request opens this file. The frontend team adds locale detection, the SRE team adds metrics, the security team adds HTTPS enforcement, the observability team adds request tracking. <strong>Six teams editing one file means six reasons that file changes, and six sources of regression every time someone touches it.</strong>
       </p>
       <p class="text-gray-700 leading-relaxed">
-        Worse, several of these concerns should run <em>before Rails even gets the request</em>. <strong>HTTPS enforcement, host authorization, and request ID tagging are not controller concerns — they belong at the boundary of the application, not inside it.</strong> Putting them in the controller means they run after Rails has already routed the request, parsed parameters, instantiated the controller, and loaded the user session. By the time the HTTPS check fails, work has been done that did not need to happen.
+        Worse, several of these concerns should run <em>before Rails even gets the request</em>. <strong>HTTPS enforcement, host authorization, and request ID tagging are not controller concerns, they belong at the boundary of the application, not inside it.</strong> Putting them in the controller means they run after Rails has already routed the request, parsed parameters, instantiated the controller, and loaded the user session. By the time the HTTPS check fails, work has been done that did not need to happen.
       </p>
       <p class="text-gray-700 leading-relaxed">
         Same shape, different domain: background jobs. Without middleware, adding "log every job's duration" or "tag every job with the current request ID" or "skip jobs for soft-deleted users" means editing every worker class. <strong>The cross-cutting concern shotgun-surgeries across the codebase.</strong>
@@ -106,7 +106,7 @@ class SkipDeletedUserJobs
   end
 end`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        Three middlewares, three concerns, three separate files. <strong>Each one wraps the inner job call.</strong> The first measures duration. The second tags thread-local state for the duration of the job. The third short-circuits the chain entirely if a precondition fails — the inner job never even runs.
+        Three middlewares, three concerns, three separate files. <strong>Each one wraps the inner job call.</strong> The first measures duration. The second tags thread-local state for the duration of the job. The third short-circuits the chain entirely if a precondition fails, the inner job never even runs.
       </p>
       <p class="text-gray-700 leading-relaxed">
         Registering them is one configuration block:
@@ -120,7 +120,7 @@ Sidekiq.configure_server do |config|
   end
 end`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        <strong>The order matters.</strong> SkipDeletedUserJobs runs first because there is no point doing anything else if the user is gone. LogJobDuration runs last because it measures the duration of everything that happened inside the chain. <strong>The composition is the design — each middleware is short, focused, and ignorant of the others.</strong>
+        <strong>The order matters.</strong> SkipDeletedUserJobs runs first because there is no point doing anything else if the user is gone. LogJobDuration runs last because it measures the duration of everything that happened inside the chain. <strong>The composition is the design, each middleware is short, focused, and ignorant of the others.</strong>
       </p>
       <p class="text-gray-700 leading-relaxed">
         The worker class itself does not know any of these middlewares exist. <strong>A team adds a new cross-cutting concern by adding a new middleware file, not by editing every worker.</strong>
@@ -136,7 +136,7 @@ end`} language="ruby" />
         <strong>Cross-cutting concerns live in their own files.</strong> Logging is one file. Metrics is one file. Request ID tagging is one file. <strong>Each team that owns one of these concerns owns one file, not a section of a shared controller or a shared worker class.</strong>
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Adding a new concern is one new file.</strong> A new compliance requirement to log the user ID for every request is one new <code class="bg-gray-100 px-2 py-1 rounded">LogUserId</code> middleware, registered in one configuration line. The application controller, the workers, the routes — none of them change. <strong>The blast radius of the new feature is exactly the new file.</strong>
+        <strong>Adding a new concern is one new file.</strong> A new compliance requirement to log the user ID for every request is one new <code class="bg-gray-100 px-2 py-1 rounded">LogUserId</code> middleware, registered in one configuration line. The application controller, the workers, the routes, none of them change. <strong>The blast radius of the new feature is exactly the new file.</strong>
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>Order is explicit.</strong> In the application-controller version, the order of <code class="bg-gray-100 px-2 py-1 rounded">before_action</code> calls is implicit and a frequent source of subtle bugs. In a middleware stack, the order is the literal order of the <code class="bg-gray-100 px-2 py-1 rounded">chain.add</code> calls. <strong>Reading the configuration file tells you exactly what happens, in what order, on every request.</strong>
@@ -161,7 +161,7 @@ end`} language="ruby" />
       </p>
       <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p class="text-gray-700 text-sm">
-          <strong>Use middleware when the concern is truly cross-cutting.</strong> Logging, metrics, security checks, request tracking, locale detection — these apply to every request or every job, regardless of which controller or worker is handling it. <strong>Do not use middleware when the concern is specific to a few endpoints.</strong> A "verify the seller is approved" check for the three seller-facing routes is not middleware; it is a controller filter or a service-object call.
+          <strong>Use middleware when the concern is genuinely cross-cutting.</strong> Logging, metrics, security checks, request tracking, locale detection, these apply to every request or every job, regardless of which controller or worker is handling it. <strong>Do not use middleware when the concern is specific to a few endpoints.</strong> A "verify the seller is approved" check for the three seller-facing routes is not middleware; it is a controller filter or a service-object call.
         </p>
       </div>
     </section>
@@ -188,8 +188,8 @@ end`} language="ruby" />
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-ocp-adapter" class="text-ruby hover:text-ruby-dark transition-colors">← OCP 2 — Adapter</a>
-      <a href="/lessons/senior-ocp-pub-sub" class="text-ruby hover:text-ruby-dark transition-colors">OCP 4 — Pub-Sub →</a>
+      <a href="/lessons/senior-ocp-adapter" class="text-ruby hover:text-ruby-dark transition-colors">← OCP 2, Adapter</a>
+      <a href="/lessons/senior-ocp-pub-sub" class="text-ruby hover:text-ruby-dark transition-colors">OCP 4, Pub-Sub →</a>
     </div>
   </article>
 </Layout>

@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="Scaling 6 of 8 — Background Jobs as a Scaling Tool" description="Where Rails background jobs come from, why the request cycle is for translation rather than work, and how Sidekiq and Solid Queue let teams scale throughput by moving work off the request path.">
+<Layout title="Scaling 6 of 8: Background Jobs as a Scaling Tool" description="Where Rails background jobs come from, why the request cycle is for translation rather than work, and how Sidekiq and Solid Queue let teams scale throughput by moving work off the request path.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -24,16 +24,16 @@ import CodeBlock from '../../components/CodeBlock.astro';
         The HTTP request cycle was designed for translation: <strong>a browser sends a request, the server responds, the connection closes</strong>. Anything that happens between request and response holds resources open: a Puma thread, a database connection, sometimes a load-balancer slot. The longer the response takes, the more concurrent capacity you need to handle the same throughput.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        Rails developers learned this early. The first wave of Rails background-job libraries arrived around 2006-2008 — <strong>BackgrounDRb</strong>, then <strong>delayed_job</strong>, then <strong>Resque</strong>. The core insight was the same across all of them: <strong>move work that does not need to happen synchronously into a separate process that picks up jobs from a queue</strong>. The request cycle stays short; the work still happens; the user does not wait.
+        Rails developers learned this early. The first wave of Rails background-job libraries arrived around 2006-2008, <strong>BackgrounDRb</strong>, then <strong>delayed_job</strong>, then <strong>Resque</strong>. The core insight was the same across all of them: <strong>move work that does not need to happen synchronously into a separate process that picks up jobs from a queue</strong>. The request cycle stays short; the work still happens; the user does not wait.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>Sidekiq</strong>, released by Mike Perham in 2012, became the dominant choice for a decade. It used threads inside one process, backed by Redis, and could process tens of thousands of jobs per second on modest hardware. Rails 4.2 added <strong>ActiveJob</strong> in 2014, an adapter layer that let application code call <code class="bg-gray-100 px-2 py-1 rounded">perform_later</code> without committing to a specific backend.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Solid Queue</strong> arrived with Rails 8 in 2024, written at 37signals for Hey. It is database-backed (Postgres or MySQL), removes the Redis dependency, and ships as the default queue adapter for new Rails 8 apps. <strong>The two-schools framing applies here</strong>: Solid Queue and Sidekiq are both senior choices, with different tradeoffs we will spell out below.
+        <strong>Solid Queue</strong> arrived with Rails 8 in 2024, written at 37signals for Hey. It is database-backed (Postgres or MySQL), removes the Redis dependency, and ships as the default queue adapter for new Rails 8 apps. <strong>The two-schools framing applies here</strong>: Solid Queue and Sidekiq are both senior choices, with different tradeoffs spelled out below.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        The senior rule across all of these: <strong>the request cycle is for translation — turning HTTP requests into model calls and back. The work itself, if it takes more than a few milliseconds, belongs in a background job.</strong>
+        The senior rule across all of these: <strong>the request cycle is for translation, turning HTTP requests into model calls and back. The work itself, if it takes more than a few milliseconds, belongs in a background job.</strong>
       </p>
     </section>
 
@@ -65,7 +65,7 @@ end`} language="ruby" />
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
         <li><strong>Any one of the five integrations failing fails the order.</strong> If Mailchimp is down, the user sees a 500 and the order is half-saved. The team's first fix is usually <code class="bg-gray-100 px-2 py-1 rounded">rescue StandardError</code> blocks around each call, which silently swallows real bugs.</li>
         <li><strong>Slow integrations slow every order.</strong> If Stripe responds in 800ms today and 4 seconds during a Stripe incident, every order takes 4+ seconds, and the team's web dynos run out of threads.</li>
-        <li><strong>Throughput is bottlenecked on the slowest external service.</strong> The team's web capacity is not "how many requests can Puma serve" — it is "how long does the slowest external call take, times the request rate."</li>
+        <li><strong>Throughput is bottlenecked on the slowest external service.</strong> The team's web capacity is not "how many requests can Puma serve", it is "how long does the slowest external call take, times the request rate."</li>
         <li><strong>Retries are not possible.</strong> If Slack's API returns a 429 rate-limit response, there is no way to retry without retrying the whole order.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
@@ -110,7 +110,7 @@ end`} language="ruby" />
         Two structural patterns to notice:
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>1. Pass record IDs, not records.</strong> <code class="bg-gray-100 px-2 py-1 rounded">ChargeOrderJob.perform_later(@order.id)</code>, not <code class="bg-gray-100 px-2 py-1 rounded">ChargeOrderJob.perform_later(@order)</code>. The job will run later — possibly minutes later — and the record may have changed in the meantime. <strong>Re-fetching from the database inside the job means the job always works on the current state of the record</strong>, not a frozen snapshot from the request.
+        <strong>1. Pass record IDs, not records.</strong> <code class="bg-gray-100 px-2 py-1 rounded">ChargeOrderJob.perform_later(@order.id)</code>, not <code class="bg-gray-100 px-2 py-1 rounded">ChargeOrderJob.perform_later(@order)</code>. The job will run later, possibly minutes later, and the record may have changed in the meantime. <strong>Re-fetching from the database inside the job means the job always works on the current state of the record</strong>, not a frozen snapshot from the request.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>2. Make jobs idempotent.</strong> <code class="bg-gray-100 px-2 py-1 rounded">return if order.charged?</code> means running the job twice never charges the card twice. <strong>This is the single most important property of a well-designed background job</strong>: it can be re-run safely, because retries, manual re-queues, and rare delivery duplications are all normal. <strong>"Crash the dyno mid-job, re-run it on restart" should result in the same outcome as "run it once cleanly."</strong>
@@ -123,11 +123,11 @@ end`} language="ruby" />
         Two main choices in modern Rails. <strong>Both are senior; the tradeoff is real and worth understanding</strong>:
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong>Sidekiq</strong> (Redis-backed). High throughput — tens of thousands of jobs per second per process. Mature ecosystem (sidekiq-cron, sidekiq-batch, etc.). Excellent web UI for monitoring. Pro/Enterprise tiers add unique-job, batching, and prioritization features. <strong>Requires running Redis as a separate service.</strong></li>
-        <li><strong>Solid Queue</strong> (Postgres- or MySQL-backed). Ships with Rails 8 as the default. <strong>No Redis to operate</strong>. Slightly lower throughput than Sidekiq (Redis is a faster store than Postgres for queue ops), still well above what most apps need. Transactional with your application database — you can enqueue a job inside the same transaction that creates the record.</li>
+        <li><strong>Sidekiq</strong> (Redis-backed). High throughput, tens of thousands of jobs per second per process. Mature ecosystem (sidekiq-cron, sidekiq-batch, etc.). Excellent web UI for monitoring. Pro/Enterprise tiers add unique-job, batching, and prioritization features. <strong>Requires running Redis as a separate service.</strong></li>
+        <li><strong>Solid Queue</strong> (Postgres- or MySQL-backed). Ships with Rails 8 as the default. <strong>No Redis to operate</strong>. Slightly lower throughput than Sidekiq (Redis is a faster store than Postgres for queue ops), still well above what most apps need. Transactional with your application database, you can enqueue a job inside the same transaction that creates the record.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
-        <strong>The choice usually comes down to two questions</strong>: do you already run Redis (then either is fine — Sidekiq is slightly more mature), and is your queue throughput in the "millions of jobs per day" range (then Sidekiq's per-second throughput matters more than for typical apps).
+        <strong>The choice usually comes down to two questions</strong>: do you already run Redis (then either is fine, Sidekiq is slightly more mature), and is your queue throughput in the "millions of jobs per day" range (then Sidekiq's per-second throughput matters more than for typical apps).
       </p>
       <p class="text-gray-700 leading-relaxed">
         The 37signals school uses Solid Queue. Shopify uses Sidekiq. <strong>Both are senior. Pick the one that fits your team's operational baseline.</strong>
@@ -140,9 +140,9 @@ end`} language="ruby" />
         Background jobs fail. The senior question is not "how do I prevent failure" but "what is the retry strategy for each kind of failure?"
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong>Transient errors</strong> (network blip, third-party 503, brief rate limit) — retry with exponential backoff. ActiveJob's <code class="bg-gray-100 px-2 py-1 rounded">retry_on</code> handles this declaratively.</li>
-        <li><strong>Permanent errors</strong> (validation failure, record not found, business rule violation) — discard the job. <code class="bg-gray-100 px-2 py-1 rounded">discard_on ActiveRecord::RecordNotFound</code> is the canonical Rails idiom.</li>
-        <li><strong>Unknown errors</strong> — let the job's default retry kick in. After N attempts (default ~25 in Sidekiq, configurable in Solid Queue), the job goes to a "dead set" for inspection.</li>
+        <li><strong>Transient errors</strong> (network blip, third-party 503, brief rate limit), retry with exponential backoff. ActiveJob's <code class="bg-gray-100 px-2 py-1 rounded">retry_on</code> handles this declaratively.</li>
+        <li><strong>Permanent errors</strong> (validation failure, record not found, business rule violation), discard the job. <code class="bg-gray-100 px-2 py-1 rounded">discard_on ActiveRecord::RecordNotFound</code> is the canonical Rails idiom.</li>
+        <li><strong>Unknown errors</strong>, let the job's default retry kick in. After N attempts (default ~25 in Sidekiq, configurable in Solid Queue), the job goes to a "dead set" for inspection.</li>
       </ul>
       <CodeBlock code={`class ChargeOrderJob < ApplicationJob
   # Transient: retry with backoff
@@ -174,7 +174,7 @@ end`} language="ruby" />
         The fixes:
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong>Exponential backoff with jitter.</strong> Rails 7+ ActiveJob ships <code class="bg-gray-100 px-2 py-1 rounded">wait: :polynomially_longer</code> for retries; it includes randomization so retries do not align. <strong>Never use a fixed retry interval</strong> — that is the textbook recipe for storms.</li>
+        <li><strong>Exponential backoff with jitter.</strong> Rails 7+ ActiveJob ships <code class="bg-gray-100 px-2 py-1 rounded">wait: :polynomially_longer</code> for retries; it includes randomization so retries do not align. <strong>Never use a fixed retry interval</strong>, that is the textbook recipe for storms.</li>
         <li><strong>Circuit breakers.</strong> For external services, libraries like <code class="bg-gray-100 px-2 py-1 rounded">stoplight</code> or <code class="bg-gray-100 px-2 py-1 rounded">circuit_breaker</code> let you stop calling the service after N consecutive failures, preserving the queue until it recovers.</li>
         <li><strong>Separate queues with different concurrency.</strong> Critical work (charging cards) gets a high-priority queue with its own worker pool; less-critical work (analytics events) gets a lower-priority queue that can be paused under load.</li>
       </ul>
@@ -186,7 +186,7 @@ end`} language="ruby" />
         <strong>Mike Perham's blog</strong> (the author of Sidekiq) is the canonical reference for Rails background-job patterns. His posts on idempotency, retry strategy, and concurrency tuning are how most senior Rails developers learned the discipline.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Shopify</strong> runs Sidekiq at one of the largest known Rails-job scales — hundreds of thousands of jobs per second across their fleet. Their engineering posts about partitioning Sidekiq across many Redis instances, and about implementing back-pressure between services, are advanced reading. <strong>The pattern worth absorbing from Shopify's writing is that they ran on plain Sidekiq for many years before any of these advanced shapes became necessary</strong>; most apps will never need the partitioning.
+        <strong>Shopify</strong> runs Sidekiq at one of the largest known Rails-job scales, hundreds of thousands of jobs per second across their fleet. Their engineering posts about partitioning Sidekiq across many Redis instances, and about implementing back-pressure between services, are advanced reading. <strong>The pattern worth absorbing from Shopify's writing is that they ran on plain Sidekiq for many years before any of these advanced shapes became necessary</strong>; most apps will never need the partitioning.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>37signals' blog and conference talks</strong> documented the case for Solid Queue. Their pitch is the operational simplicity of "no Redis to operate," especially appealing to teams running smaller fleets where the marginal cost of another service is meaningful. <strong>The case is real; Rails 8 making Solid Queue the default is a strong signal that the operational tradeoff has shifted.</strong>
@@ -218,7 +218,7 @@ end`} language="ruby" />
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
         <p>The request cycle is a finite, expensive resource. Every millisecond a request takes is a millisecond of Puma thread occupancy, database connection occupancy, and load-balancer slot occupancy. <strong>Moving work out of the request cycle is the highest-impact throughput change in Rails</strong>, because it converts a synchronous resource (web threads) into an asynchronous one (worker processes) that can be scaled independently.</p>
-        <p>The deeper move is recognizing that <strong>"the user clicked the button" and "the work is done" are different events</strong>. The user clicked a button — that takes 80ms to acknowledge. The work is done — that takes whatever it takes, and the user finds out later via email, websocket update, or refreshing the page. <strong>Decoupling those two events is what allows Rails apps to feel fast even when the underlying work is slow.</strong></p>
+        <p>The deeper move is recognizing that <strong>"the user clicked the button" and "the work is done" are different events</strong>. The user clicked a button, that takes 80ms to acknowledge. The work is done, that takes whatever it takes, and the user finds out later via email, websocket update, or refreshing the page. <strong>Decoupling those two events is what allows Rails apps to feel fast even when the underlying work is slow.</strong></p>
         <p>The pragmatic value: <strong>most Rails apps could move 50% of their controller work into jobs and see immediate throughput gains</strong>, with no infrastructure change beyond the queue adapter they already have. It is one of the most rewarding scaling moves in the series.</p>
       </div>
     </section>
@@ -235,8 +235,8 @@ end`} language="ruby" />
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-scaling-caching" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 5 — Caching</a>
-      <a href="/lessons/senior-scaling-pagination" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 7 — Pagination →</a>
+      <a href="/lessons/senior-scaling-caching" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 5, Caching</a>
+      <a href="/lessons/senior-scaling-pagination" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 7, Pagination →</a>
     </div>
   </article>
 </Layout>

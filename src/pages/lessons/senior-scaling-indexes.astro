@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="Scaling 2 of 8 — Indexes & EXPLAIN" description="Where database indexes come from, why a single missing index is the most common Rails scaling problem, and how to read EXPLAIN well enough to fix it.">
+<Layout title="Scaling 2 of 8: Indexes & EXPLAIN" description="Where database indexes come from, why a single missing index is the most common Rails scaling problem, and how to read EXPLAIN well enough to fix it.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -101,10 +101,10 @@ end`} language="ruby" />
         EXPLAIN output looks intimidating until you know the four things to read. The senior shortcut: <strong>look for these four words first</strong>:
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Seq Scan</code></strong> — the database is reading the whole table. For tables over a few thousand rows, this is the canonical "you need an index" signal.</li>
-        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Index Scan</code></strong> — the database is using an index. Good. The query is reading only the rows that match.</li>
-        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Index Only Scan</code></strong> — the database is answering the query entirely from the index, without touching the underlying table at all. <strong>This is the fastest shape</strong> and worth designing for when the same query is hot.</li>
-        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Bitmap Heap Scan</code></strong> — the database used an index to find the rows but had to fetch them from the table. Fine; usually fast.</li>
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Seq Scan</code></strong>, the database is reading the whole table. For tables over a few thousand rows, this is the canonical "you need an index" signal.</li>
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Index Scan</code></strong>, the database is using an index. Good. The query is reading only the rows that match.</li>
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Index Only Scan</code></strong>, the database is answering the query entirely from the index, without touching the underlying table at all. <strong>This is the fastest shape</strong> and worth designing for when the same query is hot.</li>
+        <li><strong><code class="bg-gray-100 px-2 py-1 rounded">Bitmap Heap Scan</code></strong>, the database used an index to find the rows but had to fetch them from the table. Fine; usually fast.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
         <strong>Then check the numbers.</strong> Three matter:
@@ -140,7 +140,7 @@ Order.where(user_id: u.id, status: "paid").order(created_at: :desc)
 # Fast with:
 add_index :orders, [:user_id, :status, :created_at]`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        The order of columns in a composite index matters. <strong>The leftmost columns are the ones the index can satisfy</strong>: an index on <code class="bg-gray-100 px-2 py-1 rounded">(user_id, status, created_at)</code> can answer queries filtering on <code class="bg-gray-100 px-2 py-1 rounded">user_id</code> alone, or on <code class="bg-gray-100 px-2 py-1 rounded">user_id + status</code>, or on all three — but not a query filtering only on <code class="bg-gray-100 px-2 py-1 rounded">status</code>.
+        The order of columns in a composite index matters. <strong>The leftmost columns are the ones the index can satisfy</strong>: an index on <code class="bg-gray-100 px-2 py-1 rounded">(user_id, status, created_at)</code> can answer queries filtering on <code class="bg-gray-100 px-2 py-1 rounded">user_id</code> alone, or on <code class="bg-gray-100 px-2 py-1 rounded">user_id + status</code>, or on all three, but not a query filtering only on <code class="bg-gray-100 px-2 py-1 rounded">status</code>.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>Partial indexes</strong> cover only the rows that match a condition. They are smaller, faster to maintain, and ideal for queries that always filter on the same predicate:
@@ -150,7 +150,7 @@ add_index :orders, [:user_id, :status, :created_at]`} language="ruby" />
 add_index :orders, :user_id, where: "status = 'pending'", name: "idx_pending_orders_on_user"
 
 # Useful when 99% of orders are 'paid' but you frequently query
-# for the 1% that are 'pending' — the index is tiny and very fast.`} language="ruby" />
+# for the 1% that are 'pending', the index is tiny and very fast.`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
         <strong>Covering indexes</strong> (called "include columns" in Postgres) let an Index Only Scan return columns that are not part of the indexed key, by storing them in the index leaf:
       </p>
@@ -159,7 +159,7 @@ add_index :orders, :user_id, where: "status = 'pending'", name: "idx_pending_ord
 # Now Order.where(user_id: u.id).select(:status, :total_cents)
 # can run entirely from the index, never touching the orders table.`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        Covering indexes are an advanced move worth knowing about. They are not free — every column in the include list makes the index bigger and updates slower — but for read-heavy hot paths, they can collapse a query from milliseconds to microseconds.
+        Covering indexes are an advanced move worth knowing about. They are not free, every column in the include list makes the index bigger and updates slower, but for read-heavy hot paths, they can collapse a query from milliseconds to microseconds.
       </p>
     </section>
 
@@ -254,8 +254,8 @@ WHERE c.contype = 'f'
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-scaling-diagnose" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 1 — Diagnose</a>
-      <a href="/lessons/senior-scaling-concurrency" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 3 — Concurrency Model →</a>
+      <a href="/lessons/senior-scaling-diagnose" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 1, Diagnose</a>
+      <a href="/lessons/senior-scaling-concurrency" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 3, Concurrency Model →</a>
     </div>
   </article>
 </Layout>

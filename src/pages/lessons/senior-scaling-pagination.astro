@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="Scaling 7 of 8 — Pagination at Scale" description="Where offset pagination came from, why it collapses at large page numbers, and how cursor pagination — used by Mastodon, Stripe's API, and GitHub — keeps pagination fast at any scale.">
+<Layout title="Scaling 7 of 8: Pagination at Scale" description="Where offset pagination came from, why it collapses at large page numbers, and how cursor pagination, used by Mastodon, Stripe's API, and GitHub, keeps pagination fast at any scale.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -15,7 +15,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
         <Icon name="lucide:bookmark" class="w-12 h-12 inline-block" aria-hidden="true" />
         <h1 class="text-4xl font-bold text-gray-900">Pagination at Scale</h1>
       </div>
-      <p class="text-xl text-gray-600">Where offset pagination came from, why it collapses at large page numbers, and how cursor pagination — used by Mastodon, Stripe's API, and GitHub — keeps pagination fast at any scale.</p>
+      <p class="text-xl text-gray-600">Where offset pagination came from, why it collapses at large page numbers, and how cursor pagination, used by Mastodon, Stripe's API, and GitHub, keeps pagination fast at any scale.</p>
     </div>
 
     <section class="space-y-4">
@@ -24,10 +24,10 @@ import CodeBlock from '../../components/CodeBlock.astro';
         Pagination is one of those features that looks identical from the outside no matter how it is implemented. The user clicks "next page," more results appear, the URL updates. Underneath, two completely different mechanisms have dominated database history, with very different scaling properties.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Offset pagination</strong> — the kind that produces URLs like <code class="bg-gray-100 px-2 py-1 rounded">?page=42</code> — works by telling the database "skip the first N rows, then return the next M." It is the default in <code class="bg-gray-100 px-2 py-1 rounded">will_paginate</code> and <code class="bg-gray-100 px-2 py-1 rounded">kaminari</code>, the two Rails pagination libraries every developer has used. It is intuitive, it supports random access to any page, and it gives you total counts. <strong>It is also a performance trap once data grows.</strong>
+        <strong>Offset pagination</strong>, the kind that produces URLs like <code class="bg-gray-100 px-2 py-1 rounded">?page=42</code>, works by telling the database "skip the first N rows, then return the next M." It is the default in <code class="bg-gray-100 px-2 py-1 rounded">will_paginate</code> and <code class="bg-gray-100 px-2 py-1 rounded">kaminari</code>, the two Rails pagination libraries every developer has used. It is intuitive, it supports random access to any page, and it gives you total counts. <strong>It is also a performance trap once data grows.</strong>
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Cursor pagination</strong> — sometimes called keyset pagination — works by telling the database "give me M rows where some sort key is greater than X." The cursor is the value of the sort key from the last row of the previous page. No "skip" operation, no counting; the database uses the index directly. <strong>It scales to any depth without slowing down</strong>, at the cost of giving up random access to arbitrary pages.
+        <strong>Cursor pagination</strong>, sometimes called keyset pagination, works by telling the database "give me M rows where some sort key is greater than X." The cursor is the value of the sort key from the last row of the previous page. No "skip" operation, no counting; the database uses the index directly. <strong>It scales to any depth without slowing down</strong>, at the cost of giving up random access to arbitrary pages.
       </p>
       <p class="text-gray-700 leading-relaxed">
         Every API at large scale has moved to cursor pagination. <strong>Stripe's API documentation explicitly discusses the cursor-pagination decision</strong>. GitHub's API uses cursors. Mastodon's timeline uses cursors. Twitter (now X) used them for years before pagination became a different problem entirely. <strong>The senior move is to recognize when an app is about to hit the offset-pagination ceiling and switch before the production incident, not after.</strong>
@@ -109,7 +109,7 @@ end`} language="ruby" />
         <strong>2. The view passes the cursor in the URL.</strong> Instead of <code class="bg-gray-100 px-2 py-1 rounded">?page=11</code>, the "next page" link is <code class="bg-gray-100 px-2 py-1 rounded">?cursor=2026-05-11T14:23:00.123456Z,4827</code>. <strong>Each link is stable</strong>: if you bookmark page 11, you still see the same 50 records you saw before, even if new orders have been created since.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>3. There is no total count.</strong> Cursor pagination cannot tell you "you are on page 11 of 247." It can tell you "there is a next page" (because the result set was full) or "you are on the last page" (because it was not full). For most applications, this is fine — the UI shows "Next" and "Previous" buttons, not page numbers. <strong>The tradeoff is real and worth being upfront about.</strong>
+        <strong>3. There is no total count.</strong> Cursor pagination cannot tell you "you are on page 11 of 247." It can tell you "there is a next page" (because the result set was full) or "you are on the last page" (because it was not full). For most applications, this is fine, the UI shows "Next" and "Previous" buttons, not page numbers. <strong>The tradeoff is real and worth being upfront about.</strong>
       </p>
     </section>
 
@@ -192,7 +192,7 @@ SELECT * FROM orders WHERE (created_at, id) < ('2025-08-12T14:23:00', 491234)
         <strong>For admin UIs where users actually need page numbers and traffic is low</strong>, offset is fine even on larger tables, as long as you do not chain it with COUNT(*) or expose deep pagination publicly.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>For public APIs and user-facing list views with substantial traffic on large tables — switch to cursors before you need to.</strong> The migration is much easier when it is preemptive than when it is reactive after a performance incident.
+        <strong>For public APIs and user-facing list views with substantial traffic on large tables, switch to cursors before you need to.</strong> The migration is much easier when it is preemptive than when it is reactive after a performance incident.
       </p>
       <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p class="text-gray-700 text-sm">
@@ -206,9 +206,9 @@ SELECT * FROM orders WHERE (created_at, id) < ('2025-08-12T14:23:00', 491234)
         <span aria-hidden="true">💡</span> The principle at play
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
-        <p>Offset pagination conflates two questions: "where am I in this list?" and "which records am I currently looking at?" Offsets answer the first with an integer ("page 11"); cursors answer the second with a key ("everything after row X"). <strong>The integer answer is more intuitive for humans, but the database does not have an integer-based index over your data — it has a sort-key-based index. Offset pagination asks the database to do work it is not designed for.</strong></p>
+        <p>Offset pagination conflates two questions: "where am I in this list?" and "which records am I currently looking at?" Offsets answer the first with an integer ("page 11"); cursors answer the second with a key ("everything after row X"). <strong>The integer answer is more intuitive for humans, but the database does not have an integer-based index over your data, it has a sort-key-based index. Offset pagination asks the database to do work it is not designed for.</strong></p>
         <p>The deeper move is that <strong>random access to deep pages is a UX assumption, not a database feature</strong>. Real users rarely jump from page 1 to page 47; they scroll, they filter, they search. When you design the UI around what users actually do, cursor pagination matches the data-access pattern the database is built for, and the deep-page problem disappears entirely.</p>
-        <p>The pragmatic value: <strong>every API at scale eventually moves to cursors</strong>. Stripe, GitHub, Twitter, Mastodon, Instagram — all of them. The pattern is not exotic; it is what every large-scale Rails-and-friends shop has converged on. Recognizing the pattern when you have ~100k rows is much cheaper than discovering it at 10 million.</p>
+        <p>The pragmatic value: <strong>every API at scale eventually moves to cursors</strong>. Stripe, GitHub, Twitter, Mastodon, Instagram, all of them. The pattern is not exotic; it is what every large-scale Rails-and-friends shop has converged on. Recognizing the pattern when you have ~100k rows is much cheaper than discovering it at 10 million.</p>
       </div>
     </section>
 
@@ -224,8 +224,8 @@ SELECT * FROM orders WHERE (created_at, id) < ('2025-08-12T14:23:00', 491234)
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-scaling-background-jobs" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 6 — Background Jobs</a>
-      <a href="/lessons/senior-scaling-bulk-operations" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 8 — Bulk Operations &amp; Memory →</a>
+      <a href="/lessons/senior-scaling-background-jobs" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 6, Background Jobs</a>
+      <a href="/lessons/senior-scaling-bulk-operations" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 8, Bulk Operations &amp; Memory →</a>
     </div>
   </article>
 </Layout>

@@ -144,7 +144,7 @@ end`} language="ruby" />
   end
 end`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        The cart total method becomes one line, just like the payout worker did in lesson 2:
+        The cart total method becomes one line, the same shape as the payout worker in lesson 2:
       </p>
       <CodeBlock code={`class Cart
   def total
@@ -215,7 +215,7 @@ ALL = {
         The same two SOLID principles support open/closed in this design.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Liskov Substitution.</strong> Any class returned from <code class="bg-gray-100 px-2 py-1 rounded">DiscountKind.get(...)</code> must be safely usable in place of any other. The cart calls <code class="bg-gray-100 px-2 py-1 rounded">amount_off</code> and expects a number. If a new strategy returned <code class="bg-gray-100 px-2 py-1 rounded">nil</code>, every caller would break. The discipline is on the implementer to honor the shape of the contract, not just the method names.
+        <strong>Liskov Substitution.</strong> Any class returned from <code class="bg-gray-100 px-2 py-1 rounded">DiscountKind.get(...)</code> must be safely usable in place of any other. The cart calls <code class="bg-gray-100 px-2 py-1 rounded">amount_off</code> and expects a number. If a new strategy returned <code class="bg-gray-100 px-2 py-1 rounded">nil</code>, every caller would break. The discipline is on the implementer to honor the shape of the contract, not only the method names.
       </p>
       <CodeBlock code={`# A Liskov violation in the discount engine:
 class BrokenDiscount

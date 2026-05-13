@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="OCP 2 of 5 — The Adapter Pattern in Real Rails Code" description="Where the adapter pattern comes from, why backends change for reasons unrelated to the feature, and how Rails' ActiveStorage swaps Disk/S3/GCS/Azure storage without the app knowing which one is in use.">
+<Layout title="OCP 2 of 5: The Adapter Pattern in Real Rails Code" description="Where the adapter pattern comes from, why backends change for reasons unrelated to the feature, and how Rails' ActiveStorage swaps Disk/S3/GCS/Azure storage without the app knowing which one is in use.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -21,7 +21,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
       <p class="text-gray-700 leading-relaxed">
-        The registry pattern from the previous lesson dispatches between variants at runtime, based on data stored on a record. <strong>The adapter pattern is the same idea, applied to a different kind of variation: backends chosen at boot time by configuration.</strong> The app does not pick the storage backend on a per-record basis. It picks one for the whole environment — Disk in development, S3 in production, a fake one in tests — and treats it identically everywhere.
+        The registry pattern from the previous lesson dispatches between variants at runtime, based on data stored on a record. <strong>The adapter pattern is the same idea, applied to a different kind of variation: backends chosen at boot time by configuration.</strong> The app does not pick the storage backend on a per-record basis. It picks one for the whole environment, Disk in development, S3 in production, a fake one in tests, and treats it identically everywhere.
       </p>
       <p class="text-gray-700 leading-relaxed">
         The pattern's name is older than Rails by decades. <strong>The Gang of Four book in 1994 defined Adapter as "convert the interface of a class into another interface clients expect."</strong> The original framing was about reconciling a legacy class with a new client. In modern Rails, the framing has shifted to be about <strong>swapping concrete backends behind a stable interface</strong>, which is a slightly different use of the pattern with the same name.
@@ -171,11 +171,11 @@ config.active_storage.service = :test  # in-memory adapter`} language="ruby" />
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Registry vs Adapter</h2>
       <p class="text-gray-700 leading-relaxed">
-        The previous lesson covered registries; this one covers adapters. The two patterns look similar — both substitute one class for another behind a stable interface — but they are used at different boundaries.
+        The previous lesson covered registries; this one covers adapters. The two patterns look similar, both substitute one class for another behind a stable interface, but they are used at different boundaries.
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong>Registry</strong> — variant is chosen at runtime, based on data stored on a record. <code class="bg-gray-100 px-2 py-1 rounded">payment.processor</code> is "stripe" for this row, "paypal" for the next. The application has both processors loaded; it dispatches per request.</li>
-        <li><strong>Adapter</strong> — variant is chosen at boot, based on configuration. The application loads <em>one</em> storage adapter for its entire lifetime. Switching means restarting.</li>
+        <li><strong>Registry</strong>, variant is chosen at runtime, based on data stored on a record. <code class="bg-gray-100 px-2 py-1 rounded">payment.processor</code> is "stripe" for this row, "paypal" for the next. The application has both processors loaded; it dispatches per request.</li>
+        <li><strong>Adapter</strong>, variant is chosen at boot, based on configuration. The application loads <em>one</em> storage adapter for its entire lifetime. Switching means restarting.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
         <strong>Use a registry when the variation lives in your data.</strong> Use an adapter when the variation lives in your environment. The contract-and-substitution machinery is the same; the dispatching boundary differs.
@@ -187,8 +187,8 @@ config.active_storage.service = :test  # in-memory adapter`} language="ruby" />
         <span aria-hidden="true">💡</span> The principle at play
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
-        <p>The Open/Closed Principle is doing real work here. <strong>The reason the team would change a storage backend has nothing to do with the reason they would change a User model.</strong> Cost, compliance, vendor lock-in, latency — none of those are reasons to edit <code class="bg-gray-100 px-2 py-1 rounded">User</code>. By separating the "what does the model want to do" from "which backend physically does it," each side can change without disturbing the other.</p>
-        <p>The deeper move is one the Unix tradition has been making since the 1970s: <strong>program to an interface, not to an implementation</strong>. Every Unix tool reads from "standard input" and writes to "standard output" — abstract handles that the operating system maps to files, pipes, terminals, or sockets at the user's discretion. ActiveStorage is the Rails version of the same idea. The application reads and writes from a Service; the operating environment decides what Service that actually means.</p>
+        <p>The Open/Closed Principle is doing real work here. <strong>The reason the team would change a storage backend has nothing to do with the reason they would change a User model.</strong> Cost, compliance, vendor lock-in, latency, none of those are reasons to edit <code class="bg-gray-100 px-2 py-1 rounded">User</code>. By separating the "what does the model want to do" from "which backend physically does it," each side can change without disturbing the other.</p>
+        <p>The deeper move is one the Unix tradition has been making since the 1970s: <strong>program to an interface, not to an implementation</strong>. Every Unix tool reads from "standard input" and writes to "standard output", abstract handles that the operating system maps to files, pipes, terminals, or sockets at the user's discretion. ActiveStorage is the Rails version of the same idea. The application reads and writes from a Service; the operating environment decides what Service that actually means.</p>
         <p>The pattern's pragmatic value in Rails is that <strong>backends are exactly the thing that changes for reasons unrelated to the feature</strong>. The feature ("attach a file to a user") is stable. The backend ("store it on S3") changes because of pricing or regulation or vendor stability. Putting the backend in a swappable adapter means those two timelines no longer collide.</p>
       </div>
     </section>
@@ -198,14 +198,14 @@ config.active_storage.service = :test  # in-memory adapter`} language="ruby" />
       <ol class="list-decimal list-inside text-gray-700 space-y-2 ml-4">
         <li>Grep your app for direct SDK calls in models: <code class="bg-gray-100 px-2 py-1 rounded">grep -rn "Aws::\\|Google::Cloud\\|Stripe::" app/models</code>. <strong>Every match is a model coupled to a specific vendor.</strong></li>
         <li>For each match, ask: what would happen if you switched vendors next quarter? Count the files that would need to change.</li>
-        <li>Pick one example. Sketch the contract — what methods would your application call regardless of vendor? Three to six methods is usually enough. Draw the abstract base class, then sketch two concrete adapter classes that implement it.</li>
+        <li>Pick one example. Sketch the contract, what methods would your application call regardless of vendor? Three to six methods is usually enough. Draw the abstract base class, then sketch two concrete adapter classes that implement it.</li>
         <li>Bonus: look at how your test suite handles these vendor calls today. <strong>Test fakes that mock individual SDK calls are a smell that the vendor abstraction is missing.</strong> An adapter would let the test environment swap in a real fake adapter, not stub method calls.</li>
       </ol>
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-ocp-registry" class="text-ruby hover:text-ruby-dark transition-colors">← OCP 1 — Registry</a>
-      <a href="/lessons/senior-ocp-middleware" class="text-ruby hover:text-ruby-dark transition-colors">OCP 3 — Middleware →</a>
+      <a href="/lessons/senior-ocp-registry" class="text-ruby hover:text-ruby-dark transition-colors">← OCP 1, Registry</a>
+      <a href="/lessons/senior-ocp-middleware" class="text-ruby hover:text-ruby-dark transition-colors">OCP 3, Middleware →</a>
     </div>
   </article>
 </Layout>

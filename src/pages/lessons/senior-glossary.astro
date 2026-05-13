@@ -3,20 +3,20 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="Glossary — Senior Track Vocabulary" description="Plain-language definitions of the technical vocabulary that comes up across the senior-track Rails lessons. Twenty-two terms with code examples for each.">
+<Layout title="Glossary: Senior Track Vocabulary" description="Plain-language definitions of the technical vocabulary that comes up across the senior-track Rails lessons. Twenty-two terms with code examples for each.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
         <span>←</span> Back to Course
       </a>
-      <h1 class="text-4xl font-bold text-gray-900 mb-4">Glossary — Senior Track Vocabulary</h1>
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Glossary, Senior Track Vocabulary</h1>
       <p class="text-xl text-gray-600">The technical vocabulary that comes up across the senior-track lessons. Each entry has a plain-language definition and a short code example. Existing 10 terms are alphabetical; new additions follow alphabetically among themselves.</p>
     </div>
 
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Duck Typing</h2>
       <p class="text-gray-700 leading-relaxed">
-        Duck typing is a style of typing where what matters is what an object can do, not what class it belongs to. The principle: "if it walks like a duck and quacks like a duck, it is a duck." Ruby uses this style heavily. Methods do not declare the types of their arguments. They just call methods on whatever they receive and trust that it will respond.
+        Duck typing is a style of typing where what matters is what an object can do, not what class it belongs to. The principle: "if it walks like a duck and quacks like a duck, it is a duck." Ruby uses this style heavily. Methods do not declare the types of their arguments. They call methods on whatever they receive and trust that it will respond.
       </p>
       <CodeBlock code={`class Stripe
   def process_payments(payments); puts "via Stripe"; end
@@ -40,14 +40,14 @@ dispatch(PayPal.new, []) # via PayPal`} language="ruby" />
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Eager Loading</h2>
       <p class="text-gray-700 leading-relaxed">
-        Eager loading is the Active Record technique of fetching associated records up front to avoid N+1 queries. Instead of letting Rails make one extra database call per record, you tell it to load the associations in advance. The four eager-loading methods are <code class="bg-gray-100 px-2 py-1 rounded">includes</code>, <code class="bg-gray-100 px-2 py-1 rounded">preload</code>, <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code>, and <code class="bg-gray-100 px-2 py-1 rounded">joins</code>. They differ in whether they generate a JOIN, fetch separately, or just filter.
+        Eager loading is the Active Record technique of fetching associated records up front to avoid N+1 queries. Instead of letting Rails make one extra database call per record, you tell it to load the associations in advance. The four eager-loading methods are <code class="bg-gray-100 px-2 py-1 rounded">includes</code>, <code class="bg-gray-100 px-2 py-1 rounded">preload</code>, <code class="bg-gray-100 px-2 py-1 rounded">eager_load</code>, and <code class="bg-gray-100 px-2 py-1 rounded">joins</code>. They differ in whether they generate a JOIN, fetch separately, or only filter.
       </p>
-      <CodeBlock code={`# preload — always two queries, no JOIN:
+      <CodeBlock code={`# preload, always two queries, no JOIN:
 Post.preload(:author).limit(50)
 # SELECT * FROM posts LIMIT 50
 # SELECT * FROM users WHERE id IN (...)
 
-# eager_load — single query with LEFT OUTER JOIN:
+# eager_load, single query with LEFT OUTER JOIN:
 Post.eager_load(:author).where("users.role = ?", "admin")`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
         See <a href="/lessons/senior-eager-loading" class="text-ruby hover:underline">Lesson 1</a> for the full decision tree.
@@ -59,12 +59,12 @@ Post.eager_load(:author).where("users.role = ?", "admin")`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
         An operation is idempotent when running it multiple times produces the same result as running it once. Idempotency matters anywhere code might retry: background jobs, webhooks, payment APIs, message queues. Without it, a network blip can cause a customer to be charged twice.
       </p>
-      <CodeBlock code={`# Not idempotent — running twice charges twice:
+      <CodeBlock code={`# Not idempotent, running twice charges twice:
 def charge_user(user, cents)
   Stripe::Charge.create(amount: cents, customer: user.stripe_id)
 end
 
-# Idempotent — Stripe deduplicates by the idempotency key:
+# Idempotent, Stripe deduplicates by the idempotency key:
 def charge_user(user, cents, request_id)
   Stripe::Charge.create(
     amount: cents,
@@ -82,20 +82,20 @@ end`} language="ruby" />
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Liskov Substitution</h2>
       <p class="text-gray-700 leading-relaxed">
-        The "L" in SOLID. A subtype must be usable in place of its parent type without breaking the code that calls it. In Ruby, where there is no formal type system, the rule generalizes: any object that participates in a shared contract should honor the same expectations of what its methods do, not just what they are called.
+        The "L" in SOLID. A subtype must be usable in place of its parent type without breaking the code that calls it. In Ruby, where there is no formal type system, the rule generalizes: any object that participates in a shared contract should honor the same expectations of what its methods do, not only what they are called.
       </p>
       <CodeBlock code={`class StripePayout
   def amount_cents; @cents; end # returns Integer
 end
 
 class PaypalPayout
-  def amount_cents; "12345"; end # returns String — Liskov violation
+  def amount_cents; "12345"; end # returns String, Liskov violation
 end
 
 # Caller assumes Integer:
 total = payouts.sum(&:amount_cents) # crashes for PayPal`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        Both classes have an <code class="bg-gray-100 px-2 py-1 rounded">amount_cents</code> method, but they return different types. The caller cannot substitute one for the other safely. The contract is only the method name, not the behavior — and that is not enough.
+        Both classes have an <code class="bg-gray-100 px-2 py-1 rounded">amount_cents</code> method, but they return different types. The caller cannot substitute one for the other safely. The contract is only the method name, not the behavior, and that is not enough.
       </p>
     </section>
 
@@ -149,7 +149,7 @@ posts.each { |post| puts post.author.name }
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Polymorphism</h2>
       <p class="text-gray-700 leading-relaxed">
-        Polymorphism is the property where multiple classes respond to the same message with different behavior. Calling code depends on the message, not on the class — so swapping one implementation for another does not require changes to the caller. Polymorphism is what makes the registry pattern in <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:underline">Lesson 2</a> work.
+        Polymorphism is the property where multiple classes respond to the same message with different behavior. Calling code depends on the message, not on the class, so swapping one implementation for another does not require changes to the caller. Polymorphism is what makes the registry pattern in <a href="/lessons/senior-open-closed-payouts" class="text-ruby hover:underline">Lesson 2</a> work.
       </p>
       <CodeBlock code={`class Stripe
   def process_payments(payments); end
@@ -171,14 +171,14 @@ end`} language="ruby" />
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Public Surface</h2>
       <p class="text-gray-700 leading-relaxed">
-        The public surface of a class is the set of methods it exposes to callers. Other code depends on this surface. Everything else (internal helpers, instance variables, private methods) is the "private surface" — it can change without affecting anyone outside the class.
+        The public surface of a class is the set of methods it exposes to callers. Other code depends on this surface. Everything else (internal helpers, instance variables, private methods) is the "private surface". It can change without affecting anyone outside the class.
       </p>
       <CodeBlock code={`class PaypalPayoutProcessor
-  # Public surface — callers depend on these:
+  # Public surface, callers depend on these:
   def self.is_user_payable(user, amount); end
   def self.process_payments(payments); end
 
-  # Private — internal helpers, free to change:
+  # Private, internal helpers, free to change:
   def self.format_paypal_request(payment); end
   private_class_method :format_paypal_request
 end`} language="ruby" />
@@ -238,7 +238,7 @@ PayoutProcessorType.get("STRIPE").process_payments(payments)`} language="ruby" /
       <p class="text-gray-700 leading-relaxed">
         An adapter wraps an external library or service behind an internal interface that fits the way your app wants to think. Your code talks to the adapter; the adapter talks to the outside world. Useful when an external API is shaped wrong for your domain, when you might swap providers, or when you want to test against a fake without booting the real service.
       </p>
-      <CodeBlock code={`# Without an adapter — every caller knows about Stripe specifically:
+      <CodeBlock code={`# Without an adapter, every caller knows about Stripe specifically:
 Stripe::PaymentIntent.create(amount: 1000, currency: "usd")
 
 # With an adapter:
@@ -256,11 +256,11 @@ end
       <p class="text-gray-700 leading-relaxed">
         A failure mode where a cached value expires and many concurrent requests all miss the cache simultaneously, all decide to rebuild, and all hit the database at the same instant. The cache exists to spare the database, but the stampede makes the database take the hit anyway, in an even worse synchronized pattern. Sometimes called "thundering herd."
       </p>
-      <CodeBlock code={`# Without protection — every minute, hundreds of requests
+      <CodeBlock code={`# Without protection, every minute, hundreds of requests
 # all rebuild at the same moment:
 Rails.cache.fetch("feed", expires_in: 1.minute) { expensive_query }
 
-# With race_condition_ttl — one request rebuilds, others
+# With race_condition_ttl, one request rebuilds, others
 # serve the slightly-stale value during the gap:
 Rails.cache.fetch("feed",
   expires_in: 1.minute,
@@ -277,7 +277,7 @@ def calculate_total(order)
   order.items.sum(&:price_cents)
 end
 
-# Call sites — there are two:
+# Call sites, there are two:
 def show
   @total = calculate_total(@order)         # call site #1
 end
@@ -390,15 +390,15 @@ end`} language="ruby" />
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Race Condition</h2>
       <p class="text-gray-700 leading-relaxed">
-        A bug where the outcome depends on the relative timing of two or more operations that aren't synchronized. Classic shape in Rails: two requests both read the same value, both compute a new value from it, both write — and one write is silently lost. Race conditions usually pass tests in development (one process, one thread) and only appear under production concurrency.
+        A bug where the outcome depends on the relative timing of two or more operations that aren't synchronized. Classic shape in Rails: two requests both read the same value, both compute a new value from it, both write, and one write is silently lost. Race conditions usually pass tests in development (one process, one thread) and only appear under production concurrency.
       </p>
-      <CodeBlock code={`# Race condition — two requests both read views_count = 10,
+      <CodeBlock code={`# Race condition, two requests both read views_count = 10,
 # both write 11. Final value is 11, not 12:
 def increment_views(post)
   post.update!(views_count: post.views_count + 1)
 end
 
-# Race-free — the database does the math atomically:
+# Race-free, the database does the math atomically:
 def increment_views(post)
   Post.where(id: post.id).update_all("views_count = views_count + 1")
 end`} language="ruby" />
@@ -407,7 +407,7 @@ end`} language="ruby" />
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Reflection</h2>
       <p class="text-gray-700 leading-relaxed">
-        In ActiveRecord, a reflection is the metadata Rails keeps about an association. When you declare <code class="bg-gray-100 px-2 py-1 rounded">belongs_to :user</code> or <code class="bg-gray-100 px-2 py-1 rounded">has_many :posts</code>, Rails registers a reflection on the class. Other parts of Rails read it — eager loading, form builders, fixtures, the routes for nested resources. You can query it directly with <code class="bg-gray-100 px-2 py-1 rounded">Klass.reflect_on_association(:name)</code>.
+        In ActiveRecord, a reflection is the metadata Rails keeps about an association. When you declare <code class="bg-gray-100 px-2 py-1 rounded">belongs_to :user</code> or <code class="bg-gray-100 px-2 py-1 rounded">has_many :posts</code>, Rails registers a reflection on the class. Other parts of Rails read it: eager loading, form builders, fixtures, the routes for nested resources. You can query it directly with <code class="bg-gray-100 px-2 py-1 rounded">Klass.reflect_on_association(:name)</code>.
       </p>
       <CodeBlock code={`class Post < ApplicationRecord
   belongs_to :user
@@ -481,7 +481,7 @@ end`} language="ruby" />
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Webhook</h2>
       <p class="text-gray-700 leading-relaxed">
-        A server-to-server HTTP POST that an external service sends to your app when something happens on their side. Stripe sends webhooks for payment events. GitHub sends webhooks for pushes. Slack sends webhooks for slash commands. Unlike a polling API ("ask the service every minute if anything changed"), webhooks are push-based — the service notifies you when there's news.
+        A server-to-server HTTP POST that an external service sends to your app when something happens on their side. Stripe sends webhooks for payment events. GitHub sends webhooks for pushes. Slack sends webhooks for slash commands. Unlike a polling API ("ask the service every minute if anything changed"), webhooks are push-based: the service notifies you when there's news.
       </p>
       <CodeBlock code={`# routes.rb
 post "/webhooks/stripe", to: "webhooks#stripe"

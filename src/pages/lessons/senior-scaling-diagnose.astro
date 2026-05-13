@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="Scaling 1 of 8 — Diagnose Before You Scale" description="Where 'we need to scale!' goes wrong, why the bottleneck is almost never what an intermediate developer thinks it is, and the tools senior engineers actually open first.">
+<Layout title="Scaling 1 of 8: Diagnose Before You Scale" description="Where 'we need to scale!' goes wrong, why the bottleneck is almost never what an intermediate developer thinks it is, and the tools senior engineers actually open first.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -24,7 +24,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
         Donald Knuth wrote the line every engineer eventually quotes in 1974: <strong>"Premature optimization is the root of all evil."</strong> The full sentence matters more than the famous truncation: <em>"We should forget about small efficiencies, say about 97% of the time: premature optimization is the root of all evil. Yet we should not pass up our opportunities in that critical 3%."</em> The 3% is real. The trouble is finding it.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        Brendan Gregg, the performance engineer behind Netflix's observability work, formalized the discipline into a single rule in 2012, the <strong>USE Method</strong>: for every resource (CPU, memory, network, disk, database connections), check three things — <strong>Utilization, Saturation, Errors</strong>. The point of the method is not the acronym; it is that you check resources before you change code. <strong>If you do not know which resource is saturated, no code change you make will reliably help.</strong>
+        Brendan Gregg, the performance engineer behind Netflix's observability work, formalized the discipline into a single rule in 2012, the <strong>USE Method</strong>: for every resource (CPU, memory, network, disk, database connections), check three things, <strong>Utilization, Saturation, Errors</strong>. The point of the method is not the acronym; it is that you check resources before you change code. <strong>If you do not know which resource is saturated, no code change you make will reliably help.</strong>
       </p>
       <p class="text-gray-700 leading-relaxed">
         The Rails community arrived at the same rule through painful experience. Most "we need to scale!" pull requests in Rails history have one common shape: <strong>somebody guessed, somebody added infrastructure, the symptom moved.</strong> Adding Redis without measuring. Sharding a database that was fine. Switching to microservices to "scale the team" while the actual bottleneck was a missing index.
@@ -53,9 +53,9 @@ import CodeBlock from '../../components/CodeBlock.astro';
         The deeper anti-pattern is that <strong>"scaling" is being used as a single word for at least three completely different problems</strong>:
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong>Latency</strong> — one request is slow. Fix: faster queries, better caching, fewer round trips.</li>
-        <li><strong>Throughput</strong> — the server cannot handle the number of concurrent requests. Fix: more concurrency, better connection pooling, more dynos.</li>
-        <li><strong>Data growth</strong> — a query that used to be fast is no longer fast because the table grew. Fix: indexes, pagination, partitioning, archival.</li>
+        <li><strong>Latency:</strong> one request is slow. Fix: faster queries, better caching, fewer round trips.</li>
+        <li><strong>Throughput:</strong> the server cannot handle the number of concurrent requests. Fix: more concurrency, better connection pooling, more dynos.</li>
+        <li><strong>Data growth:</strong> a query that used to be fast is no longer fast because the table grew. Fix: indexes, pagination, partitioning, archival.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
         <strong>A senior knows which one they have before they reach for tools.</strong> "We need to scale" is the question, not the answer. The answer is one of these three, with a specific resource named.
@@ -68,7 +68,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
         Three layers of tooling, used in this order:
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>1. The APM dashboard.</strong> Whatever your team pays for — Datadog, New Relic, Skylight, Honeycomb, AppSignal, Scout, Sentry's transaction view. Every one of these answers the same first question in roughly thirty seconds: <strong>which endpoints are slow at p95, and where are they spending their time?</strong>
+        <strong>1. The APM dashboard.</strong> Whatever your team pays for, Datadog, New Relic, Skylight, Honeycomb, AppSignal, Scout, Sentry's transaction view. Every one of these answers the same first question in roughly thirty seconds: <strong>which endpoints are slow at p95, and where are they spending their time?</strong>
       </p>
       <p class="text-gray-700 leading-relaxed">
         The APM dashboard breaks every request into a <strong>flame chart of segments</strong>: time spent in the database, time spent in external HTTP calls, time spent in view rendering, time spent in Ruby itself. <strong>One look at the chart tells you which resource is saturated.</strong> If 90% of the time is in the database, you have a query problem. If 80% is in an external HTTP call, you have a synchronous-IO problem. If the chart is mostly Ruby with no segments, you have a CPU or allocation problem.
@@ -123,7 +123,7 @@ end`} language="ruby" />
         <li><strong>Connection pool exhaustion.</strong> The Puma threads or Sidekiq workers outnumber the available database connections, and requests queue up waiting for one. Fix: tune the connection pool size or scale Puma/Sidekiq differently.</li>
       </ol>
       <p class="text-gray-700 leading-relaxed">
-        Notice what is <em>not</em> on this list: Redis. Sharding. Microservices. Read replicas. Those are real techniques, but they belong further down — typically only after the six items above have been ruled out. <strong>The senior heuristic: if a query plan or an index does not fix it, ask whether you are looking at the right bottleneck before reaching for infrastructure.</strong>
+        Notice what is <em>not</em> on this list: Redis. Sharding. Microservices. Read replicas. Those are real techniques, but they belong further down, typically only after the six items above have been ruled out. <strong>The senior heuristic: if a query plan or an index does not fix it, ask whether you are looking at the right bottleneck before reaching for infrastructure.</strong>
       </p>
     </section>
 
@@ -134,8 +134,8 @@ end`} language="ruby" />
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
         <li><strong>Shopify Engineering</strong> publishes regularly on Rails performance at the scale of millions of requests per minute. Their posts on identifying slow queries with <code class="bg-gray-100 px-2 py-1 rounded">pg_stat_statements</code>, on Ruby memory profiling with jemalloc, and on the Identity Cache pattern (which is a hot-row solution) all open with measurement, not architecture.</li>
-        <li><strong>GitHub Engineering</strong> wrote extensively about their migration to Vitess for database sharding — a famously large architectural move. <strong>The most important sentence in those posts is that they ran on a single MySQL primary until they had measured exactly why a single primary was no longer enough.</strong> The architecture was the last resort, not the first one.</li>
-        <li><strong>Artsy Engineering</strong> has a long-running blog with multiple posts on Rails N+1 fixes, slow query diagnosis, and migrating individual endpoints to GraphQL for selective optimization. Their posts on <em>finding</em> the slow code consistently include screenshots of New Relic or Skylight — measurement first, fix second.</li>
+        <li><strong>GitHub Engineering</strong> wrote extensively about their migration to Vitess for database sharding, a famously large architectural move. <strong>The most important sentence in those posts is that they ran on a single MySQL primary until they had measured exactly why a single primary was no longer enough.</strong> The architecture was the last resort, not the first one.</li>
+        <li><strong>Artsy Engineering</strong> has a long-running blog with multiple posts on Rails N+1 fixes, slow query diagnosis, and migrating individual endpoints to GraphQL for selective optimization. Their posts on <em>finding</em> the slow code consistently include screenshots of New Relic or Skylight, measurement first, fix second.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
         <strong>The pattern across all three is the same.</strong> The teams that ship reliable scaling work measure first, fix the specific thing the measurement pointed at, ship, and measure again. The teams that try to "scale" without measuring usually generate a year of architecture work that does not move the needle.
@@ -188,7 +188,7 @@ end`} language="ruby" />
         <span aria-hidden="true">💡</span> The principle at play
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
-        <p>Engineering has a famous bias: <strong>action is more rewarding than inaction</strong>. Adding caching feels like progress. Sharding feels like progress. Discovering that the actual problem was a missing index feels almost embarrassing — there was nothing to architect, nothing to talk about at the next meetup. <strong>That asymmetry is where most wasted scaling work comes from.</strong></p>
+        <p>Engineering has a famous bias: <strong>action is more rewarding than inaction</strong>. Adding caching feels like progress. Sharding feels like progress. Discovering that the actual problem was a missing index feels almost embarrassing, there was nothing to architect, nothing to talk about at the next meetup. <strong>That asymmetry is where most wasted scaling work comes from.</strong></p>
         <p>The deeper move is one Brendan Gregg has been writing about for a decade: <strong>your intuition about where the bottleneck is, in a system with millions of moving parts, is almost always wrong</strong>. The intuition was formed in apps of a different size, with a different shape, on a different stack. The system you are diagnosing today does not behave the way the system in your memory did. Only measurement is reliable; intuition is a starting hypothesis at best.</p>
         <p>The pragmatic value of this lesson, the one that will save your team months of work over a year: <strong>when someone says "we need to scale," respond with "where is the bottleneck?" before agreeing to anything</strong>. If they cannot answer with a specific endpoint, a specific resource, a specific percentile, then the next step is to measure, not to plan. That single conversational reflex is one of the most reliable markers of a senior engineer in a Rails shop.</p>
       </div>
@@ -207,7 +207,7 @@ end`} language="ruby" />
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors">← Course Home</a>
-      <a href="/lessons/senior-scaling-indexes" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 2 — Indexes &amp; EXPLAIN →</a>
+      <a href="/lessons/senior-scaling-indexes" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 2, Indexes &amp; EXPLAIN →</a>
     </div>
   </article>
 </Layout>

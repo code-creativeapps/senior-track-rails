@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="Scaling 3 of 8 — The Concurrency Model" description="Where Puma's threading model comes from, why the GVL is real but rarely the bottleneck, and the connection pool math that decides how many concurrent users your Rails app can serve.">
+<Layout title="Scaling 3 of 8: The Concurrency Model" description="Where Puma's threading model comes from, why the GVL is real but rarely the bottleneck, and the connection pool math that decides how many concurrent users your Rails app can serve.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -21,10 +21,10 @@ import CodeBlock from '../../components/CodeBlock.astro';
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
       <p class="text-gray-700 leading-relaxed">
-        Ruby has had threads since the 1990s, but its threading model is unusual. <strong>MRI (the standard Ruby implementation) has a Global VM Lock — the GVL — that ensures only one Ruby thread executes Ruby code at a time</strong>, even on a multi-core machine. The GVL exists to keep the C-extension ecosystem simple: extension authors do not have to make their code thread-safe, because Ruby's interpreter serializes Ruby execution behind the lock.
+        Ruby has had threads since the 1990s, but its threading model is unusual. <strong>MRI (the standard Ruby implementation) has a Global VM Lock, the GVL, that ensures only one Ruby thread executes Ruby code at a time</strong>, even on a multi-core machine. The GVL exists to keep the C-extension ecosystem simple: extension authors do not have to make their code thread-safe, because Ruby's interpreter serializes Ruby execution behind the lock.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        Most Ruby developers, including most senior ones, hear "GVL" and assume Ruby threads are useless for concurrency. <strong>This is wrong, and getting it right is the biggest gain in Rails throughput tuning.</strong> The GVL only serializes Ruby code execution. It releases the lock during I/O — when Ruby is waiting on a database query, an HTTP call, a Redis operation, or a disk read. <strong>For an I/O-bound application (which most Rails apps are), Ruby threads scale almost as well as separate processes</strong>, and they use much less memory.
+        Most Ruby developers, including most senior ones, hear "GVL" and assume Ruby threads are useless for concurrency. <strong>This is wrong, and getting it right is the biggest gain in Rails throughput tuning.</strong> The GVL only serializes Ruby code execution. It releases the lock during I/O, when Ruby is waiting on a database query, an HTTP call, a Redis operation, or a disk read. <strong>For an I/O-bound application (which most Rails apps are), Ruby threads scale almost as well as separate processes</strong>, and they use much less memory.
       </p>
       <p class="text-gray-700 leading-relaxed">
         This insight is what made <strong>Puma</strong> the default Rails web server. Puma runs multiple processes (forks of the master), and within each process runs multiple threads. <strong>Processes scale CPU-bound work; threads scale I/O-bound work.</strong> A typical Rails request is mostly I/O (it waits for the database, then renders, then responds), so threads do the heavy lifting. Processes exist to use multiple CPU cores for the parts that are not waiting on I/O.
@@ -98,7 +98,7 @@ threads threads_count, threads_count
         <strong>This is the math every Rails team should know by heart.</strong> Most production incidents I have seen labeled "scaling problem" are connection-pool exhaustion in disguise. The fix is usually a config change, not new hardware.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        For very large fleets where the per-process connection cost becomes prohibitive (you cannot fit 60 dynos × 25 connections inside Postgres's max), the next move is <strong>PgBouncer</strong> — a connection pooler that multiplexes thousands of application connections onto a smaller number of real Postgres connections. PgBouncer is a real architectural addition; do not reach for it until the simpler math breaks.
+        For very large fleets where the per-process connection cost becomes prohibitive (you cannot fit 60 dynos × 25 connections inside Postgres's max), the next move is <strong>PgBouncer</strong>, a connection pooler that multiplexes thousands of application connections onto a smaller number of real Postgres connections. PgBouncer is a real architectural addition; do not reach for it until the simpler math breaks.
       </p>
     </section>
 
@@ -108,12 +108,12 @@ threads threads_count, threads_count
         Within one Puma process, more threads means more concurrent requests. <strong>The right number depends on how much time each request spends waiting on I/O versus executing Ruby</strong>.
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong>If 80% of request time is I/O</strong> (the typical Rails app — most time is in the database and external calls), the GVL is released for that 80%. You can run 5–10 threads per process without contention.</li>
+        <li><strong>If 80% of request time is I/O</strong> (the typical Rails app, most time is in the database and external calls), the GVL is released for that 80%. You can run 5–10 threads per process without contention.</li>
         <li><strong>If 50% of request time is Ruby</strong> (heavy ERB rendering, JSON serialization, JSON parsing, in-memory transformation), thread contention starts mattering. 3–5 threads per process is the sweet spot.</li>
-        <li><strong>If you are CPU-bound</strong> (rare for Rails — usually computational endpoints like image processing), threads beyond the CPU count are wasted. Use processes instead.</li>
+        <li><strong>If you are CPU-bound</strong> (rare for Rails, usually computational endpoints like image processing), threads beyond the CPU count are wasted. Use processes instead.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
-        Your APM can tell you the I/O-to-Ruby ratio. <strong>Open one of your average endpoints in the flame chart. The colored segments are the breakdown.</strong> If the database and HTTP segments dominate, raise threads. If the Ruby segment dominates, raise processes (or look at <strong>YJIT</strong> — Ruby 3.3+'s just-in-time compiler that can speed up Ruby code by 20-40% on real Rails workloads).
+        Your APM can tell you the I/O-to-Ruby ratio. <strong>Open one of your average endpoints in the flame chart. The colored segments are the breakdown.</strong> If the database and HTTP segments dominate, raise threads. If the Ruby segment dominates, raise processes (or look at <strong>YJIT</strong>, Ruby 3.3+'s just-in-time compiler that can speed up Ruby code by 20-40% on real Rails workloads).
       </p>
       <CodeBlock code={`# config/application.rb (Ruby 3.3+)
 # Enable YJIT for production. Typical Rails throughput
@@ -147,7 +147,7 @@ end`} language="ruby" />
         <strong>Heroku's documentation</strong> on Puma sizing is the canonical Rails reference for this topic, and the math above mirrors theirs. The post titled "Concurrency and Database Connections in Ruby with ActiveRecord" (still findable on Heroku's blog) is the single best primer.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Shopify's engineering team</strong> has written multiple posts about running Rails at very high throughput, and the GVL's behavior is a recurring topic. Their advocacy for jemalloc as an alternative Ruby allocator came from production memory pressure on heavily-threaded Puma processes — a real-world artifact of the threading model. They also publish about YJIT performance on their workloads, including measurable throughput gains in production.
+        <strong>Shopify's engineering team</strong> has written multiple posts about running Rails at very high throughput, and the GVL's behavior is a recurring topic. Their advocacy for jemalloc as an alternative Ruby allocator came from production memory pressure on heavily-threaded Puma processes, a real-world artifact of the threading model. They also publish about YJIT performance on their workloads, including measurable throughput gains in production.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>GitHub's engineering blog</strong> documented their migration from Unicorn (one process, one thread) to Puma (one process, many threads) at considerable scale. The post is instructive: <strong>most of the work was not the config change; it was finding and fixing the thread-unsafe code that had accumulated over years of running on a single-threaded server</strong>. The lesson: a Rails app that is "thread-safe enough" on Unicorn is not necessarily ready for Puma without an audit.
@@ -177,7 +177,7 @@ end`} language="ruby" />
         <span aria-hidden="true">💡</span> The principle at play
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
-        <p>The GVL is a real constraint, but it operates on a smaller surface than developers usually assume. <strong>It only serializes Ruby code execution, and Ruby code is a small fraction of the time a typical Rails request spends running</strong>. The bigger fraction — waiting on the database, the HTTP response, the disk — happens with the GVL released, fully concurrent across threads.</p>
+        <p>The GVL is a real constraint, but it operates on a smaller surface than developers usually assume. <strong>It only serializes Ruby code execution, and Ruby code is a small fraction of the time a typical Rails request spends running</strong>. The bigger fraction, waiting on the database, the HTTP response, the disk, happens with the GVL released, fully concurrent across threads.</p>
         <p>The deeper move is recognizing that <strong>throughput in Rails comes from doing the math, not from copying configs</strong>. The right thread count depends on your app's I/O profile. The right pool size depends on your thread count. The right worker count depends on your CPU and memory. Three numbers, all tied together, all measurable from your APM and your database stats. The senior skill is not "knowing the right Puma config"; it is knowing the relationship between the numbers and adjusting them based on what you measure.</p>
         <p>The pragmatic value: <strong>most Rails apps are underutilized in their concurrency settings, paying for dynos that sit idle 80% of the time waiting on I/O</strong>. Tuning threads correctly can reduce dyno count substantially. It is one of the few scaling moves that costs nothing and saves money immediately.</p>
       </div>
@@ -196,8 +196,8 @@ end`} language="ruby" />
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-scaling-indexes" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 2 — Indexes</a>
-      <a href="/lessons/senior-scaling-hot-rows" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 4 — Hot Rows &amp; Contention →</a>
+      <a href="/lessons/senior-scaling-indexes" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 2, Indexes</a>
+      <a href="/lessons/senior-scaling-hot-rows" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 4, Hot Rows &amp; Contention →</a>
     </div>
   </article>
 </Layout>

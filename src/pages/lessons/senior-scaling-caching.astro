@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="Scaling 5 of 8 — Caching, Properly" description="Where Rails caching comes from, why cache invalidation is the hard part, and how Discourse, Russian-doll fragments, and HTTP ETags work together to make a fast app stay fast.">
+<Layout title="Scaling 5 of 8: Caching, Properly" description="Where Rails caching comes from, why cache invalidation is the hard part, and how Discourse, Russian-doll fragments, and HTTP ETags work together to make a fast app stay fast.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -21,7 +21,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Phil Karlton's famous remark from his time at Netscape</strong>: <em>"There are only two hard things in Computer Science: cache invalidation and naming things."</em> The line lands because anyone who has shipped caching code has felt the asymmetry. The cache itself is trivial — a key, a value, a store. The hard part is knowing when the value is no longer correct.
+        <strong>Phil Karlton's famous remark from his time at Netscape</strong>: <em>"There are only two hard things in Computer Science: cache invalidation and naming things."</em> The line lands because anyone who has shipped caching code has felt the asymmetry. The cache itself is trivial, a key, a value, a store. The hard part is knowing when the value is no longer correct.
       </p>
       <p class="text-gray-700 leading-relaxed">
         Caching in Rails has three lineages worth knowing about:
@@ -29,7 +29,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
         <li><strong>HTTP caching</strong>, defined in RFC 2068 in 1997, lets browsers and CDNs avoid round-trips entirely. <code class="bg-gray-100 px-2 py-1 rounded">ETag</code> and <code class="bg-gray-100 px-2 py-1 rounded">Last-Modified</code> headers carry the version of a response; a conditional request can return <code class="bg-gray-100 px-2 py-1 rounded">304 Not Modified</code> with no body.</li>
         <li><strong>Fragment caching</strong>, in Rails since 2.0 (2007), lets you cache parts of views. The big innovation came in Rails 4 (2013) with <strong>Russian-doll caching</strong>: nested fragments where the outer cache key automatically includes the inner caches, so invalidating an inner record invalidates the outer view by construction.</li>
-        <li><strong>Low-level caching</strong>, the generic <code class="bg-gray-100 px-2 py-1 rounded">Rails.cache.fetch(key) &#123; expensive_computation &#125;</code> wrapper. Backed by memory, Redis, memcached, or — in Rails 8 — <strong>Solid Cache</strong>, which uses Postgres.</li>
+        <li><strong>Low-level caching</strong>, the generic <code class="bg-gray-100 px-2 py-1 rounded">Rails.cache.fetch(key) &#123; expensive_computation &#125;</code> wrapper. Backed by memory, Redis, memcached, or, in Rails 8, <strong>Solid Cache</strong>, which uses Postgres.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
         The senior rule across all three: <strong>caching is not a way to speed up slow code; it is a way to avoid running correct code that has not changed</strong>. If the underlying code is slow because of an N+1 or a missing index, fix that first. Caching layered on top of fundamentally wrong code is how production incidents are built.
@@ -72,8 +72,8 @@ end`} language="ruby" />
         Before caching anything, ask: <strong>is this slow because the underlying code is slow, or because the underlying code is fundamentally expensive?</strong> The two have different fixes:
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong>Slow because of an N+1 or a missing index</strong> — fix that. Caching the wrong query gives you correct caching on incorrect work.</li>
-        <li><strong>Slow because it is fundamentally expensive</strong> — image processing, large aggregations on tables with billions of rows, paid API calls. Caching makes sense here, because the underlying work is genuinely costly even when done correctly.</li>
+        <li><strong>Slow because of an N+1 or a missing index</strong>, fix that. Caching the wrong query gives you correct caching on incorrect work.</li>
+        <li><strong>Slow because it is fundamentally expensive</strong>, image processing, large aggregations on tables with billions of rows, paid API calls. Caching makes sense here, because the underlying work is genuinely costly even when done correctly.</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
         <strong>The dashboard example above is the first case</strong>. It does not need caching; it needs indexes. Most "slow Rails endpoint" cases are this case. <strong>Apply caching when you have already made the underlying code as fast as it can be, and it is still expensive enough to justify caching.</strong>
@@ -83,7 +83,7 @@ end`} language="ruby" />
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Russian-doll fragment caching</h2>
       <p class="text-gray-700 leading-relaxed">
-        For view rendering — the case where caching genuinely pays off in Rails — DHH's <strong>Russian-doll pattern</strong> from Rails 4 is the canonical shape. The idea: <strong>nest fragment caches so that invalidating an inner one cascades correctly to its outer wrappers</strong>, by including the inner cache key in the outer cache key.
+        For view rendering, the case where caching genuinely pays off in Rails, DHH's <strong>Russian-doll pattern</strong> from Rails 4 is the canonical shape. The idea: <strong>nest fragment caches so that invalidating an inner one cascades correctly to its outer wrappers</strong>, by including the inner cache key in the outer cache key.
       </p>
       <CodeBlock code={`# views/posts/index.html.erb
 <% cache(@posts) do %>
@@ -120,7 +120,7 @@ end`} language="ruby" />
         <strong>3. <code class="bg-gray-100 px-2 py-1 rounded">touch: true</code> on associations</strong> propagates updates upward. <code class="bg-gray-100 px-2 py-1 rounded">class Comment; belongs_to :post, touch: true; end</code> means saving a Comment updates the parent Post's <code class="bg-gray-100 px-2 py-1 rounded">updated_at</code>, which invalidates the post's cache, which invalidates the index's cache. <strong>The cascade is automatic; you do not write invalidation code.</strong>
       </p>
       <p class="text-gray-700 leading-relaxed">
-        The pattern's elegance: <strong>cache invalidation becomes a side effect of normal Rails writes</strong>, not a separate concern the developer has to remember. <strong>This is why DHH says cache invalidation does not become a separate concern in Rails — because Rails-shaped caching uses cache-key-versioning, not explicit invalidation.</strong>
+        The pattern's elegance: <strong>cache invalidation becomes a side effect of normal Rails writes</strong>, not a separate concern the developer has to remember. <strong>This is why DHH says cache invalidation does not become a separate concern in Rails, because Rails-shaped caching uses cache-key-versioning, not explicit invalidation.</strong>
       </p>
     </section>
 
@@ -161,7 +161,7 @@ end
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Low-level caching with proper keys</h2>
       <p class="text-gray-700 leading-relaxed">
-        For things that are not whole responses or view fragments — expensive computations, external API responses, aggregated data — use <code class="bg-gray-100 px-2 py-1 rounded">Rails.cache.fetch</code>. The trick is the cache key. <strong>A bad cache key is the source of every cache-related production bug</strong>:
+        For things that are not whole responses or view fragments, expensive computations, external API responses, aggregated data, use <code class="bg-gray-100 px-2 py-1 rounded">Rails.cache.fetch</code>. The trick is the cache key. <strong>A bad cache key is the source of every cache-related production bug</strong>:
       </p>
       <CodeBlock code={`# Bad: global key, no versioning. Stale forever after one write.
 Rails.cache.fetch("user_count") { User.count }
@@ -211,14 +211,14 @@ end
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Solid Cache vs Redis</h2>
       <p class="text-gray-700 leading-relaxed">
-        <strong>The Rails 8 default is Solid Cache</strong> — a Postgres-backed cache that stores entries in your existing database. It is part of the same "Solid trio" as Solid Queue and Solid Cable, designed to let you run Rails apps without operating Redis.
+        <strong>The Rails 8 default is Solid Cache</strong>, a Postgres-backed cache that stores entries in your existing database. It is part of the same "Solid trio" as Solid Queue and Solid Cable, designed to let you run Rails apps without operating Redis.
       </p>
       <p class="text-gray-700 leading-relaxed">
         The tradeoff:
       </p>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
-        <li><strong>Solid Cache</strong> — one fewer service to operate, transactional consistency with your database writes, slightly higher latency per read/write than Redis. <strong>Good for the majority of apps</strong>, especially smaller ones where the operational simplicity of "no Redis" is worth the small per-operation overhead.</li>
-        <li><strong>Redis</strong> — much higher throughput on individual cache ops, mature, well-understood, requires running a Redis service. <strong>Good when you have very high cache traffic</strong>, or when your team already runs Redis for other reasons (Sidekiq before Solid Queue, ActionCable before Solid Cable, etc.).</li>
+        <li><strong>Solid Cache</strong>, one fewer service to operate, transactional consistency with your database writes, slightly higher latency per read/write than Redis. <strong>Good for the majority of apps</strong>, especially smaller ones where the operational simplicity of "no Redis" is worth the small per-operation overhead.</li>
+        <li><strong>Redis</strong>, much higher throughput on individual cache ops, mature, well-understood, requires running a Redis service. <strong>Good when you have very high cache traffic</strong>, or when your team already runs Redis for other reasons (Sidekiq before Solid Queue, ActionCable before Solid Cable, etc.).</li>
       </ul>
       <p class="text-gray-700 leading-relaxed">
         <strong>The two-schools framing</strong> from the SOLID series shows up again here. The 37signals school uses Solid Cache by default (it is in Fizzy, in Hey, in the Rails 8 install template). The Shopify/Sidekiq-heavy school continues to use Redis. <strong>Both are senior; the choice depends on what your team already operates and what your traffic profile is.</strong>
@@ -231,13 +231,13 @@ end
         <strong>Discourse</strong> is famously aggressive about caching. <strong>Sam Saffron has written extensively about Russian-doll caching, fragment caching, and HTTP caching in Discourse's blog posts.</strong> The Discourse codebase is one of the best public references for caching done well in a real Rails app, with the patterns used in production by thousands of forums.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Shopify Engineering</strong> has published about their caching tier — IdentityCache, mentioned in the hot-rows lesson, is partly a caching gem. Their post on memcached's role in Shopify's request lifecycle is instructive for very-large-scale Rails caching, though most teams will not approach Shopify's scale.
+        <strong>Shopify Engineering</strong> has published about their caching tier, IdentityCache, mentioned in the hot-rows lesson, is partly a caching gem. Their post on memcached's role in Shopify's request lifecycle is instructive for very-large-scale Rails caching, though most teams will not approach Shopify's scale.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>Basecamp / 37signals</strong> originated the Russian-doll pattern. DHH's <em>Russian Doll Caching</em> screencast from 2013 is still online and is the canonical explanation of the technique. <strong>The pattern's design — cache invalidation by key change rather than by deletion — is what makes "cache invalidation is tractable" a working claim in Rails</strong>, despite Karlton's joke.
+        <strong>Basecamp / 37signals</strong> originated the Russian-doll pattern. DHH's <em>Russian Doll Caching</em> screencast from 2013 is still online and is the canonical explanation of the technique. <strong>The pattern's design, cache invalidation by key change rather than by deletion, is what makes "cache invalidation is tractable" a working claim in Rails</strong>, despite Karlton's joke.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>GitHub's engineering blog</strong> on HTTP caching at the CDN level is worth reading for the public-API perspective. They serve enormous traffic from CDN cache hits — the percentage of requests that never reach a Rails dyno is one of their key scaling levers.
+        <strong>GitHub's engineering blog</strong> on HTTP caching at the CDN level is worth reading for the public-API perspective. They serve enormous traffic from CDN cache hits, the percentage of requests that never reach a Rails dyno is one of their key scaling levers.
       </p>
     </section>
 
@@ -245,7 +245,7 @@ end
       <h2 class="text-3xl font-bold text-gray-900">When NOT to cache</h2>
       <ul class="list-disc list-inside text-gray-700 space-y-2 ml-4">
         <li><strong>When the underlying code is fast already.</strong> Caching a 5ms query saves milliseconds; the operational complexity is not worth it.</li>
-        <li><strong>When freshness matters more than speed.</strong> Financial data, real-time chat, "is this user logged in right now" — the cost of a stale answer is higher than the cost of recomputing.</li>
+        <li><strong>When freshness matters more than speed.</strong> Financial data, real-time chat, "is this user logged in right now", the cost of a stale answer is higher than the cost of recomputing.</li>
         <li><strong>When write patterns invalidate the cache more often than it is read.</strong> A cache that is invalidated on every write and read only twice between invalidations is a net loss.</li>
         <li><strong>When you cannot reason about the cache key.</strong> If you cannot answer "what changes invalidate this cache?" in one sentence, you do not have a cache; you have a future bug.</li>
       </ul>
@@ -261,8 +261,8 @@ end
         <span aria-hidden="true">💡</span> The principle at play
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
-        <p>Caching is a contract between you and the future: <strong>"this value will not change in a way that matters before its cache key changes."</strong> The hard part of caching is making that contract correct. Russian-doll caching makes it correct by construction, because the cache key includes everything that affects the cached value, transitively. HTTP caching makes it correct by making the client responsible for noticing changes (via ETag). Low-level caching makes it correct by hand — and gets it wrong frequently.</p>
-        <p>The deeper move is that <strong>"the cache stays correct" should be a property of the cache key, not a property of code you remember to write</strong>. When you cache <code class="bg-gray-100 px-2 py-1 rounded">[user.cache_key, "stats"]</code>, you have outsourced invalidation to Rails — user gets updated, key changes, cache is functionally invalidated. When you cache <code class="bg-gray-100 px-2 py-1 rounded">"user_#&#123;user.id&#125;_stats"</code>, you have to remember to delete that key in every code path that mutates the user, which is brittle.</p>
+        <p>Caching is a contract between you and the future: <strong>"this value will not change in a way that matters before its cache key changes."</strong> The hard part of caching is making that contract correct. Russian-doll caching makes it correct by construction, because the cache key includes everything that affects the cached value, transitively. HTTP caching makes it correct by making the client responsible for noticing changes (via ETag). Low-level caching makes it correct by hand, and gets it wrong frequently.</p>
+        <p>The deeper move is that <strong>"the cache stays correct" should be a property of the cache key, not a property of code you remember to write</strong>. When you cache <code class="bg-gray-100 px-2 py-1 rounded">[user.cache_key, "stats"]</code>, you have outsourced invalidation to Rails, user gets updated, key changes, cache is functionally invalidated. When you cache <code class="bg-gray-100 px-2 py-1 rounded">"user_#&#123;user.id&#125;_stats"</code>, you have to remember to delete that key in every code path that mutates the user, which is brittle.</p>
         <p>The pragmatic value: <strong>most "the cache is stale" production incidents come from cache keys that did not include the right inputs</strong>. Designing the cache key well is the work; the rest is plumbing.</p>
       </div>
     </section>
@@ -279,8 +279,8 @@ end
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-scaling-hot-rows" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 4 — Hot Rows</a>
-      <a href="/lessons/senior-scaling-background-jobs" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 6 — Background Jobs →</a>
+      <a href="/lessons/senior-scaling-hot-rows" class="text-ruby hover:text-ruby-dark transition-colors">← Scaling 4, Hot Rows</a>
+      <a href="/lessons/senior-scaling-background-jobs" class="text-ruby hover:text-ruby-dark transition-colors">Scaling 6, Background Jobs →</a>
     </div>
   </article>
 </Layout>

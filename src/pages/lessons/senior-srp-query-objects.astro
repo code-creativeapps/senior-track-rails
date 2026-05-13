@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 ---
 
-<Layout title="SRP 3 of 7 — Query Objects in Real Rails Code" description="Where query objects come from, why scopes stop scaling at a certain size, and how Mastodon's Trends::Query keeps complex filter logic out of its models.">
+<Layout title="SRP 3 of 7: Query Objects in Real Rails Code" description="Where query objects come from, why scopes stop scaling at a certain size, and how Mastodon's Trends::Query keeps complex filter logic out of its models.">
   <article class="max-w-7xl mx-auto px-6 py-12 space-y-10">
     <div>
       <a href="/" class="text-ruby hover:text-ruby-dark transition-colors inline-flex items-center gap-2 mb-6">
@@ -21,7 +21,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
     <section class="space-y-4">
       <h2 class="text-3xl font-bold text-gray-900">Where this rule comes from</h2>
       <p class="text-gray-700 leading-relaxed">
-        ActiveRecord ships with scopes for a reason. A scope is a small named query attached to a model — <code class="bg-gray-100 px-2 py-1 rounded">User.active</code>, <code class="bg-gray-100 px-2 py-1 rounded">Post.published</code>, <code class="bg-gray-100 px-2 py-1 rounded">Order.recent</code>. <strong>For one-condition queries, scopes are the right tool.</strong> They are short, they compose with chaining, and they live next to the model whose data they describe.
+        ActiveRecord ships with scopes for a reason. A scope is a small named query attached to a model, <code class="bg-gray-100 px-2 py-1 rounded">User.active</code>, <code class="bg-gray-100 px-2 py-1 rounded">Post.published</code>, <code class="bg-gray-100 px-2 py-1 rounded">Order.recent</code>. <strong>For one-condition queries, scopes are the right tool.</strong> They are short, they compose with chaining, and they live next to the model whose data they describe.
       </p>
       <p class="text-gray-700 leading-relaxed">
         The problem is that scopes have no natural limit. The same syntax that gives you <code class="bg-gray-100 px-2 py-1 rounded">scope :active, -> &#123; where(active: true) &#125;</code> also lets you write a thirty-line scope with seven joins, an optional authorization filter, dynamic ordering, and a special case for unconfirmed users. <strong>The scope still lives on the model, but at that size it stops being "a small named query" and starts being a whole query-building system.</strong>
@@ -57,7 +57,7 @@ import CodeBlock from '../../components/CodeBlock.astro';
   # ... 12 more scopes that share most of these conditions
 end`} language="ruby" />
       <p class="text-gray-700 leading-relaxed">
-        <strong>The Tag model now has three reasons to change.</strong> The first is "what is a tag in our database" — its columns, its associations, its callbacks. The second is "what is allowed to be shown right now to whom" — an authorization rule that depends on whether the viewer is a moderator, whether the viewer is confirmed, whether the trend score is high enough. The third is "how do we paginate this list" — limit, offset, ordering. Each one has a different team behind it: the data team owns the first, the safety team owns the second, the product team owns the third.
+        <strong>The Tag model now has three reasons to change.</strong> The first is "what is a tag in our database", its columns, its associations, its callbacks. The second is "what is allowed to be shown right now to whom", an authorization rule that depends on whether the viewer is a moderator, whether the viewer is confirmed, whether the trend score is high enough. The third is "how do we paginate this list", limit, offset, ordering. Each one has a different team behind it: the data team owns the first, the safety team owns the second, the product team owns the third.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>The same query shape is about to spread.</strong> When trending statuses arrive next month, someone will copy these scopes onto the Status model. When trending links arrive after that, someone will copy them onto Link. Three copies, three subtly diverging implementations, and a single bug-fix that needs to land in three places at once.
@@ -100,7 +100,7 @@ end`} language="ruby" />
         <strong>It is a plain Ruby class, not a model or a concern.</strong> The constructor takes a prefix (used for caching) and the ActiveRecord class it queries against. Same query object, three different subjects, no inheritance.
       </p>
       <p class="text-gray-700 leading-relaxed">
-        <strong>It includes <code class="bg-gray-100 px-2 py-1 rounded">Enumerable</code>.</strong> That single line lets callers iterate over a query like a regular collection — <code class="bg-gray-100 px-2 py-1 rounded">query.each do |tag| ... end</code>, <code class="bg-gray-100 px-2 py-1 rounded">query.map(&amp;:id)</code>, <code class="bg-gray-100 px-2 py-1 rounded">query.to_a</code> — without the class itself needing to know which underlying records will be returned.
+        <strong>It includes <code class="bg-gray-100 px-2 py-1 rounded">Enumerable</code>.</strong> That single line lets callers iterate over a query like a regular collection, <code class="bg-gray-100 px-2 py-1 rounded">query.each do |tag| ... end</code>, <code class="bg-gray-100 px-2 py-1 rounded">query.map(&amp;:id)</code>, <code class="bg-gray-100 px-2 py-1 rounded">query.to_a</code>, without the class itself needing to know which underlying records will be returned.
       </p>
       <p class="text-gray-700 leading-relaxed">
         <strong>The filter methods are builder-style.</strong> <code class="bg-gray-100 px-2 py-1 rounded">allowed!</code>, <code class="bg-gray-100 px-2 py-1 rounded">filtered_for!(account)</code>, <code class="bg-gray-100 px-2 py-1 rounded">limit(n)</code>, <code class="bg-gray-100 px-2 py-1 rounded">offset(n)</code> all mutate state and return <code class="bg-gray-100 px-2 py-1 rounded">self</code>, so the caller can chain them or call them conditionally. <strong>This is the same shape an ActiveRecord relation has, but without the gravitational pull of the model.</strong>
@@ -164,7 +164,7 @@ end`} language="ruby" />
         <span aria-hidden="true">💡</span> The principle at play
       </h3>
       <div class="space-y-3 text-gray-700 leading-relaxed">
-        <p><strong>The model and the query are answering different questions.</strong> The model answers "what is a tag" — a database row, a set of columns, a few associations. The query answers "given a viewer and a moment in time, which tags are interesting right now?" The first question barely changes; the second one changes every time the safety team or the product team wants to tune the rules.</p>
+        <p><strong>The model and the query are answering different questions.</strong> The model answers "what is a tag", a database row, a set of columns, a few associations. The query answers "given a viewer and a moment in time, which tags are interesting right now?" The first question barely changes; the second one changes every time the safety team or the product team wants to tune the rules.</p>
         <p>The deeper principle, the one that goes back to David Parnas in the 1970s, is that <strong>good module boundaries match the boundaries of change in the world</strong>. A change that comes from one team should touch one file. A query object turns "viewer permissions for trending content" into a single file that one team owns, instead of a thirty-line scope on a model that ten teams touch.</p>
         <p>The pattern is also a small admission that <strong>ActiveRecord's scope feature was designed for a world where queries stay simple</strong>. Once a query has its own state, its own builder methods, and its own subject (it can run against multiple tables), it has become a domain concept in its own right. Give that concept a class, give it a name, and let the model go back to being a model.</p>
       </div>
@@ -182,8 +182,8 @@ end`} language="ruby" />
     </section>
 
     <div class="flex justify-between items-center pt-8 border-t border-gray-200">
-      <a href="/lessons/senior-srp-form-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 2 — Form Objects</a>
-      <a href="/lessons/senior-srp-policy-objects" class="text-ruby hover:text-ruby-dark transition-colors">SRP 4 — Policy Objects →</a>
+      <a href="/lessons/senior-srp-form-objects" class="text-ruby hover:text-ruby-dark transition-colors">← SRP 2, Form Objects</a>
+      <a href="/lessons/senior-srp-policy-objects" class="text-ruby hover:text-ruby-dark transition-colors">SRP 4, Policy Objects →</a>
     </div>
   </article>
 </Layout>
