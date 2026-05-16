@@ -142,7 +142,7 @@ const breadcrumbSchema = {
         <a href="/" class="font-semibold tracking-tight text-neutral-900 whitespace-nowrap">
           rails<span class="text-gum-pink">/</span>fullstack <span class="text-neutral-400 font-normal">/ learn</span>
         </a>
-        <div class="flex items-center gap-5 text-sm">
+        <div class="hidden lg:flex items-center gap-5 text-sm">
           <a href="/practice" class="text-neutral-500 hover:text-neutral-900 transition-colors">Practice</a>
           <a href="/reading-the-source" class="text-neutral-500 hover:text-neutral-900 transition-colors">Rails source code</a>
           <a href="/solid" class="text-neutral-500 hover:text-neutral-900 transition-colors">SOLID</a>
@@ -155,8 +155,45 @@ const breadcrumbSchema = {
             Job board ↗
           </a>
         </div>
+        <button
+          id="nav-toggle"
+          type="button"
+          class="lg:hidden inline-flex items-center justify-center w-9 h-9 -mr-2 rounded text-neutral-700 hover:bg-neutral-100 transition-colors"
+          aria-label="Open navigation menu"
+          aria-expanded="false"
+          aria-controls="mobile-nav"
+        >
+          <svg id="nav-icon-open"  class="w-5 h-5"        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6"  x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          <svg id="nav-icon-close" class="w-5 h-5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+        </button>
       </nav>
+      <div id="mobile-nav" class="lg:hidden hidden border-t border-black/[0.06] bg-white">
+        <div class="max-w-7xl mx-auto px-6 py-3 flex flex-col text-sm">
+          <a href="/practice"            class="py-2 text-neutral-700 hover:text-neutral-900 transition-colors">Practice</a>
+          <a href="/reading-the-source"  class="py-2 text-neutral-700 hover:text-neutral-900 transition-colors">Rails source code</a>
+          <a href="/solid"               class="py-2 text-neutral-700 hover:text-neutral-900 transition-colors">SOLID</a>
+          <a href="/scaling"             class="py-2 text-neutral-700 hover:text-neutral-900 transition-colors">Scaling</a>
+          <a href="/payments"            class="py-2 text-neutral-700 hover:text-neutral-900 transition-colors">Payments</a>
+          <a href="/interview"           class="py-2 text-neutral-700 hover:text-neutral-900 transition-colors">Interview</a>
+          <a href="/hotwire"             class="py-2 text-neutral-700 hover:text-neutral-900 transition-colors">Hotwire</a>
+          <a href="/databases"           class="py-2 text-neutral-700 hover:text-neutral-900 transition-colors">Databases</a>
+          <a href="https://railsfullstack.com" class="py-2 text-neutral-700 hover:text-gum-pink transition-colors">Job board ↗</a>
+        </div>
+      </div>
     </header>
+    <script>
+      const toggle = document.getElementById('nav-toggle');
+      const panel  = document.getElementById('mobile-nav');
+      const iOpen  = document.getElementById('nav-icon-open');
+      const iClose = document.getElementById('nav-icon-close');
+      toggle?.addEventListener('click', () => {
+        const open = panel?.classList.toggle('hidden') === false;
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+        iOpen?.classList.toggle('hidden', open);
+        iClose?.classList.toggle('hidden', !open);
+      });
+    </script>
     <main>
       <slot />
     </main>
