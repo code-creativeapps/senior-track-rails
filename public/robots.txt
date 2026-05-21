@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://senior-track.railsfullstack.com/sitemap-index.xml
+Sitemap: https://learn.railsfullstack.com/sitemap-index.xml

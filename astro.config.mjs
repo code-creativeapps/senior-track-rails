@@ -5,7 +5,8 @@ import sitemap from '@astrojs/sitemap';
 import icon from 'astro-icon';
 
 export default defineConfig({
-  // Change this to your real production URL before deploying.
-  site: 'https://senior-track.railsfullstack.com',
+  // Production URL — drives @astrojs/sitemap absolute URLs and any
+  // `Astro.site`-based references in pages/layouts.
+  site: 'https://learn.railsfullstack.com',
   integrations: [tailwind(), sitemap(), icon()],
 });

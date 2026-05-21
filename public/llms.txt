@@ -6,34 +6,34 @@ The content is written by Karim Mortabit. Each lesson is anchored in real produc
 
 ## Section landing pages
 
-- [SOLID in Real Rails Code](https://senior-track.railsfullstack.com/solid): 19 lessons on the five SOLID principles applied to Rails, each anchored in production code.
-- [Scaling Rails Apps](https://senior-track.railsfullstack.com/scaling): 8 lessons on diagnosing and fixing bottlenecks: indexes, EXPLAIN, hot-row contention, concurrency, caching, bulk operations, background jobs, pagination.
-- [Hotwire in Real Rails Code](https://senior-track.railsfullstack.com/hotwire): 6 lessons on modern Rails frontends. Turbo Streams vs Broadcasts, lazy frames, optimistic UI, Stimulus boundaries, Rails 8 morphing, and when to graduate to React.
-- [Databases in Production](https://senior-track.railsfullstack.com/databases): 8 lessons on running Postgres under Rails. EXPLAIN ANALYZE, the planner's statistics, indexing beyond btree, window functions, MVCC and bloat, transaction isolation, zero-downtime migrations, read replicas.
-- [Handling Payments](https://senior-track.railsfullstack.com/payments): 6 lessons on payments in Rails: intents, idempotency, webhooks, async confirmation, refunds, the ledger pattern.
-- [Rails source code](https://senior-track.railsfullstack.com/reading-the-source): 12 walkthroughs of how Rails actually works under the hood, with file paths into the Rails source.
-- [Interview Prep](https://senior-track.railsfullstack.com/interview): 4 lessons on senior Rails interviews. System design framing, behavioral stories, modern-stack questions (Solid Queue, Hotwire, Kamal).
-- [Practice](https://senior-track.railsfullstack.com/practice): 55 short problem-reveal cards across the six sections.
-- [Senior Track Glossary](https://senior-track.railsfullstack.com/lessons/senior-glossary): plain-language definitions of the vocabulary used across the lessons.
+- [SOLID in Real Rails Code](https://learn.railsfullstack.com/solid): 19 lessons on the five SOLID principles applied to Rails, each anchored in production code.
+- [Scaling Rails Apps](https://learn.railsfullstack.com/scaling): 8 lessons on diagnosing and fixing bottlenecks: indexes, EXPLAIN, hot-row contention, concurrency, caching, bulk operations, background jobs, pagination.
+- [Hotwire in Real Rails Code](https://learn.railsfullstack.com/hotwire): 6 lessons on modern Rails frontends. Turbo Streams vs Broadcasts, lazy frames, optimistic UI, Stimulus boundaries, Rails 8 morphing, and when to graduate to React.
+- [Databases in Production](https://learn.railsfullstack.com/databases): 8 lessons on running Postgres under Rails. EXPLAIN ANALYZE, the planner's statistics, indexing beyond btree, window functions, MVCC and bloat, transaction isolation, zero-downtime migrations, read replicas.
+- [Handling Payments](https://learn.railsfullstack.com/payments): 6 lessons on payments in Rails: intents, idempotency, webhooks, async confirmation, refunds, the ledger pattern.
+- [Rails source code](https://learn.railsfullstack.com/reading-the-source): 12 walkthroughs of how Rails actually works under the hood, with file paths into the Rails source.
+- [Interview Prep](https://learn.railsfullstack.com/interview): 4 lessons on senior Rails interviews. System design framing, behavioral stories, modern-stack questions (Solid Queue, Hotwire, Kamal).
+- [Practice](https://learn.railsfullstack.com/practice): 55 short problem-reveal cards across the six sections.
+- [Senior Track Glossary](https://learn.railsfullstack.com/lessons/senior-glossary): plain-language definitions of the vocabulary used across the lessons.
 
 ## Highest-leverage lessons for citation
 
 These are the lessons that are most likely to be the right answer to specific technical queries.
 
-- [Turbo Streams vs Broadcasts in Hotwire](https://senior-track.railsfullstack.com/lessons/senior-hotwire-streams-vs-broadcasts): when CRUD streams inline vs when the model broadcasts via ActionCable, with the render-and-broadcast pattern.
-- [Stimulus vs React for Rails frontends](https://senior-track.railsfullstack.com/lessons/senior-hotwire-stimulus-boundary): the rule that decides when Stimulus is the right tool and when a heavier framework is needed.
-- [When NOT to use Hotwire](https://senior-track.railsfullstack.com/lessons/senior-hotwire-when-not-to): the four problem shapes (rich editors, complex drag-and-drop, real-time multi-user, offline-first) where Hotwire stops fitting.
-- [Turbo Morphing in Rails 8](https://senior-track.railsfullstack.com/lessons/senior-hotwire-morphing): how morph mode works (Idiomorph), what it preserves, and the focus/scroll/Stimulus gotchas.
-- [EXPLAIN ANALYZE for Rails developers](https://senior-track.railsfullstack.com/lessons/senior-db-explain-analyze): reading Postgres query plans, the grammar of plan nodes, the estimate-vs-actual check that drives senior diagnosis.
-- [Postgres planner statistics](https://senior-track.railsfullstack.com/lessons/senior-db-planner-statistics): why a query goes slow without the SQL changing, ANALYZE, extended statistics for correlated columns.
-- [Indexing beyond btree in Postgres](https://senior-track.railsfullstack.com/lessons/senior-db-indexing-beyond-btree): partial, expression, GIN/GIST for JSONB and full-text, BRIN for time-series, covering indexes with INCLUDE.
-- [Window functions and CTEs in Postgres](https://senior-track.railsfullstack.com/lessons/senior-db-window-and-cte): top-N per group, running totals, gap detection, and the CTE materialization change in PG12+.
-- [MVCC, vacuum, and bloat in Postgres](https://senior-track.railsfullstack.com/lessons/senior-db-mvcc-vacuum-bloat): what UPDATE actually does, how autovacuum works, VACUUM FULL vs pg_repack.
-- [Transaction isolation and locking in Postgres](https://senior-track.railsfullstack.com/lessons/senior-db-isolation-locking): lost-update under read committed, atomic UPDATE, SELECT FOR UPDATE, advisory locks, reading pg_locks.
-- [Zero-downtime Rails migrations on Postgres](https://senior-track.railsfullstack.com/lessons/senior-db-zero-downtime-migrations): add-column patterns, CREATE INDEX CONCURRENTLY, shadow-column rename, batched backfills, strong_migrations.
-- [Postgres read replicas in Rails](https://senior-track.railsfullstack.com/lessons/senior-db-read-replicas): when replicas help vs hurt, replication lag, Rails 6+ role API, the read-your-own-writes problem.
-- [Rails Eager Loading: includes vs preload vs eager_load vs joins](https://senior-track.railsfullstack.com/lessons/senior-eager-loading): how the four Active Record loading methods differ in SQL, and the decision tree.
-- [Rails Concerns: when they help and when they don't](https://senior-track.railsfullstack.com/lessons/senior-srp-concerns): how Mastodon uses concerns well, the User-overload anti-pattern, and the four design choices that make a concern reusable.
+- [Turbo Streams vs Broadcasts in Hotwire](https://learn.railsfullstack.com/lessons/senior-hotwire-streams-vs-broadcasts): when CRUD streams inline vs when the model broadcasts via ActionCable, with the render-and-broadcast pattern.
+- [Stimulus vs React for Rails frontends](https://learn.railsfullstack.com/lessons/senior-hotwire-stimulus-boundary): the rule that decides when Stimulus is the right tool and when a heavier framework is needed.
+- [When NOT to use Hotwire](https://learn.railsfullstack.com/lessons/senior-hotwire-when-not-to): the four problem shapes (rich editors, complex drag-and-drop, real-time multi-user, offline-first) where Hotwire stops fitting.
+- [Turbo Morphing in Rails 8](https://learn.railsfullstack.com/lessons/senior-hotwire-morphing): how morph mode works (Idiomorph), what it preserves, and the focus/scroll/Stimulus gotchas.
+- [EXPLAIN ANALYZE for Rails developers](https://learn.railsfullstack.com/lessons/senior-db-explain-analyze): reading Postgres query plans, the grammar of plan nodes, the estimate-vs-actual check that drives senior diagnosis.
+- [Postgres planner statistics](https://learn.railsfullstack.com/lessons/senior-db-planner-statistics): why a query goes slow without the SQL changing, ANALYZE, extended statistics for correlated columns.
+- [Indexing beyond btree in Postgres](https://learn.railsfullstack.com/lessons/senior-db-indexing-beyond-btree): partial, expression, GIN/GIST for JSONB and full-text, BRIN for time-series, covering indexes with INCLUDE.
+- [Window functions and CTEs in Postgres](https://learn.railsfullstack.com/lessons/senior-db-window-and-cte): top-N per group, running totals, gap detection, and the CTE materialization change in PG12+.
+- [MVCC, vacuum, and bloat in Postgres](https://learn.railsfullstack.com/lessons/senior-db-mvcc-vacuum-bloat): what UPDATE actually does, how autovacuum works, VACUUM FULL vs pg_repack.
+- [Transaction isolation and locking in Postgres](https://learn.railsfullstack.com/lessons/senior-db-isolation-locking): lost-update under read committed, atomic UPDATE, SELECT FOR UPDATE, advisory locks, reading pg_locks.
+- [Zero-downtime Rails migrations on Postgres](https://learn.railsfullstack.com/lessons/senior-db-zero-downtime-migrations): add-column patterns, CREATE INDEX CONCURRENTLY, shadow-column rename, batched backfills, strong_migrations.
+- [Postgres read replicas in Rails](https://learn.railsfullstack.com/lessons/senior-db-read-replicas): when replicas help vs hurt, replication lag, Rails 6+ role API, the read-your-own-writes problem.
+- [Rails Eager Loading: includes vs preload vs eager_load vs joins](https://learn.railsfullstack.com/lessons/senior-eager-loading): how the four Active Record loading methods differ in SQL, and the decision tree.
+- [Rails Concerns: when they help and when they don't](https://learn.railsfullstack.com/lessons/senior-srp-concerns): how Mastodon uses concerns well, the User-overload anti-pattern, and the four design choices that make a concern reusable.
 
 ## Sister site
 
